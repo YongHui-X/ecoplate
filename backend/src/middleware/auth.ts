@@ -1,0 +1,97 @@
+import * as jose from "jose";
+import { error } from "../utils/router";
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || "ecoplate-development-secret-change-in-production"
+);
+
+const ACCESS_TOKEN_EXPIRY = "15m";
+const REFRESH_TOKEN_EXPIRY = "7d";
+
+export interface JWTPayload {
+  sub: string;
+  email: string;
+  name: string;
+}
+
+export interface AuthenticatedRequest extends Request {
+  user?: {
+    id: number;
+    email: string;
+    name: string;
+  };
+}
+
+export async function generateAccessToken(payload: JWTPayload): Promise<string> {
+  return new jose.SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(ACCESS_TOKEN_EXPIRY)
+    .sign(JWT_SECRET);
+}
+
+export async function generateRefreshToken(payload: JWTPayload): Promise<string> {
+  return new jose.SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(REFRESH_TOKEN_EXPIRY)
+    .sign(JWT_SECRET);
+}
+
+export async function verifyToken(token: string): Promise<JWTPayload | null> {
+  try {
+    const { payload } = await jose.jwtVerify(token, JWT_SECRET);
+    return payload as unknown as JWTPayload;
+  } catch {
+    return null;
+  }
+}
+
+export async function hashPassword(password: string): Promise<string> {
+  return Bun.password.hash(password, {
+    algorithm: "bcrypt",
+    cost: 10,
+  });
+}
+
+export async function verifyPassword(
+  password: string,
+  hash: string
+): Promise<boolean> {
+  return Bun.password.verify(password, hash);
+}
+
+export async function authMiddleware(
+  req: Request,
+  next: () => Promise<Response>
+): Promise<Response> {
+  const authHeader = req.headers.get("Authorization");
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return error("Unauthorized: Missing or invalid token", 401);
+  }
+
+  const token = authHeader.slice(7);
+  const payload = await verifyToken(token);
+
+  if (!payload) {
+    return error("Unauthorized: Invalid or expired token", 401);
+  }
+
+  // Attach user info to request
+  (req as AuthenticatedRequest).user = {
+    id: parseInt(payload.sub, 10),
+    email: payload.email,
+    name: payload.name,
+  };
+
+  return next();
+}
+
+export function getUser(req: Request): { id: number; email: string; name: string } {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+  return user;
+}

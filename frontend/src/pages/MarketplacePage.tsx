@@ -1,0 +1,240 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api } from "../services/api";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Card, CardContent } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Plus, Search, MapPin, Clock, Eye } from "lucide-react";
+import { formatDate, getDaysUntilExpiry } from "../lib/utils";
+
+interface Listing {
+  id: number;
+  title: string;
+  description: string | null;
+  category: string | null;
+  quantity: number;
+  unit: string;
+  price: number | null;
+  originalPrice: number | null;
+  expiryDate: string | null;
+  pickupLocation: string | null;
+  status: string;
+  viewCount: number;
+  createdAt: string;
+  seller: {
+    id: number;
+    name: string;
+    avatarUrl: string | null;
+  };
+  images: Array<{ id: number; imageUrl: string }>;
+}
+
+const categories = [
+  "All",
+  "produce",
+  "dairy",
+  "meat",
+  "bakery",
+  "frozen",
+  "beverages",
+  "pantry",
+  "other",
+];
+
+export default function MarketplacePage() {
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+
+  useEffect(() => {
+    loadListings();
+  }, []);
+
+  const loadListings = async () => {
+    try {
+      const data = await api.get<Listing[]>("/marketplace/listings");
+      setListings(data);
+    } catch (error) {
+      console.error("Failed to load listings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredListings = listings.filter((l) => {
+    const matchesSearch =
+      l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      l.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory =
+      selectedCategory === "All" || l.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Marketplace</h1>
+          <p className="text-gray-600">Find great deals on near-expiry food</p>
+        </div>
+        <Button asChild>
+          <Link to="/marketplace/create">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Listing
+          </Link>
+        </Button>
+      </div>
+
+      {/* Search and filters */}
+      <div className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search listings..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {categories.map((cat) => (
+            <Button
+              key={cat}
+              variant={selectedCategory === cat ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCategory(cat)}
+              className="whitespace-nowrap"
+            >
+              {cat === "All" ? cat : cat.charAt(0).toUpperCase() + cat.slice(1)}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Listings grid */}
+      {filteredListings.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <p className="text-gray-500 mb-4">No listings found</p>
+            <Button asChild>
+              <Link to="/marketplace/create">Create the first listing</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredListings.map((listing) => (
+            <ListingCard key={listing.id} listing={listing} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ListingCard({ listing }: { listing: Listing }) {
+  const daysUntil = getDaysUntilExpiry(listing.expiryDate);
+  const discount =
+    listing.originalPrice && listing.price
+      ? Math.round((1 - listing.price / listing.originalPrice) * 100)
+      : null;
+
+  return (
+    <Link to={`/marketplace/${listing.id}`}>
+      <Card className="hover:shadow-md transition-shadow overflow-hidden">
+        <div className="aspect-video bg-gray-100 relative">
+          {listing.images[0] ? (
+            <img
+              src={listing.images[0].imageUrl}
+              alt={listing.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400">
+              No image
+            </div>
+          )}
+          {discount && (
+            <Badge className="absolute top-2 right-2 bg-red-500">
+              -{discount}%
+            </Badge>
+          )}
+        </div>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-semibold line-clamp-1">{listing.title}</h3>
+            {listing.category && (
+              <Badge variant="secondary" className="shrink-0">
+                {listing.category}
+              </Badge>
+            )}
+          </div>
+
+          <div className="mt-2 space-y-1 text-sm text-gray-600">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {daysUntil !== null ? (
+                daysUntil < 0 ? (
+                  <span className="text-red-600">Expired</span>
+                ) : daysUntil === 0 ? (
+                  <span className="text-yellow-600">Expires today</span>
+                ) : (
+                  <span>{daysUntil} days left</span>
+                )
+              ) : (
+                <span>No expiry set</span>
+              )}
+            </div>
+            {listing.pickupLocation && (
+              <div className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                <span className="line-clamp-1">{listing.pickupLocation}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              <Eye className="h-3 w-3" />
+              <span>{listing.viewCount} views</span>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between">
+            <div>
+              {listing.price === null || listing.price === 0 ? (
+                <span className="text-lg font-bold text-green-600">Free</span>
+              ) : (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-bold">${listing.price}</span>
+                  {listing.originalPrice && (
+                    <span className="text-sm text-gray-400 line-through">
+                      ${listing.originalPrice}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="text-sm text-gray-500">
+              {listing.quantity} {listing.unit}
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs text-primary font-medium">
+              {listing.seller.name.charAt(0).toUpperCase()}
+            </div>
+            <span className="text-sm text-gray-600">{listing.seller.name}</span>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}

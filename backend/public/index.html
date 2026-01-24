@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoPlate</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      color: #16a34a;
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      color: #666;
+      margin-bottom: 2rem;
+    }
+    .instructions {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      text-align: left;
+      max-width: 500px;
+    }
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>EcoPlate</h1>
+    <p>Reduce food waste, save the planet</p>
+    <div class="instructions">
+      <p><strong>To see the full app, build the frontend:</strong></p>
+      <pre>cd frontend
+bun install
+bun run build</pre>
+      <p style="margin-top: 1rem;">Or run the dev server for hot reloading:</p>
+      <pre>cd frontend
+bun run dev</pre>
+      <p style="margin-top: 1rem; color: #666; font-size: 0.9em;">
+        The frontend dev server runs on <code>http://localhost:5173</code> and proxies API requests to this backend.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

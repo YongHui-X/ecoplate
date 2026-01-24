@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs (keep dist for multi-stage build)
+build/
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+.eslintcache
+.parcel-cache/
+
+# Testing
+coverage/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Misc
+*.pem
+.vercel
+Dockerfile*
+docker-compose*.yml
