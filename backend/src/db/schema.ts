@@ -49,53 +49,26 @@ export const products = sqliteTable("products", {
   userId: integer("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  category: text("category"), // e.g., "dairy", "produce", "meat"
+  productName: text("product_name").notNull(),
+  category: text("category"),
   quantity: real("quantity").notNull().default(1),
-  unit: text("unit").default("item"), // "item", "kg", "g", "l", "ml"
-  purchaseDate: integer("purchase_date", { mode: "timestamp" }),
-  expiryDate: integer("expiry_date", { mode: "timestamp" }),
-  storageLocation: text("storage_location").default("fridge"), // "fridge", "freezer", "pantry"
-  notes: text("notes"),
-  imageUrl: text("image_url"),
-  barcode: text("barcode"),
-  isConsumed: integer("is_consumed", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
+  unitPrice: real("unit_price"),
+  purchaseDate: text("purchase_date"), // YYYY-MM-DD format
+  description: text("description"),
+  co2Emission: real("co2_emission"),
 });
 
-export const receiptScans = sqliteTable("receipt_scans", {
+export const productInteraction = sqliteTable("product_interaction", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  imageUrl: text("image_url").notNull(),
-  rawText: text("raw_text"),
-  parsedData: text("parsed_data"), // JSON string of parsed items
-  status: text("status").default("pending"), // "pending", "processed", "failed"
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
-
-export const consumptionLogs = sqliteTable("consumption_logs", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
   productId: integer("product_id")
     .notNull()
     .references(() => products.id, { onDelete: "cascade" }),
-  action: text("action").notNull(), // "consumed", "wasted", "shared", "sold"
-  quantity: real("quantity").notNull(),
-  notes: text("notes"),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  userId: integer("user_id")
     .notNull()
-    .$defaultFn(() => new Date()),
+    .references(() => users.id, { onDelete: "cascade" }),
+  todayDate: text("today_date"), // YYYY-MM-DD format
+  quantity: real("quantity"),
+  type: text("type"), // e.g., "consumed", "wasted", "shared", "sold"
 });
 
 // ==================== Marketplace ====================
@@ -269,8 +242,7 @@ export const dailySustainabilitySnapshots = sqliteTable(
 
 export const usersRelations = relations(users, ({ many, one }) => ({
   products: many(products),
-  receiptScans: many(receiptScans),
-  consumptionLogs: many(consumptionLogs),
+  productInteractions: many(productInteraction),
   listings: many(marketplaceListings, { relationName: "seller" }),
   sentMessages: many(messages, { relationName: "sender" }),
   receivedMessages: many(messages, { relationName: "receiver" }),
@@ -283,8 +255,13 @@ export const usersRelations = relations(users, ({ many, one }) => ({
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   user: one(users, { fields: [products.userId], references: [users.id] }),
-  consumptionLogs: many(consumptionLogs),
+  interactions: many(productInteraction),
   listings: many(marketplaceListings),
+}));
+
+export const productInteractionRelations = relations(productInteraction, ({ one }) => ({
+  product: one(products, { fields: [productInteraction.productId], references: [products.id] }),
+  user: one(users, { fields: [productInteraction.userId], references: [users.id] }),
 }));
 
 export const marketplaceListingsRelations = relations(

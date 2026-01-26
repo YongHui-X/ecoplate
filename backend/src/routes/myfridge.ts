@@ -1,27 +1,25 @@
 import { Router, json, error, parseBody } from "../utils/router";
 import { db } from "../index";
-import { products, consumptionLogs, userPoints, userSustainabilityMetrics, pointTransactions } from "../db/schema";
-import { eq, and, desc, gte, lte } from "drizzle-orm";
+import { products, productInteraction, userPoints } from "../db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 import { getUser } from "../middleware/auth";
 import OpenAI from "openai";
 
 const productSchema = z.object({
-  name: z.string().min(1).max(200),
+  productName: z.string().min(1).max(200),
   category: z.string().optional(),
   quantity: z.number().positive().default(1),
-  unit: z.string().default("item"),
+  unitPrice: z.number().optional(),
   purchaseDate: z.string().optional(),
-  expiryDate: z.string().optional(),
-  storageLocation: z.enum(["fridge", "freezer", "pantry"]).default("fridge"),
-  notes: z.string().optional(),
-  barcode: z.string().optional(),
+  description: z.string().optional(),
+  co2Emission: z.number().optional(),
 });
 
-const consumeSchema = z.object({
-  action: z.enum(["consumed", "wasted", "shared", "sold"]),
+const interactionSchema = z.object({
+  type: z.enum(["consumed", "wasted", "shared", "sold"]),
   quantity: z.number().positive(),
-  notes: z.string().optional(),
+  todayDate: z.string().optional(),
 });
 
 // Points awarded for different actions
@@ -33,20 +31,14 @@ const POINTS = {
   addProduct: 2,
 };
 
-// Estimated CO2 per kg of food waste prevented (kg)
-const CO2_PER_KG_FOOD = 2.5;
-
 export function registerMyFridgeRoutes(router: Router) {
   // Get all products
   router.get("/api/v1/myfridge/products", async (req) => {
     const user = getUser(req);
 
     const userProducts = await db.query.products.findMany({
-      where: and(
-        eq(products.userId, user.id),
-        eq(products.isConsumed, false)
-      ),
-      orderBy: [desc(products.expiryDate)],
+      where: eq(products.userId, user.id),
+      orderBy: [desc(products.id)],
     });
 
     return json(userProducts);
@@ -63,20 +55,18 @@ export function registerMyFridgeRoutes(router: Router) {
         .insert(products)
         .values({
           userId: user.id,
-          name: data.name,
+          productName: data.productName,
           category: data.category,
           quantity: data.quantity,
-          unit: data.unit,
-          purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
-          expiryDate: data.expiryDate ? new Date(data.expiryDate) : undefined,
-          storageLocation: data.storageLocation,
-          notes: data.notes,
-          barcode: data.barcode,
+          unitPrice: data.unitPrice,
+          purchaseDate: data.purchaseDate,
+          description: data.description,
+          co2Emission: data.co2Emission,
         })
         .returning();
 
       // Award points for adding a product
-      await awardPoints(user.id, POINTS.addProduct, "earn", "product_added", "product", product.id);
+      await awardPoints(user.id, POINTS.addProduct);
 
       return json(product);
     } catch (e) {
@@ -122,12 +112,7 @@ export function registerMyFridgeRoutes(router: Router) {
 
       const [updated] = await db
         .update(products)
-        .set({
-          ...data,
-          purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : existing.purchaseDate,
-          expiryDate: data.expiryDate ? new Date(data.expiryDate) : existing.expiryDate,
-          updatedAt: new Date(),
-        })
+        .set(data)
         .where(eq(products.id, productId))
         .returning();
 
@@ -159,13 +144,13 @@ export function registerMyFridgeRoutes(router: Router) {
     return json({ message: "Product deleted" });
   });
 
-  // Consume/waste product
+  // Log product interaction (consume, waste, share, sell)
   router.post("/api/v1/myfridge/products/:id/consume", async (req, params) => {
     try {
       const user = getUser(req);
       const productId = parseInt(params.id, 10);
       const body = await parseBody(req);
-      const data = consumeSchema.parse(body);
+      const data = interactionSchema.parse(body);
 
       const product = await db.query.products.findFirst({
         where: and(eq(products.id, productId), eq(products.userId, user.id)),
@@ -175,54 +160,30 @@ export function registerMyFridgeRoutes(router: Router) {
         return error("Product not found", 404);
       }
 
-      // Log the consumption
-      await db.insert(consumptionLogs).values({
-        userId: user.id,
+      // Log the interaction
+      await db.insert(productInteraction).values({
         productId,
-        action: data.action,
+        userId: user.id,
+        todayDate: data.todayDate || new Date().toISOString().split("T")[0],
         quantity: data.quantity,
-        notes: data.notes,
+        type: data.type,
       });
 
-      // Update product quantity or mark as consumed
-      const newQuantity = product.quantity - data.quantity;
-      if (newQuantity <= 0) {
-        await db
-          .update(products)
-          .set({ isConsumed: true, updatedAt: new Date() })
-          .where(eq(products.id, productId));
-      } else {
-        await db
-          .update(products)
-          .set({ quantity: newQuantity, updatedAt: new Date() })
-          .where(eq(products.id, productId));
-      }
-
       // Award/deduct points based on action
-      const pointsChange = POINTS[data.action];
-      await awardPoints(
-        user.id,
-        pointsChange,
-        pointsChange > 0 ? "earn" : "penalty",
-        `product_${data.action}`,
-        "product",
-        productId
-      );
+      const pointsChange = POINTS[data.type];
+      await awardPoints(user.id, pointsChange);
 
-      // Update sustainability metrics
-      await updateSustainabilityMetrics(user.id, data.action, data.quantity);
-
-      return json({ message: "Product consumption logged", pointsChange });
+      return json({ message: "Product interaction logged", pointsChange });
     } catch (e) {
       if (e instanceof z.ZodError) {
         return error(e.errors[0].message, 400);
       }
-      console.error("Consume product error:", e);
-      return error("Failed to log consumption", 500);
+      console.error("Product interaction error:", e);
+      return error("Failed to log interaction", 500);
     }
   });
 
-  // Scan receipt (OpenAI Vision)
+  // Scan receipt (OpenAI Vision with structured output)
   router.post("/api/v1/myfridge/receipt/scan", async (req) => {
     try {
       const user = getUser(req);
@@ -240,20 +201,14 @@ export function registerMyFridgeRoutes(router: Router) {
       const openai = new OpenAI({ apiKey });
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4.1-nano",
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Analyze this grocery receipt image and extract the food items. Return a JSON array with objects containing:
-- name: product name (string)
-- quantity: number of items (number)
-- category: one of "produce", "dairy", "meat", "bakery", "frozen", "beverages", "pantry", "other"
-
-Only include food items. Ignore non-food items like bags, taxes, etc.
-Return ONLY the JSON array, no other text.`,
+                text: "Analyze this grocery receipt image and extract the food items. Only include food items. Ignore non-food items like bags, taxes, totals, etc. If no food items are found, return an empty items array.",
               },
               {
                 type: "image_url",
@@ -266,24 +221,58 @@ Return ONLY the JSON array, no other text.`,
             ],
           },
         ],
-        max_tokens: 1000,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "receipt_items",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                items: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string", description: "Product name" },
+                      quantity: { type: "number", description: "Number of items" },
+                      category: {
+                        type: "string",
+                        enum: [
+                                "Ruminant meat",
+                                "Non-ruminant meat",
+                                "Seafood",
+                                "Dairy",
+                                "Eggs",
+                                "Grains & cereals",
+                                "Legumes & pulses",
+                                "Vegetables",
+                                "Fruits",
+                                "Nuts & seeds",
+                                "Oils & fats",
+                                "Sugar & sweeteners",
+                                "Processed plant-based foods"
+                              ]
+,
+                        description: "Food category",
+                      },
+                    },
+                    required: ["name", "quantity", "price", "category"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["items"],
+              additionalProperties: false,
+            },
+          },
+        },
       });
 
-      const content = response.choices[0]?.message?.content || "[]";
+      const content = response.choices[0]?.message?.content || '{"items":[]}';
+      const parsed = JSON.parse(content) as { items: Array<{ name: string; quantity: number; category: string }> };
 
-      // Try to parse the response
-      let items: Array<{ name: string; quantity: number; category: string }> = [];
-      try {
-        // Extract JSON from the response (handle markdown code blocks)
-        const jsonMatch = content.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          items = JSON.parse(jsonMatch[0]);
-        }
-      } catch {
-        console.error("Failed to parse receipt items:", content);
-      }
-
-      return json({ items });
+      return json({ items: parsed.items });
     } catch (e) {
       console.error("Receipt scan error:", e);
       return error("Failed to scan receipt", 500);
@@ -291,87 +280,16 @@ Return ONLY the JSON array, no other text.`,
   });
 }
 
-async function awardPoints(
-  userId: number,
-  amount: number,
-  type: string,
-  action: string,
-  referenceType?: string,
-  referenceId?: number
-) {
-  // Record transaction
-  await db.insert(pointTransactions).values({
-    userId,
-    amount,
-    type,
-    action,
-    referenceType,
-    referenceId,
-  });
-
-  // Update user points
+async function awardPoints(userId: number, amount: number) {
   const currentPoints = await db.query.userPoints.findFirst({
     where: eq(userPoints.userId, userId),
   });
 
   if (currentPoints) {
-    const newTotal = Math.max(0, currentPoints.totalPoints + amount);
-    const newAvailable = Math.max(0, currentPoints.availablePoints + amount);
-    const newLifetime =
-      amount > 0 ? currentPoints.lifetimePoints + amount : currentPoints.lifetimePoints;
-
+    const newTotal = Math.max(0, (currentPoints.totalPoints ?? 0) + amount);
     await db
       .update(userPoints)
-      .set({
-        totalPoints: newTotal,
-        availablePoints: newAvailable,
-        lifetimePoints: newLifetime,
-        lastActivityDate: new Date(),
-        updatedAt: new Date(),
-      })
+      .set({ totalPoints: newTotal })
       .where(eq(userPoints.userId, userId));
   }
-}
-
-async function updateSustainabilityMetrics(
-  userId: number,
-  action: string,
-  quantity: number
-) {
-  const metrics = await db.query.userSustainabilityMetrics.findFirst({
-    where: eq(userSustainabilityMetrics.userId, userId),
-  });
-
-  if (!metrics) return;
-
-  const updates: Record<string, number> = {};
-
-  switch (action) {
-    case "consumed":
-      updates.totalItemsConsumed = metrics.totalItemsConsumed + quantity;
-      updates.estimatedCo2Saved = metrics.estimatedCo2Saved + quantity * CO2_PER_KG_FOOD * 0.1;
-      break;
-    case "wasted":
-      updates.totalItemsWasted = metrics.totalItemsWasted + quantity;
-      break;
-    case "shared":
-      updates.totalItemsShared = metrics.totalItemsShared + quantity;
-      updates.estimatedCo2Saved = metrics.estimatedCo2Saved + quantity * CO2_PER_KG_FOOD * 0.2;
-      break;
-    case "sold":
-      updates.totalItemsSold = metrics.totalItemsSold + quantity;
-      updates.estimatedCo2Saved = metrics.estimatedCo2Saved + quantity * CO2_PER_KG_FOOD * 0.15;
-      break;
-  }
-
-  // Calculate waste reduction rate
-  const totalConsumed = updates.totalItemsConsumed ?? metrics.totalItemsConsumed;
-  const totalWasted = updates.totalItemsWasted ?? metrics.totalItemsWasted;
-  const totalItems = totalConsumed + totalWasted;
-  updates.wasteReductionRate = totalItems > 0 ? (totalConsumed / totalItems) * 100 : 100;
-
-  await db
-    .update(userSustainabilityMetrics)
-    .set({ ...updates, updatedAt: new Date() })
-    .where(eq(userSustainabilityMetrics.userId, userId));
 }
