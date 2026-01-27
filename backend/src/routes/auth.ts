@@ -17,6 +17,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
   name: z.string().min(1).max(100),
   userLocation: z.string().optional(), // Optional default location (e.g., "Singapore 123456")
+  avatarUrl: z.string().optional(), // Avatar selection (emoji or URL)
 });
 
 const loginSchema = z.object({
@@ -54,6 +55,7 @@ export function registerAuthRoutes(router: Router) {
           passwordHash,
           name: data.name,
           userLocation: data.userLocation,
+          avatarUrl: data.avatarUrl,
         })
         .returning();
 

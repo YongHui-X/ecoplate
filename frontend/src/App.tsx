@@ -12,6 +12,7 @@ import MessagesPage from "./pages/MessagesPage";
 import EcoBoardPage from "./pages/EcoBoardPage";
 import BadgesPage from "./pages/BadgesPage";
 import VendingMachinePage from "./pages/VendingMachinePage";
+import AccountPage from "./pages/AccountPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -53,6 +54,7 @@ function App() {
         <Route path="ecoboard" element={<EcoBoardPage />} />
         <Route path="badges" element={<BadgesPage />} />
         <Route path="vending-machine" element={<VendingMachinePage />} />
+        <Route path="account" element={<AccountPage />} />
       </Route>
     </Routes>
   );

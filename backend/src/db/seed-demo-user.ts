@@ -13,6 +13,7 @@ const demoUser = {
   password: "demo123",
   name: "Demo User",
   userLocation: "Singapore 119076", // NUS area
+  avatarUrl: "avatar1", // 🌱 Sprout avatar
 };
 
 (async () => {
@@ -42,6 +43,7 @@ const demoUser = {
         passwordHash,
         name: demoUser.name,
         userLocation: demoUser.userLocation,
+        avatarUrl: demoUser.avatarUrl,
       })
       .returning();
 
