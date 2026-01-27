@@ -72,12 +72,125 @@ const sampleListings = [
   },
 ];
 
+// Sample products (fridge items)
+const sampleProducts = [
+  {
+    productName: "Organic Eggs",
+    category: "dairy",
+    quantity: 12,
+    unitPrice: 5.9,
+    daysAgo: 2,
+    description: "Free-range organic eggs",
+    co2Emission: 0.4,
+  },
+  {
+    productName: "Fresh Salmon Fillet",
+    category: "meat",
+    quantity: 2,
+    unitPrice: 12.5,
+    daysAgo: 1,
+    description: "Norwegian salmon, 200g each",
+    co2Emission: 1.2,
+  },
+  {
+    productName: "Broccoli",
+    category: "produce",
+    quantity: 1,
+    unitPrice: 2.8,
+    daysAgo: 3,
+    description: "Fresh broccoli head",
+    co2Emission: 0.2,
+  },
+  {
+    productName: "Greek Yogurt",
+    category: "dairy",
+    quantity: 4,
+    unitPrice: 3.5,
+    daysAgo: 5,
+    description: "Plain Greek yogurt, 200g tubs",
+    co2Emission: 0.3,
+  },
+  {
+    productName: "Chicken Breast",
+    category: "meat",
+    quantity: 3,
+    unitPrice: 8.9,
+    daysAgo: 1,
+    description: "Boneless skinless chicken breast",
+    co2Emission: 0.9,
+  },
+  {
+    productName: "Sourdough Bread",
+    category: "bakery",
+    quantity: 1,
+    unitPrice: 6.5,
+    daysAgo: 0,
+    description: "Artisan sourdough loaf",
+    co2Emission: 0.15,
+  },
+  {
+    productName: "Baby Spinach",
+    category: "produce",
+    quantity: 2,
+    unitPrice: 3.2,
+    daysAgo: 2,
+    description: "Pre-washed baby spinach, 150g bags",
+    co2Emission: 0.1,
+  },
+  {
+    productName: "Cheddar Cheese",
+    category: "dairy",
+    quantity: 1,
+    unitPrice: 7.8,
+    daysAgo: 7,
+    description: "Aged cheddar cheese block, 250g",
+    co2Emission: 0.6,
+  },
+  {
+    productName: "Orange Juice",
+    category: "beverages",
+    quantity: 1,
+    unitPrice: 4.5,
+    daysAgo: 4,
+    description: "Freshly squeezed orange juice, 1L",
+    co2Emission: 0.25,
+  },
+  {
+    productName: "Frozen Mixed Berries",
+    category: "frozen",
+    quantity: 1,
+    unitPrice: 8.0,
+    daysAgo: 10,
+    description: "Strawberries, blueberries, raspberries, 500g",
+    co2Emission: 0.3,
+  },
+  {
+    productName: "Jasmine Rice",
+    category: "pantry",
+    quantity: 1,
+    unitPrice: 9.5,
+    daysAgo: 14,
+    description: "Thai jasmine rice, 2kg bag",
+    co2Emission: 0.5,
+  },
+  {
+    productName: "Avocados",
+    category: "produce",
+    quantity: 3,
+    unitPrice: 2.5,
+    daysAgo: 1,
+    description: "Ripe Hass avocados",
+    co2Emission: 0.35,
+  },
+];
+
 async function seed() {
   try {
-    // Clear existing data
+    // Clear existing data (order matters for foreign keys)
     console.log("Clearing existing data...");
     sqlite.exec("DELETE FROM listing_images");
     sqlite.exec("DELETE FROM marketplace_listings");
+    sqlite.exec("DELETE FROM products");
     sqlite.exec("DELETE FROM users");
     sqlite.exec("DELETE FROM sqlite_sequence");
 
@@ -127,14 +240,37 @@ async function seed() {
       console.log(`  ✓ "${listing.title}" by ${seller.name}`);
     }
 
+    // Create products (fridge items)
+    console.log("\nCreating sample products...");
+    for (let i = 0; i < sampleProducts.length; i++) {
+      const product = sampleProducts[i];
+      const owner = createdUsers[i % createdUsers.length];
+
+      const purchaseDate = new Date();
+      purchaseDate.setDate(purchaseDate.getDate() - product.daysAgo);
+
+      await db.insert(schema.products).values({
+        userId: owner.id,
+        productName: product.productName,
+        category: product.category,
+        quantity: product.quantity,
+        unitPrice: product.unitPrice,
+        purchaseDate,
+        description: product.description,
+        co2Emission: product.co2Emission,
+      });
+
+      console.log(`  ✓ "${product.productName}" for ${owner.name}`);
+    }
+
     console.log("\n========================================");
     console.log("Done! Demo accounts (password: demo123):");
     console.log("  - alice@demo.com");
     console.log("  - bob@demo.com");
     console.log("========================================\n");
 
-  } catch (error) {
-    console.error("Seeding failed:", error);
+  } catch (err) {
+    console.error("Seeding failed:", err);
     process.exit(1);
   }
 

@@ -20,18 +20,17 @@ import {
   RotateCcw,
   AlertCircle,
 } from "lucide-react";
-import { cn, getDaysUntilExpiry, getExpiryStatus } from "../lib/utils";
+import { cn } from "../lib/utils";
 
 interface Product {
   id: number;
   name: string;
   category: string | null;
   quantity: number;
-  unit: string;
+  unitPrice: number | null;
   purchaseDate: string | null;
-  expiryDate: string | null;
-  storageLocation: string;
-  notes: string | null;
+  description: string | null;
+  co2Emission: number | null;
 }
 
 type ConsumeAction = "consumed" | "wasted" | "shared" | "sold";
@@ -42,7 +41,6 @@ export default function MyFridgePage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterLocation, setFilterLocation] = useState<string>("all");
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -93,16 +91,14 @@ export default function MyFridgePage() {
   };
 
   const filteredProducts = products.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesLocation = filterLocation === "all" || p.storageLocation === filterLocation;
-    return matchesSearch && matchesLocation;
+    return p.name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  // Sort by expiry date (soonest first)
+  // Sort by purchase date (most recent first)
   const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (!a.expiryDate) return 1;
-    if (!b.expiryDate) return -1;
-    return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    if (!a.purchaseDate) return 1;
+    if (!b.purchaseDate) return -1;
+    return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
   });
 
   if (loading) {
@@ -132,31 +128,15 @@ export default function MyFridgePage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="flex-1 min-w-[200px]">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search items..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {["all", "fridge", "freezer", "pantry"].map((loc) => (
-            <Button
-              key={loc}
-              variant={filterLocation === loc ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterLocation(loc)}
-            >
-              {loc.charAt(0).toUpperCase() + loc.slice(1)}
-            </Button>
-          ))}
-        </div>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder="Search items..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       {/* Products list */}
@@ -218,17 +198,8 @@ function ProductCard({
   onDelete: (id: number) => void;
 }) {
   const [showActions, setShowActions] = useState(false);
-  const status = getExpiryStatus(product.expiryDate);
-  const daysUntil = getDaysUntilExpiry(product.expiryDate);
-
   return (
-    <Card
-      className={cn(
-        "transition-all",
-        status === "expired" && "border-red-300 bg-red-50",
-        status === "expiring-soon" && "border-yellow-300 bg-yellow-50"
-      )}
-    >
+    <Card className="transition-all">
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex-1">
@@ -239,25 +210,19 @@ function ProductCard({
               )}
             </div>
             <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-              <span>
-                {product.quantity} {product.unit}
-              </span>
-              <span className="capitalize">{product.storageLocation}</span>
-              {product.expiryDate && (
-                <span
-                  className={cn(
-                    status === "expired" && "text-red-600 font-medium",
-                    status === "expiring-soon" && "text-yellow-600 font-medium"
-                  )}
-                >
-                  {daysUntil !== null && daysUntil < 0
-                    ? `Expired ${Math.abs(daysUntil)} days ago`
-                    : daysUntil === 0
-                    ? "Expires today"
-                    : `Expires in ${daysUntil} days`}
+              <span>Qty: {product.quantity}</span>
+              {product.unitPrice != null && (
+                <span>${product.unitPrice.toFixed(2)}</span>
+              )}
+              {product.purchaseDate && (
+                <span>
+                  Purchased: {new Date(product.purchaseDate).toLocaleDateString()}
                 </span>
               )}
             </div>
+            {product.description && (
+              <p className="mt-1 text-sm text-gray-500">{product.description}</p>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -340,9 +305,9 @@ function AddProductModal({
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [unit, setUnit] = useState("item");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [storageLocation, setStorageLocation] = useState("fridge");
+  const [unitPrice, setUnitPrice] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const { addToast } = useToast();
 
@@ -355,9 +320,9 @@ function AddProductModal({
         name,
         category: category || undefined,
         quantity,
-        unit,
-        expiryDate: expiryDate || undefined,
-        storageLocation,
+        unitPrice: unitPrice ? parseFloat(unitPrice) : undefined,
+        purchaseDate: purchaseDate || undefined,
+        description: description || undefined,
       });
       addToast("Product added! +2 points", "success");
       onAdded();
@@ -382,49 +347,34 @@ function AddProductModal({
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">Product Name *</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Chicken Breast"
                 required
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <select
-                  id="category"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3"
-                >
-                  <option value="">Select...</option>
-                  <option value="produce">Produce</option>
-                  <option value="dairy">Dairy</option>
-                  <option value="meat">Meat</option>
-                  <option value="bakery">Bakery</option>
-                  <option value="frozen">Frozen</option>
-                  <option value="beverages">Beverages</option>
-                  <option value="pantry">Pantry</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="location">Storage</Label>
-                <select
-                  id="location"
-                  value={storageLocation}
-                  onChange={(e) => setStorageLocation(e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3"
-                >
-                  <option value="fridge">Fridge</option>
-                  <option value="freezer">Freezer</option>
-                  <option value="pantry">Pantry</option>
-                </select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <select
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full h-10 rounded-md border border-input bg-background px-3"
+              >
+                <option value="">Select...</option>
+                <option value="produce">Produce</option>
+                <option value="dairy">Dairy</option>
+                <option value="meat">Meat</option>
+                <option value="bakery">Bakery</option>
+                <option value="frozen">Frozen</option>
+                <option value="beverages">Beverages</option>
+                <option value="pantry">Pantry</option>
+                <option value="other">Other</option>
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -441,29 +391,37 @@ function AddProductModal({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="unit">Unit</Label>
-                <select
-                  id="unit"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3"
-                >
-                  <option value="item">Item</option>
-                  <option value="kg">Kg</option>
-                  <option value="g">G</option>
-                  <option value="l">L</option>
-                  <option value="ml">mL</option>
-                </select>
+                <Label htmlFor="unitPrice">Unit Price ($)</Label>
+                <Input
+                  id="unitPrice"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={unitPrice}
+                  onChange={(e) => setUnitPrice(e.target.value)}
+                  placeholder="0.00"
+                />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="expiry">Expiry Date</Label>
+              <Label htmlFor="purchaseDate">Purchase Date</Label>
               <Input
-                id="expiry"
+                id="purchaseDate"
                 type="date"
-                value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
+                value={purchaseDate}
+                onChange={(e) => setPurchaseDate(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional notes about this product"
+                className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
               />
             </div>
 
@@ -592,7 +550,6 @@ function ScanReceiptModal({
           name: item.name,
           quantity: item.quantity,
           category: item.category,
-          storageLocation: "fridge",
         });
         addedCount++;
       }
