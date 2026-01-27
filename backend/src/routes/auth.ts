@@ -1,32 +1,27 @@
 import { Router, json, error, parseBody } from "../utils/router";
 import { db } from "../index";
-import { users, refreshTokens, userPoints, userSustainabilityMetrics } from "../db/schema";
+import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import {
   hashPassword,
   verifyPassword,
-  generateAccessToken,
-  generateRefreshToken,
+  generateToken,
   verifyToken,
   type JWTPayload,
 } from "../middleware/auth";
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(6),
   name: z.string().min(1).max(100),
-  userLocation: z.string().optional(), // Optional default location (e.g., "Singapore 123456")
-  avatarUrl: z.string().optional(), // Avatar selection (emoji or URL)
+  userLocation: z.string().optional(),
+  avatarUrl: z.string().optional(),
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string(),
-});
-
-const refreshSchema = z.object({
-  refreshToken: z.string(),
 });
 
 export function registerAuthRoutes(router: Router) {
@@ -36,7 +31,6 @@ export function registerAuthRoutes(router: Router) {
       const body = await parseBody(req);
       const data = registerSchema.parse(body);
 
-      // Check if user exists
       const existing = await db.query.users.findFirst({
         where: eq(users.email, data.email),
       });
@@ -45,7 +39,6 @@ export function registerAuthRoutes(router: Router) {
         return error("Email already registered", 400);
       }
 
-      // Hash password and create user
       const passwordHash = await hashPassword(data.password);
 
       const [user] = await db
@@ -59,27 +52,13 @@ export function registerAuthRoutes(router: Router) {
         })
         .returning();
 
-      // Initialize user points and metrics
-      await db.insert(userPoints).values({ userId: user.id });
-      await db.insert(userSustainabilityMetrics).values({ userId: user.id });
-
-      // Generate tokens
       const payload: JWTPayload = {
         sub: user.id.toString(),
         email: user.email,
         name: user.name,
       };
 
-      const accessToken = await generateAccessToken(payload);
-      const refreshToken = await generateRefreshToken(payload);
-
-      // Store refresh token
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await db.insert(refreshTokens).values({
-        userId: user.id,
-        token: refreshToken,
-        expiresAt,
-      });
+      const token = await generateToken(payload);
 
       return json({
         user: {
@@ -89,8 +68,7 @@ export function registerAuthRoutes(router: Router) {
           avatarUrl: user.avatarUrl,
           userLocation: user.userLocation,
         },
-        accessToken,
-        refreshToken,
+        token,
       });
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -107,7 +85,6 @@ export function registerAuthRoutes(router: Router) {
       const body = await parseBody(req);
       const data = loginSchema.parse(body);
 
-      // Find user
       const user = await db.query.users.findFirst({
         where: eq(users.email, data.email),
       });
@@ -116,29 +93,18 @@ export function registerAuthRoutes(router: Router) {
         return error("Invalid email or password", 401);
       }
 
-      // Verify password
       const valid = await verifyPassword(data.password, user.passwordHash);
       if (!valid) {
         return error("Invalid email or password", 401);
       }
 
-      // Generate tokens
       const payload: JWTPayload = {
         sub: user.id.toString(),
         email: user.email,
         name: user.name,
       };
 
-      const accessToken = await generateAccessToken(payload);
-      const refreshToken = await generateRefreshToken(payload);
-
-      // Store refresh token
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await db.insert(refreshTokens).values({
-        userId: user.id,
-        token: refreshToken,
-        expiresAt,
-      });
+      const token = await generateToken(payload);
 
       return json({
         user: {
@@ -148,8 +114,7 @@ export function registerAuthRoutes(router: Router) {
           avatarUrl: user.avatarUrl,
           userLocation: user.userLocation,
         },
-        accessToken,
-        refreshToken,
+        token,
       });
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -160,87 +125,7 @@ export function registerAuthRoutes(router: Router) {
     }
   });
 
-  // Refresh token
-  router.post("/api/v1/auth/refresh", async (req) => {
-    try {
-      const body = await parseBody(req);
-      const data = refreshSchema.parse(body);
-
-      // Verify the refresh token
-      const payload = await verifyToken(data.refreshToken);
-      if (!payload) {
-        return error("Invalid refresh token", 401);
-      }
-
-      // Check if token exists in database
-      const storedToken = await db.query.refreshTokens.findFirst({
-        where: eq(refreshTokens.token, data.refreshToken),
-      });
-
-      if (!storedToken || storedToken.expiresAt < new Date()) {
-        return error("Refresh token expired or invalid", 401);
-      }
-
-      // Get user
-      const user = await db.query.users.findFirst({
-        where: eq(users.id, storedToken.userId),
-      });
-
-      if (!user) {
-        return error("User not found", 401);
-      }
-
-      // Generate new tokens
-      const newPayload: JWTPayload = {
-        sub: user.id.toString(),
-        email: user.email,
-        name: user.name,
-      };
-
-      const accessToken = await generateAccessToken(newPayload);
-      const refreshToken = await generateRefreshToken(newPayload);
-
-      // Delete old token and store new one
-      await db.delete(refreshTokens).where(eq(refreshTokens.id, storedToken.id));
-
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await db.insert(refreshTokens).values({
-        userId: user.id,
-        token: refreshToken,
-        expiresAt,
-      });
-
-      return json({
-        accessToken,
-        refreshToken,
-      });
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return error(e.errors[0].message, 400);
-      }
-      console.error("Refresh error:", e);
-      return error("Token refresh failed", 500);
-    }
-  });
-
-  // Logout
-  router.post("/api/v1/auth/logout", async (req) => {
-    try {
-      const body = await parseBody(req);
-      const data = refreshSchema.parse(body);
-
-      // Delete the refresh token
-      await db
-        .delete(refreshTokens)
-        .where(eq(refreshTokens.token, data.refreshToken));
-
-      return json({ message: "Logged out successfully" });
-    } catch (e) {
-      return json({ message: "Logged out" });
-    }
-  });
-
-  // Get current user profile
+  // Get current user
   router.get("/api/v1/auth/me", async (req) => {
     try {
       const authHeader = req.headers.get("Authorization");
@@ -269,8 +154,6 @@ export function registerAuthRoutes(router: Router) {
         name: user.name,
         avatarUrl: user.avatarUrl,
         userLocation: user.userLocation,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
       });
     } catch (e) {
       console.error("Get user error:", e);
@@ -278,7 +161,7 @@ export function registerAuthRoutes(router: Router) {
     }
   });
 
-  // Update user profile
+  // Update profile
   router.patch("/api/v1/auth/profile", async (req) => {
     try {
       const authHeader = req.headers.get("Authorization");
@@ -295,7 +178,7 @@ export function registerAuthRoutes(router: Router) {
 
       const updateSchema = z.object({
         name: z.string().min(1).max(100).optional(),
-        avatarUrl: z.string().url().optional().nullable(),
+        avatarUrl: z.string().optional().nullable(),
         userLocation: z.string().optional().nullable(),
       });
 
@@ -317,7 +200,6 @@ export function registerAuthRoutes(router: Router) {
         name: updatedUser.name,
         avatarUrl: updatedUser.avatarUrl,
         userLocation: updatedUser.userLocation,
-        updatedAt: updatedUser.updatedAt,
       });
     } catch (e) {
       if (e instanceof z.ZodError) {

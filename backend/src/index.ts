@@ -1,12 +1,9 @@
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { Router, json, error } from "./utils/router";
-import { authMiddleware, type AuthenticatedRequest } from "./middleware/auth";
+import { authMiddleware } from "./middleware/auth";
 import { registerAuthRoutes } from "./routes/auth";
-import { registerMyFridgeRoutes } from "./routes/myfridge";
 import { registerMarketplaceRoutes } from "./routes/marketplace";
-// import { registerConversationRoutes } from "./routes/conversations"; // Disabled: uses incompatible schema
-import { registerGamificationRoutes } from "./routes/gamification";
 import * as schema from "./db/schema";
 import { existsSync } from "fs";
 import { join } from "path";
@@ -25,10 +22,7 @@ protectedRouter.use(authMiddleware);
 
 // Register routes
 registerAuthRoutes(publicRouter);
-registerMyFridgeRoutes(protectedRouter);
 registerMarketplaceRoutes(protectedRouter);
-// registerConversationRoutes(protectedRouter); // Disabled: uses incompatible schema
-registerGamificationRoutes(protectedRouter);
 
 // Health check
 publicRouter.get("/api/v1/health", () => json({ status: "ok" }));

@@ -73,7 +73,7 @@ export default function CreateListingPage() {
       const formData = new FormData();
       selectedImages.forEach(file => formData.append("images", file));
 
-      const token = localStorage.getItem("accessToken");
+      const token = localStorage.getItem("token");
       const response = await fetch("/api/v1/marketplace/upload", {
         method: "POST",
         headers: {
