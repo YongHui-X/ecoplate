@@ -1,19 +1,17 @@
 import { Router, json, error, parseBody } from "../utils/router";
 import { db } from "../index";
-import { products, productInteraction, userPoints } from "../db/schema";
+import { products, productInteraction } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 import { getUser } from "../middleware/auth";
+import OpenAI from "openai";
 
 const productSchema = z.object({
   productName: z.string().min(1).max(200),
   category: z.string().optional(),
   quantity: z.number().positive().default(1),
   unitPrice: z.number().optional(),
-  unitPrice: z.number().optional(),
   purchaseDate: z.string().optional(),
-  description: z.string().optional(),
-  co2Emission: z.number().optional(),
   description: z.string().optional(),
   co2Emission: z.number().optional(),
 });
@@ -213,7 +211,16 @@ export function registerMyFridgeRoutes(router: Router) {
             content: [
               {
                 type: "text",
-                text: "Analyze this grocery receipt image and extract the food items. Only include food items. Ignore non-food items like bags, taxes, totals, etc. If no food items are found, return an empty items array.",
+                text: `Analyze this grocery receipt image and extract the food items. Only include food items. Ignore non-food items like bags, taxes, totals, etc. If no food items are found, return an empty items array.
+
+For each item, determine its eco-focused sub-category (Ruminant meat, Non-ruminant meat, Seafood, Dairy, Eggs, Grains & cereals, Legumes & pulses, Vegetables, Fruits, Nuts & seeds, Oils & fats, Sugar & sweeteners, Processed plant-based foods) and use it to:
+1. Map to the corresponding simple category:
+   - Ruminant meat, Non-ruminant meat, Seafood → "meat"
+   - Dairy, Eggs → "dairy"
+   - Vegetables, Fruits, Legumes & pulses → "produce"
+   - Grains & cereals, Nuts & seeds, Oils & fats, Sugar & sweeteners → "pantry"
+   - Processed plant-based foods → "other"
+2. Estimate co2Emission in kg CO2e per unit based on the eco-focused sub-category.`,
               },
               {
                 type: "image_url",
@@ -243,26 +250,15 @@ export function registerMyFridgeRoutes(router: Router) {
                       quantity: { type: "number", description: "Number of items" },
                       category: {
                         type: "string",
-                        enum: [
-                                "Ruminant meat",
-                                "Non-ruminant meat",
-                                "Seafood",
-                                "Dairy",
-                                "Eggs",
-                                "Grains & cereals",
-                                "Legumes & pulses",
-                                "Vegetables",
-                                "Fruits",
-                                "Nuts & seeds",
-                                "Oils & fats",
-                                "Sugar & sweeteners",
-                                "Processed plant-based foods"
-                              ]
-,
-                        description: "Food category",
+                        enum: ["produce", "dairy", "meat", "bakery", "frozen", "beverages", "pantry", "other"],
+                        description: "Simple food category",
+                      },
+                      co2Emission: {
+                        type: "number",
+                        description: "Estimated kg CO2e per unit based on eco-focused sub-category",
                       },
                     },
-                    required: ["name", "quantity", "price", "category"],
+                    required: ["name", "quantity", "category", "co2Emission"],
                     additionalProperties: false,
                   },
                 },
@@ -275,7 +271,12 @@ export function registerMyFridgeRoutes(router: Router) {
       });
 
       const content = response.choices[0]?.message?.content || '{"items":[]}';
-      const parsed = JSON.parse(content) as { items: Array<{ name: string; quantity: number; category: string }> };
+      console.log("OpenAI raw response:", content);
+      console.log("Finish reason:", response.choices[0]?.finish_reason);
+      console.log("Refusal:", response.choices[0]?.message?.refusal);
+      const parsed = JSON.parse(content) as {
+        items: Array<{ name: string; quantity: number; category: string; co2Emission: number }>;
+      };
 
       return json({ items: parsed.items });
     } catch (e) {
@@ -285,16 +286,7 @@ export function registerMyFridgeRoutes(router: Router) {
   });
 }
 
-async function awardPoints(userId: number, amount: number) {
-  const currentPoints = await db.query.userPoints.findFirst({
-    where: eq(userPoints.userId, userId),
-  });
-
-  if (currentPoints) {
-    const newTotal = Math.max(0, (currentPoints.totalPoints ?? 0) + amount);
-    await db
-      .update(userPoints)
-      .set({ totalPoints: newTotal })
-      .where(eq(userPoints.userId, userId));
-  }
+// TODO: Implement points system once gamification is confirmed
+async function awardPoints(_userId: number, _amount: number) {
+  // No-op until userPoints table is implemented
 }

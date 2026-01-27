@@ -24,14 +24,15 @@ import { cn, getDaysUntilExpiry, getExpiryStatus } from "../lib/utils";
 
 interface Product {
   id: number;
-  name: string;
+  productName: string;
   category: string | null;
   quantity: number;
-  unit: string;
+  unitPrice: number | null;
   purchaseDate: string | null;
   expiryDate: string | null;
-  storageLocation: string;
-  notes: string | null;
+  description: string | null;
+  co2Emission: number | null;
+  isConsumed: boolean;
 }
 
 type ConsumeAction = "consumed" | "wasted" | "shared" | "sold";
@@ -42,7 +43,6 @@ export default function MyFridgePage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterLocation, setFilterLocation] = useState<string>("all");
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function MyFridgePage() {
   const handleConsume = async (product: Product, action: ConsumeAction) => {
     try {
       await api.post(`/myfridge/products/${product.id}/consume`, {
-        action,
+        type: action,
         quantity: product.quantity,
       });
       addToast(
@@ -93,9 +93,7 @@ export default function MyFridgePage() {
   };
 
   const filteredProducts = products.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesLocation = filterLocation === "all" || p.storageLocation === filterLocation;
-    return matchesSearch && matchesLocation;
+    return p.productName.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   // Sort by expiry date (soonest first)
@@ -132,31 +130,15 @@ export default function MyFridgePage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="flex-1 min-w-[200px]">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search items..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {["all", "fridge", "freezer", "pantry"].map((loc) => (
-            <Button
-              key={loc}
-              variant={filterLocation === loc ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterLocation(loc)}
-            >
-              {loc.charAt(0).toUpperCase() + loc.slice(1)}
-            </Button>
-          ))}
-        </div>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder="Search items..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       {/* Products list */}
@@ -233,16 +215,13 @@ function ProductCard({
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold">{product.name}</h3>
+              <h3 className="font-semibold">{product.productName}</h3>
               {product.category && (
                 <Badge variant="secondary">{product.category}</Badge>
               )}
             </div>
             <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-              <span>
-                {product.quantity} {product.unit}
-              </span>
-              <span className="capitalize">{product.storageLocation}</span>
+              <span>Qty: {product.quantity}</span>
               {product.expiryDate && (
                 <span
                   className={cn(
@@ -352,12 +331,13 @@ function AddProductModal({
 
     try {
       await api.post("/myfridge/products", {
-        name,
+        productName: name,
         category: category || undefined,
         quantity,
-        unit,
-        expiryDate: expiryDate || undefined,
-        storageLocation,
+        unitPrice: undefined,
+        purchaseDate: undefined,
+        description: undefined,
+        co2Emission: undefined,
       });
       addToast("Product added! +2 points", "success");
       onAdded();
@@ -487,6 +467,7 @@ interface ScannedItem {
   name: string;
   quantity: number;
   category: string;
+  co2Emission: number;
 }
 
 function ScanReceiptModal({
@@ -514,7 +495,7 @@ function ScanReceiptModal({
 
       try {
         const response = await api.post<{
-          items: Array<{ name: string; quantity: number; category: string }>;
+          items: Array<{ name: string; quantity: number; category: string; co2Emission: number }>;
         }>("/myfridge/receipt/scan", { imageBase64: base64 });
 
         setScannedItems(
@@ -589,10 +570,10 @@ function ScanReceiptModal({
     try {
       for (const item of scannedItems) {
         await api.post("/myfridge/products", {
-          name: item.name,
+          productName: item.name,
           quantity: item.quantity,
           category: item.category,
-          storageLocation: "fridge",
+          co2Emission: item.co2Emission,
         });
         addedCount++;
       }
