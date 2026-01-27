@@ -54,8 +54,10 @@ export const products = sqliteTable("products", {
   quantity: real("quantity").notNull().default(1),
   unitPrice: real("unit_price"),
   purchaseDate: text("purchase_date"), // YYYY-MM-DD format
+  expiryDate: text("expiry_date"), // YYYY-MM-DD format
   description: text("description"),
   co2Emission: real("co2_emission"),
+  isConsumed: integer("is_consumed", { mode: "boolean" }).default(false),
 });
 
 export const productInteraction = sqliteTable("product_interaction", {

@@ -12,6 +12,7 @@ export interface JWTPayload {
   sub: string;
   email: string;
   name: string;
+  [key: string]: unknown;
 }
 
 export interface AuthenticatedRequest extends Request {
