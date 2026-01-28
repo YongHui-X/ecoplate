@@ -833,22 +833,7 @@ describe("TrackConsumptionModal", () => {
     });
   });
 
-  it("should process raw photo upload and show review page", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [
-        {
-          productId: 1,
-          name: "Chicken",
-          matchedProductName: "Chicken Breast",
-          estimatedQuantity: 0.5,
-          category: "meat",
-          unitPrice: 5.0,
-          co2Emission: 9.0,
-          confidence: "high",
-        },
-      ],
-    });
-
+  it("should show review page after uploading raw photo", async () => {
     await openTrackModal();
     await waitFor(() => {
       expect(screen.getByText("Take Photo")).toBeInTheDocument();
@@ -857,33 +842,12 @@ describe("TrackConsumptionModal", () => {
     uploadFile();
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith("/consumption/identify", {
-        imageBase64: "data:image/jpeg;base64,abc123",
-      });
-    });
-
-    await waitFor(() => {
       expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("Chicken")).toBeInTheDocument();
+      expect(screen.getByText("Step 2 of 4 — Add your ingredients")).toBeInTheDocument();
     });
   });
 
-  it("should display identified ingredients with editable fields", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [
-        {
-          productId: 1,
-          name: "Salmon",
-          matchedProductName: "Salmon Fillet",
-          estimatedQuantity: 0.3,
-          category: "meat",
-          unitPrice: 12.0,
-          co2Emission: 13.0,
-          confidence: "medium",
-        },
-      ],
-    });
-
+  it("should allow adding ingredients manually on review page", async () => {
     await openTrackModal();
     await waitFor(() => {
       expect(screen.getByText("Take Photo")).toBeInTheDocument();
@@ -895,44 +859,24 @@ describe("TrackConsumptionModal", () => {
       expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
     });
 
-    // Check all editable fields
-    expect(screen.getByDisplayValue("Salmon")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("0.3")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("12")).toBeInTheDocument();
-    expect(screen.getByText("Matched: Salmon Fillet")).toBeInTheDocument();
-    expect(screen.getByText("medium")).toBeInTheDocument();
+    // Initially 0 ingredients
+    expect(screen.getByText("0 ingredients added")).toBeInTheDocument();
 
-    // CO2 should be disabled
-    const co2Input = screen.getByDisplayValue("13") as HTMLInputElement;
-    expect(co2Input).toBeDisabled();
+    // Click Add button
+    fireEvent.click(screen.getByText("Add"));
+
+    await waitFor(() => {
+      expect(screen.getByText("1 ingredient added")).toBeInTheDocument();
+    });
+
+    // Fill in ingredient details
+    const nameInput = screen.getByPlaceholderText("Ingredient name");
+    fireEvent.change(nameInput, { target: { value: "Chicken" } });
+
+    expect(screen.getByDisplayValue("Chicken")).toBeInTheDocument();
   });
 
   it("should allow removing an ingredient", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [
-        {
-          productId: 1,
-          name: "Rice",
-          matchedProductName: "Rice",
-          estimatedQuantity: 1,
-          category: "pantry",
-          unitPrice: 3.0,
-          co2Emission: 4.0,
-          confidence: "high",
-        },
-        {
-          productId: 2,
-          name: "Eggs",
-          matchedProductName: "Eggs",
-          estimatedQuantity: 2,
-          category: "dairy",
-          unitPrice: 4.0,
-          co2Emission: 4.5,
-          confidence: "high",
-        },
-      ],
-    });
-
     await openTrackModal();
     await waitFor(() => {
       expect(screen.getByText("Take Photo")).toBeInTheDocument();
@@ -941,7 +885,15 @@ describe("TrackConsumptionModal", () => {
     uploadFile();
 
     await waitFor(() => {
-      expect(screen.getByText("Found 2 ingredients. Review and edit:")).toBeInTheDocument();
+      expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
+    });
+
+    // Add two ingredients
+    fireEvent.click(screen.getByText("Add"));
+    fireEvent.click(screen.getByText("Add"));
+
+    await waitFor(() => {
+      expect(screen.getByText("2 ingredients added")).toBeInTheDocument();
     });
 
     // Delete first ingredient
@@ -953,26 +905,11 @@ describe("TrackConsumptionModal", () => {
     }
 
     await waitFor(() => {
-      expect(screen.getByText("Found 1 ingredient. Review and edit:")).toBeInTheDocument();
+      expect(screen.getByText("1 ingredient added")).toBeInTheDocument();
     });
   });
 
   it("should disable Next button when no ingredients", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [
-        {
-          productId: 1,
-          name: "Tofu",
-          matchedProductName: "Tofu",
-          estimatedQuantity: 1,
-          category: "other",
-          unitPrice: 2.0,
-          co2Emission: 3.0,
-          confidence: "high",
-        },
-      ],
-    });
-
     await openTrackModal();
     await waitFor(() => {
       expect(screen.getByText("Take Photo")).toBeInTheDocument();
@@ -981,39 +918,15 @@ describe("TrackConsumptionModal", () => {
     uploadFile();
 
     await waitFor(() => {
-      expect(screen.getByText("Next")).toBeInTheDocument();
+      expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
     });
 
-    // Remove the only ingredient
-    const deleteButtons = screen.getAllByRole("button").filter((btn) => {
-      return btn.querySelector("svg") && btn.closest(".bg-gray-50");
-    });
-    if (deleteButtons.length > 0) {
-      fireEvent.click(deleteButtons[0]);
-    }
-
-    await waitFor(() => {
-      const nextBtn = screen.getByText("Next").closest("button");
-      expect(nextBtn).toBeDisabled();
-    });
+    // No ingredients added yet, Next should be disabled
+    const nextBtn = screen.getByText("Next").closest("button");
+    expect(nextBtn).toBeDisabled();
   });
 
   it("should navigate back to raw-input on Scan Again", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [
-        {
-          productId: 1,
-          name: "Beef",
-          matchedProductName: "Beef",
-          estimatedQuantity: 1,
-          category: "meat",
-          unitPrice: 15.0,
-          co2Emission: 99.0,
-          confidence: "high",
-        },
-      ],
-    });
-
     await openTrackModal();
     await waitFor(() => {
       expect(screen.getByText("Take Photo")).toBeInTheDocument();
@@ -1032,52 +945,7 @@ describe("TrackConsumptionModal", () => {
     });
   });
 
-  it("should show processing state while identifying ingredients", async () => {
-    vi.mocked(api.post).mockImplementation(() => new Promise(() => {}));
-
-    await openTrackModal();
-    await waitFor(() => {
-      expect(screen.getByText("Take Photo")).toBeInTheDocument();
-    });
-
-    uploadFile();
-
-    await waitFor(() => {
-      expect(screen.getByText("Identifying ingredients...")).toBeInTheDocument();
-    });
-  });
-
-  it("should show error toast on API failure", async () => {
-    vi.mocked(api.post).mockRejectedValueOnce(new Error("Network error"));
-
-    await openTrackModal();
-    await waitFor(() => {
-      expect(screen.getByText("Take Photo")).toBeInTheDocument();
-    });
-
-    uploadFile();
-
-    await waitFor(() => {
-      expect(screen.getByText("Failed to identify ingredients")).toBeInTheDocument();
-    });
-  });
-
   it("should navigate to waste-input on Next click", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [
-        {
-          productId: 1,
-          name: "Chicken",
-          matchedProductName: "Chicken Breast",
-          estimatedQuantity: 0.5,
-          category: "meat",
-          unitPrice: 5.0,
-          co2Emission: 9.0,
-          confidence: "high",
-        },
-      ],
-    });
-
     await openTrackModal();
     await waitFor(() => {
       expect(screen.getByText("Take Photo")).toBeInTheDocument();
@@ -1086,7 +954,15 @@ describe("TrackConsumptionModal", () => {
     uploadFile();
 
     await waitFor(() => {
-      expect(screen.getByText("Next")).toBeInTheDocument();
+      expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
+    });
+
+    // Add an ingredient so Next is enabled
+    fireEvent.click(screen.getByText("Add"));
+
+    await waitFor(() => {
+      const nextBtn = screen.getByText("Next").closest("button");
+      expect(nextBtn).not.toBeDisabled();
     });
 
     fireEvent.click(screen.getByText("Next"));
@@ -1097,42 +973,7 @@ describe("TrackConsumptionModal", () => {
     });
   });
 
-  it("should call analyze-waste API with correct payload on waste photo upload", async () => {
-    // First call: identify ingredients
-    vi.mocked(api.post)
-      .mockResolvedValueOnce({
-        ingredients: [
-          {
-            productId: 1,
-            name: "Chicken",
-            matchedProductName: "Chicken Breast",
-            estimatedQuantity: 0.5,
-            category: "meat",
-            unitPrice: 5.0,
-            co2Emission: 9.0,
-            confidence: "high",
-          },
-        ],
-      })
-      // Second call: analyze waste
-      .mockResolvedValueOnce({
-        metrics: {
-          totalCO2Wasted: 0.9,
-          totalCO2Saved: 3.6,
-          disposalCO2: 0.05,
-          totalEconomicWaste: 1.0,
-          totalEconomicConsumed: 4.0,
-          wastePercentage: 20,
-          sustainabilityScore: 15,
-          sustainabilityRating: "Excellent",
-          itemBreakdown: [],
-        },
-        wasteAnalysis: {
-          wasteItems: [],
-          overallObservation: "Minimal waste",
-        },
-      });
-
+  it("should show waste review page after uploading waste photo", async () => {
     await openTrackModal();
     await waitFor(() => {
       expect(screen.getByText("Take Photo")).toBeInTheDocument();
@@ -1142,8 +983,11 @@ describe("TrackConsumptionModal", () => {
     uploadFile();
 
     await waitFor(() => {
-      expect(screen.getByText("Next")).toBeInTheDocument();
+      expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
     });
+
+    // Add an ingredient so Next is enabled
+    fireEvent.click(screen.getByText("Add"));
 
     // Go to waste step
     fireEvent.click(screen.getByText("Next"));
@@ -1156,79 +1000,20 @@ describe("TrackConsumptionModal", () => {
     uploadFile("waste.jpg");
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith("/consumption/analyze-waste", {
-        imageBase64: "data:image/jpeg;base64,abc123",
-        ingredients: [
-          {
-            productId: 1,
-            productName: "Chicken Breast",
-            quantityUsed: 0.5,
-            category: "meat",
-            unitPrice: 5.0,
-            co2Emission: 9.0,
-          },
-        ],
-        disposalMethod: "landfill",
-      });
+      expect(screen.getByText("Review Waste Details")).toBeInTheDocument();
+      expect(screen.getByText("Step 4 of 4 — Add waste items")).toBeInTheDocument();
     });
   });
 
-  it("should display waste analysis results on Page 4", async () => {
-    vi.mocked(api.post)
-      .mockResolvedValueOnce({
-        ingredients: [
-          {
-            productId: 1,
-            name: "Chicken",
-            matchedProductName: "Chicken Breast",
-            estimatedQuantity: 0.5,
-            category: "meat",
-            unitPrice: 5.0,
-            co2Emission: 9.0,
-            confidence: "high",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        metrics: {
-          totalCO2Wasted: 0.9,
-          totalCO2Saved: 3.6,
-          disposalCO2: 0.05,
-          totalEconomicWaste: 1.0,
-          totalEconomicConsumed: 4.0,
-          wastePercentage: 20,
-          sustainabilityScore: 15,
-          sustainabilityRating: "Excellent",
-          itemBreakdown: [
-            {
-              productId: 1,
-              productName: "Chicken Breast",
-              quantityUsed: 0.5,
-              quantityWasted: 0.1,
-              co2Wasted: 0.9,
-              co2Saved: 3.6,
-              economicWaste: 1.0,
-              emissionFactor: 9.0,
-            },
-          ],
-        },
-        wasteAnalysis: {
-          wasteItems: [{ productName: "Chicken Breast", quantityWasted: 0.1, productId: 1 }],
-          overallObservation: "Very little waste detected",
-        },
-      });
-
+  it("should allow adding waste items manually on Page 4", async () => {
     await openTrackModal();
-    await waitFor(() => {
-      expect(screen.getByText("Take Photo")).toBeInTheDocument();
-    });
-
     uploadFile();
 
     await waitFor(() => {
-      expect(screen.getByText("Next")).toBeInTheDocument();
+      expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByText("Add"));
     fireEvent.click(screen.getByText("Next"));
 
     await waitFor(() => {
@@ -1238,65 +1023,31 @@ describe("TrackConsumptionModal", () => {
     uploadFile("waste.jpg");
 
     await waitFor(() => {
-      expect(screen.getByText("Consumption Summary")).toBeInTheDocument();
+      expect(screen.getByText("Review Waste Details")).toBeInTheDocument();
     });
 
-    // Check metrics display
-    expect(screen.getByText("Excellent")).toBeInTheDocument();
-    expect(screen.getByText("3.6 kg")).toBeInTheDocument(); // CO2 Saved
-    expect(screen.getByText("0.9 kg")).toBeInTheDocument(); // CO2 Wasted
-    expect(screen.getByText("20%")).toBeInTheDocument(); // Waste %
-    expect(screen.getByText("$1.00")).toBeInTheDocument(); // Economic Waste
-    expect(screen.getByText("Very little waste detected")).toBeInTheDocument();
-    expect(screen.getByText("Chicken Breast")).toBeInTheDocument(); // Item breakdown
+    // Initially 0 waste items
+    expect(screen.getByText("0 waste items added")).toBeInTheDocument();
+
+    // Add a waste item
+    fireEvent.click(screen.getByText("Add"));
+
+    await waitFor(() => {
+      expect(screen.getByText("1 waste item added")).toBeInTheDocument();
+    });
+
     expect(screen.getByText("Done")).toBeInTheDocument();
   });
 
   it("should close modal and show success toast on Done", async () => {
-    vi.mocked(api.post)
-      .mockResolvedValueOnce({
-        ingredients: [
-          {
-            productId: 1,
-            name: "Rice",
-            matchedProductName: "Rice",
-            estimatedQuantity: 1,
-            category: "pantry",
-            unitPrice: 3.0,
-            co2Emission: 4.0,
-            confidence: "high",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        metrics: {
-          totalCO2Wasted: 0,
-          totalCO2Saved: 4.0,
-          disposalCO2: 0,
-          totalEconomicWaste: 0,
-          totalEconomicConsumed: 3.0,
-          wastePercentage: 0,
-          sustainabilityScore: 0,
-          sustainabilityRating: "Excellent",
-          itemBreakdown: [],
-        },
-        wasteAnalysis: {
-          wasteItems: [],
-          overallObservation: "No waste detected",
-        },
-      });
-
     await openTrackModal();
-    await waitFor(() => {
-      expect(screen.getByText("Take Photo")).toBeInTheDocument();
-    });
-
     uploadFile();
 
     await waitFor(() => {
-      expect(screen.getByText("Next")).toBeInTheDocument();
+      expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByText("Add"));
     fireEvent.click(screen.getByText("Next"));
 
     await waitFor(() => {
@@ -1316,23 +1067,6 @@ describe("TrackConsumptionModal", () => {
     });
   });
 
-  it("should show info toast when no ingredients found", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [],
-    });
-
-    await openTrackModal();
-    await waitFor(() => {
-      expect(screen.getByText("Take Photo")).toBeInTheDocument();
-    });
-
-    uploadFile();
-
-    await waitFor(() => {
-      expect(screen.getByText("No ingredients identified in photo")).toBeInTheDocument();
-    });
-  });
-
   it("should reject unsupported image formats on raw photo step", async () => {
     await openTrackModal();
     await waitFor(() => {
@@ -1343,8 +1077,6 @@ describe("TrackConsumptionModal", () => {
     const heicFile = new File(["data"], "photo.heic", { type: "image/heic" });
     fireEvent.change(fileInput, { target: { files: [heicFile] } });
 
-    expect(api.post).not.toHaveBeenCalled();
-
     await waitFor(() => {
       expect(
         screen.getByText("Unsupported format. Please use PNG, JPEG, GIF, or WebP.")
@@ -1353,32 +1085,14 @@ describe("TrackConsumptionModal", () => {
   });
 
   it("should show disposal method selector on waste-input step", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [
-        {
-          productId: 1,
-          name: "Beef",
-          matchedProductName: "Beef",
-          estimatedQuantity: 1,
-          category: "meat",
-          unitPrice: 15.0,
-          co2Emission: 99.0,
-          confidence: "high",
-        },
-      ],
-    });
-
     await openTrackModal();
-    await waitFor(() => {
-      expect(screen.getByText("Take Photo")).toBeInTheDocument();
-    });
-
     uploadFile();
 
     await waitFor(() => {
-      expect(screen.getByText("Next")).toBeInTheDocument();
+      expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByText("Add"));
     fireEvent.click(screen.getByText("Next"));
 
     await waitFor(() => {
@@ -1388,32 +1102,14 @@ describe("TrackConsumptionModal", () => {
   });
 
   it("should show Back button on waste-input step", async () => {
-    vi.mocked(api.post).mockResolvedValueOnce({
-      ingredients: [
-        {
-          productId: 1,
-          name: "Pork",
-          matchedProductName: "Pork",
-          estimatedQuantity: 1,
-          category: "meat",
-          unitPrice: 8.0,
-          co2Emission: 12.0,
-          confidence: "high",
-        },
-      ],
-    });
-
     await openTrackModal();
-    await waitFor(() => {
-      expect(screen.getByText("Take Photo")).toBeInTheDocument();
-    });
-
     uploadFile();
 
     await waitFor(() => {
-      expect(screen.getByText("Next")).toBeInTheDocument();
+      expect(screen.getByText("Review Ingredients")).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByText("Add"));
     fireEvent.click(screen.getByText("Next"));
 
     await waitFor(() => {

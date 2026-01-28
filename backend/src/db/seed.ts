@@ -201,14 +201,14 @@ async function seed() {
     for (const user of demoUsers) {
       const passwordHash = await hashPassword(user.password);
       const [created] = await db
-        .insert(schema.users)
-        .values({
-          email: user.email,
-          passwordHash,
-          name: user.name,
-          userLocation: user.userLocation,
-        })
-        .returning();
+          .insert(schema.users)
+          .values({
+            email: user.email,
+            passwordHash,
+            name: user.name,
+            userLocation: user.userLocation,
+          })
+          .returning();
 
       createdUsers.push({ id: created.id, name: created.name });
       console.log(`  ✓ ${user.email}`);
@@ -232,7 +232,7 @@ async function seed() {
         unit: listing.unit,
         price: listing.price,
         originalPrice: listing.originalPrice,
-        expiryDate,
+        expiryDate: expiryDate,
         pickupLocation: listing.location,
         status: "active",
       });
@@ -255,7 +255,7 @@ async function seed() {
         category: product.category,
         quantity: product.quantity,
         unitPrice: product.unitPrice,
-        purchaseDate,
+        purchaseDate: purchaseDate.toISOString().split('T')[0], // YYYY-MM-DD format
         description: product.description,
         co2Emission: product.co2Emission,
       });
