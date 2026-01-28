@@ -55,7 +55,7 @@ function App() {
         <Route path="marketplace/:id" element={<ListingDetailPage />} />
         <Route path="marketplace/:id/edit" element={<EditListingPage />} />
         <Route path="messages" element={<MessagesPage />} />
-        <Route path="messages/:listingId" element={<ConversationPage />} />
+        <Route path="messages/:conversationId" element={<ConversationPage />} />
         <Route path="ecoboard" element={<EcoBoardPage />} />
         <Route path="badges" element={<BadgesPage />} />
         <Route path="account" element={<AccountPage />} />

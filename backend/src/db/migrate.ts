@@ -6,7 +6,7 @@ const dbPath = "ecoplate.db";
 const migrationFile = join(
   import.meta.dir,
   "migrations",
-  "0000_redundant_fenris.sql"
+  "0000_yummy_frank_castle.sql"
 );
 
 console.log("Running database migration...\n");

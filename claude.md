@@ -107,6 +107,15 @@ bun install      # Install dependencies
 
 The frontend is a React application with Tailwind CSS, shadcn/ui, and Capacitor for mobile deployment.
 
+**IMPORTANT: Follow the UI/UX Design Guide**
+
+Before making any UI changes, read `docs/UI-UX-DESIGN-GUIDE.md`. Key rules:
+- Use theme color variables (e.g., `bg-primary`, `text-muted-foreground`), NOT hardcoded colors
+- Use `rounded-xl` or `rounded-2xl` for components
+- Use skeleton loaders for loading states, NOT spinners
+- NO page transition animations (no `animate-fade-in`, `animate-slide-up`)
+- Mobile uses bottom tab navigation, desktop uses sidebar
+
 ### Project Structure
 
 ```

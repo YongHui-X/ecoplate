@@ -61,20 +61,38 @@ export const marketplaceListings = sqliteTable("marketplace_listings", {
   completedAt: integer("completed_at", { mode: "timestamp" }),
 });
 
-// ==================== Messages ====================
+// ==================== Conversations ====================
 
-export const messages = sqliteTable("messages", {
+export const conversations = sqliteTable("conversations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   listingId: integer("listing_id")
     .notNull()
     .references(() => marketplaceListings.id, { onDelete: "cascade" }),
-  senderId: integer("sender_id")
+  sellerId: integer("seller_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  receiverId: integer("receiver_id")
+  buyerId: integer("buyer_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+// ==================== Messages ====================
+
+export const messages = sqliteTable("messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  conversationId: integer("conversation_id")
+    .notNull()
+    .references(() => conversations.id, { onDelete: "cascade" }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  messageText: text("message_text").notNull(),
   isRead: integer("is_read", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
@@ -85,10 +103,11 @@ export const messages = sqliteTable("messages", {
 
 export const usersRelations = relations(users, ({ many }) => ({
   products: many(products),
-  listings: many(marketplaceListings),
-  purchases: many(marketplaceListings),
-  sentMessages: many(messages),
-  receivedMessages: many(messages),
+  listings: many(marketplaceListings, { relationName: "seller" }),
+  purchases: many(marketplaceListings, { relationName: "buyer" }),
+  conversationsAsSeller: many(conversations, { relationName: "seller" }),
+  conversationsAsBuyer: many(conversations, { relationName: "buyer" }),
+  messages: many(messages),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -105,30 +124,49 @@ export const marketplaceListingsRelations = relations(
     seller: one(users, {
       fields: [marketplaceListings.sellerId],
       references: [users.id],
+      relationName: "seller",
     }),
     buyer: one(users, {
       fields: [marketplaceListings.buyerId],
       references: [users.id],
+      relationName: "buyer",
     }),
     product: one(products, {
       fields: [marketplaceListings.productId],
       references: [products.id],
+    }),
+    conversations: many(conversations),
+  })
+);
+
+export const conversationsRelations = relations(
+  conversations,
+  ({ one, many }) => ({
+    listing: one(marketplaceListings, {
+      fields: [conversations.listingId],
+      references: [marketplaceListings.id],
+    }),
+    seller: one(users, {
+      fields: [conversations.sellerId],
+      references: [users.id],
+      relationName: "seller",
+    }),
+    buyer: one(users, {
+      fields: [conversations.buyerId],
+      references: [users.id],
+      relationName: "buyer",
     }),
     messages: many(messages),
   })
 );
 
 export const messagesRelations = relations(messages, ({ one }) => ({
-  listing: one(marketplaceListings, {
-    fields: [messages.listingId],
-    references: [marketplaceListings.id],
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
   }),
-  sender: one(users, {
-    fields: [messages.senderId],
-    references: [users.id],
-  }),
-  receiver: one(users, {
-    fields: [messages.receiverId],
+  user: one(users, {
+    fields: [messages.userId],
     references: [users.id],
   }),
 }));

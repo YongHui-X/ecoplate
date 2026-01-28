@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { marketplaceService } from "../services/marketplace";
+import { messageService } from "../services/messages";
 import { uploadService } from "../services/upload";
 import { formatQuantityWithUnit } from "../constants/units";
 import { useAuth } from "../contexts/AuthContext";
@@ -105,6 +106,20 @@ export default function ListingDetailPage() {
 
   const handleNextImage = () => {
     setCurrentImageIndex((prev) => (prev === imageUrls.length - 1 ? 0 : prev + 1));
+  };
+
+  const handleMessageSeller = async () => {
+    if (!listing) return;
+    setActionLoading(true);
+    try {
+      const conversation = await messageService.getOrCreateConversationForListing(listing.id);
+      navigate(`/messages/${conversation.id}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to start conversation";
+      addToast(message, "error");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   return (
@@ -343,7 +358,8 @@ export default function ListingDetailPage() {
             <div className="space-y-3">
               {listing.status === "active" ? (
                 <Button
-                  onClick={() => navigate(`/messages/${listing.id}`)}
+                  onClick={handleMessageSeller}
+                  disabled={actionLoading}
                   className="w-full"
                 >
                   <MessageCircle className="h-4 w-4 mr-2" />

@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
+import { eq } from "drizzle-orm";
 import * as schema from "./schema";
 import { hashPassword } from "../middleware/auth";
 
@@ -68,10 +69,20 @@ const sampleListings = [
   },
 ];
 
+// Sample conversation messages
+const sampleConversationMessages = [
+  { text: "Hi! Is this still available?", fromBuyer: true },
+  { text: "Yes, it is! When would you like to pick it up?", fromBuyer: false },
+  { text: "Can I come by tomorrow afternoon around 3pm?", fromBuyer: true },
+  { text: "That works for me. See you then!", fromBuyer: false },
+];
+
 async function seed() {
   try {
     // Clear existing data in correct order (respecting foreign keys)
     console.log("Clearing existing data...");
+    sqlite.exec("DELETE FROM messages");
+    sqlite.exec("DELETE FROM conversations");
     sqlite.exec("DELETE FROM marketplace_listings");
     sqlite.exec("DELETE FROM products");
     sqlite.exec("DELETE FROM users");
@@ -127,6 +138,8 @@ async function seed() {
 
     // Create marketplace listings
     console.log("\nCreating sample marketplace listings...");
+    const createdListings: { id: number; sellerId: number; title: string }[] = [];
+
     for (let i = 0; i < sampleListings.length; i++) {
       const listing = sampleListings[i];
       const seller = createdUsers[i % createdUsers.length];
@@ -135,7 +148,7 @@ async function seed() {
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + listing.expiryDays);
 
-      await db.insert(schema.marketplaceListings).values({
+      const [created] = await db.insert(schema.marketplaceListings).values({
         sellerId: seller.id,
         productId: product.id,
         title: listing.title,
@@ -147,15 +160,57 @@ async function seed() {
         expiryDate,
         pickupLocation: listing.location,
         status: "active",
-      });
+      }).returning();
 
+      createdListings.push({ id: created.id, sellerId: seller.id, title: created.title });
       console.log(`  ✓ "${listing.title}" by ${seller.name}`);
     }
 
+    // Create sample conversations and messages
+    console.log("\nCreating sample conversations and messages...");
+
+    // Create a conversation for the first listing (Alice's apples, Bob inquiring)
+    const listing1 = createdListings[0]; // Alice's apples
+    const alice = createdUsers[0]; // Alice (seller)
+    const bob = createdUsers[1]; // Bob (buyer)
+
+    const [conversation1] = await db.insert(schema.conversations).values({
+      listingId: listing1.id,
+      sellerId: alice.id,
+      buyerId: bob.id,
+    }).returning();
+
+    console.log(`  ✓ Conversation for "${listing1.title}" between ${alice.name} and ${bob.name}`);
+
+    // Add messages to the conversation
+    for (let i = 0; i < sampleConversationMessages.length; i++) {
+      const msg = sampleConversationMessages[i];
+      const senderId = msg.fromBuyer ? bob.id : alice.id;
+
+      // Add small delay between messages for ordering
+      const messageDate = new Date();
+      messageDate.setMinutes(messageDate.getMinutes() - (sampleConversationMessages.length - i));
+
+      await db.insert(schema.messages).values({
+        conversationId: conversation1.id,
+        userId: senderId,
+        messageText: msg.text,
+        isRead: i < sampleConversationMessages.length - 1, // Last message unread
+        createdAt: messageDate,
+      });
+    }
+
+    console.log(`    Added ${sampleConversationMessages.length} messages`);
+
+    // Update conversation timestamp
+    await db.update(schema.conversations)
+      .set({ updatedAt: new Date() })
+      .where(eq(schema.conversations.id, conversation1.id));
+
     console.log("\n========================================");
     console.log("Done! Demo accounts (password: demo123):");
-    console.log("  - alice@demo.com");
-    console.log("  - bob@demo.com");
+    console.log("  - alice@demo.com (seller with apples listing)");
+    console.log("  - bob@demo.com (buyer who messaged about apples)");
     console.log("========================================\n");
 
   } catch (error) {

@@ -1,179 +1,219 @@
 import { Router, json, error, parseBody } from "../utils/router";
 import { db } from "../index";
-import { messages, marketplaceListings, users } from "../db/schema";
-import { eq, and, or, desc } from "drizzle-orm";
+import { messages, conversations } from "../db/schema";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getUser } from "../middleware/auth";
+import {
+  getOrCreateConversation,
+  getConversationById,
+  getUnreadCountForUser,
+  markConversationAsRead,
+  touchConversation,
+  isUserParticipant,
+  getListingForConversation,
+} from "../services/conversation-service";
 
 const sendMessageSchema = z.object({
-  listingId: z.number(),
-  content: z.string().min(1).max(2000),
+  conversationId: z.number().optional(),
+  listingId: z.number().optional(),
+  messageText: z.string().min(1).max(2000),
 });
 
 const markReadSchema = z.object({
-  messageIds: z.array(z.number()).min(1),
+  conversationId: z.number(),
 });
-
-interface ConversationType {
-  listingId: number;
-  listingTitle: string;
-  otherUser: {
-    id: number;
-    name: string;
-    avatarUrl: string | null;
-  };
-  lastMessage: string;
-  lastMessageAt: string;
-  unreadCount: number;
-}
 
 export function registerMessageRoutes(router: Router) {
   // Get all conversations for the current user
-  router.get("/api/v1/marketplace/messages", async (req) => {
+  router.get("/api/v1/marketplace/conversations", async (req) => {
     try {
       const user = getUser(req);
 
-      // Get all messages where user is sender or receiver
-      const userMessages = await db.query.messages.findMany({
+      // Get all conversations where user is seller or buyer
+      const userConversations = await db.query.conversations.findMany({
         where: or(
-          eq(messages.senderId, user.id),
-          eq(messages.receiverId, user.id)
+          eq(conversations.sellerId, user.id),
+          eq(conversations.buyerId, user.id)
         ),
         with: {
           listing: {
-            columns: { id: true, title: true, sellerId: true },
+            columns: { id: true, title: true, price: true, images: true, status: true },
           },
-          sender: {
+          seller: {
             columns: { id: true, name: true, avatarUrl: true },
           },
-          receiver: {
+          buyer: {
             columns: { id: true, name: true, avatarUrl: true },
+          },
+          messages: {
+            orderBy: [desc(messages.createdAt)],
+            limit: 1,
+            with: {
+              user: {
+                columns: { id: true, name: true, avatarUrl: true },
+              },
+            },
           },
         },
-        orderBy: [desc(messages.createdAt)],
+        orderBy: [desc(conversations.updatedAt)],
       });
 
-      // Group by listing and get latest message + unread count
-      const conversationMap = new Map<number, ConversationType>();
+      // Build response with unread counts
+      const response = await Promise.all(
+        userConversations.map(async (conv) => {
+          // Count unread messages not sent by this user
+          const unreadResult = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(messages)
+            .where(
+              and(
+                eq(messages.conversationId, conv.id),
+                sql`${messages.userId} != ${user.id}`,
+                eq(messages.isRead, false)
+              )
+            );
 
-      for (const msg of userMessages) {
-        if (!conversationMap.has(msg.listingId)) {
-          const otherUser = msg.senderId === user.id ? msg.receiver : msg.sender;
-          conversationMap.set(msg.listingId, {
-            listingId: msg.listingId,
-            listingTitle: msg.listing.title,
-            otherUser: {
-              id: otherUser.id,
-              name: otherUser.name,
-              avatarUrl: otherUser.avatarUrl,
-            },
-            lastMessage: msg.content,
-            lastMessageAt: msg.createdAt.toISOString(),
-            unreadCount: 0,
-          });
-        }
+          const lastMessage = conv.messages[0] ?? null;
 
-        // Count unread messages where user is receiver
-        if (msg.receiverId === user.id && !msg.isRead) {
-          const conv = conversationMap.get(msg.listingId);
-          if (conv) {
-            conv.unreadCount++;
-          }
-        }
-      }
+          const isSeller = conv.sellerId === user.id;
+          return {
+            id: conv.id,
+            listingId: conv.listingId,
+            listing: conv.listing,
+            seller: conv.seller,
+            buyer: conv.buyer,
+            role: isSeller ? "selling" : "buying",
+            lastMessage: lastMessage
+              ? {
+                  id: lastMessage.id,
+                  conversationId: lastMessage.conversationId,
+                  userId: lastMessage.userId,
+                  messageText: lastMessage.messageText,
+                  isRead: lastMessage.isRead,
+                  createdAt: lastMessage.createdAt.toISOString(),
+                  user: lastMessage.user,
+                }
+              : null,
+            unreadCount: unreadResult[0]?.count ?? 0,
+            updatedAt: conv.updatedAt.toISOString(),
+          };
+        })
+      );
 
-      return json(Array.from(conversationMap.values()));
+      return json(response);
     } catch (e) {
       console.error("Get conversations error:", e);
       return error("Failed to fetch conversations", 500);
     }
   });
 
-  // Get unread message count (must be before :listingId route)
+  // Get unread message count (must be before :id route)
   router.get("/api/v1/marketplace/messages/unread-count", async (req) => {
     try {
       const user = getUser(req);
-
-      const unreadMessages = await db.query.messages.findMany({
-        where: and(
-          eq(messages.receiverId, user.id),
-          eq(messages.isRead, false)
-        ),
-        columns: { id: true },
-      });
-
-      return json({ count: unreadMessages.length });
+      const count = await getUnreadCountForUser(user.id);
+      return json({ count });
     } catch (e) {
       console.error("Get unread count error:", e);
       return error("Failed to get unread count", 500);
     }
   });
 
-  // Get messages for a specific listing conversation
-  router.get("/api/v1/marketplace/messages/:listingId", async (req, params) => {
+  // Start or get conversation for a listing (must be before :id route)
+  router.get(
+    "/api/v1/marketplace/conversations/listing/:listingId",
+    async (req, params) => {
+      try {
+        const user = getUser(req);
+        const listingId = parseInt(params.listingId, 10);
+
+        if (isNaN(listingId)) {
+          return error("Invalid listing ID", 400);
+        }
+
+        const listing = await getListingForConversation(listingId);
+
+        if (!listing) {
+          return error("Listing not found", 404);
+        }
+
+        // Prevent seller from starting conversation with themselves
+        if (listing.sellerId === user.id) {
+          return error("Cannot start conversation with yourself", 400);
+        }
+
+        const conversation = await getOrCreateConversation(
+          listingId,
+          user.id,
+          listing.sellerId
+        );
+
+        return json({
+          id: conversation.id,
+          listingId: conversation.listingId,
+          listing: conversation.listing,
+          seller: conversation.seller,
+          buyer: conversation.buyer,
+        });
+      } catch (e) {
+        console.error("Get/create conversation error:", e);
+        return error("Failed to get conversation", 500);
+      }
+    }
+  );
+
+  // Get a specific conversation with messages
+  router.get("/api/v1/marketplace/conversations/:id", async (req, params) => {
     try {
       const user = getUser(req);
-      const listingId = parseInt(params.listingId, 10);
+      const conversationId = parseInt(params.id, 10);
 
-      // Get the listing info
-      const listing = await db.query.marketplaceListings.findFirst({
-        where: eq(marketplaceListings.id, listingId),
-        with: {
-          seller: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-        },
-      });
-
-      if (!listing) {
-        return error("Listing not found", 404);
+      if (isNaN(conversationId)) {
+        return error("Invalid conversation ID", 400);
       }
 
-      // Get all messages for this listing where user is part of the conversation
+      const conversation = await getConversationById(conversationId, user.id);
+
+      if (!conversation) {
+        return error("Conversation not found", 404);
+      }
+
+      // Get all messages for this conversation
       const conversationMessages = await db.query.messages.findMany({
-        where: and(
-          eq(messages.listingId, listingId),
-          or(
-            eq(messages.senderId, user.id),
-            eq(messages.receiverId, user.id)
-          )
-        ),
+        where: eq(messages.conversationId, conversationId),
         with: {
-          sender: {
+          user: {
             columns: { id: true, name: true, avatarUrl: true },
           },
         },
         orderBy: [desc(messages.createdAt)],
       });
 
-      // Mark messages as read where user is receiver
-      const unreadIds = conversationMessages
-        .filter((m) => m.receiverId === user.id && !m.isRead)
-        .map((m) => m.id);
+      // Mark messages as read
+      await markConversationAsRead(conversationId, user.id);
 
-      if (unreadIds.length > 0) {
-        await db
-          .update(messages)
-          .set({ isRead: true })
-          .where(
-            and(
-              eq(messages.listingId, listingId),
-              eq(messages.receiverId, user.id)
-            )
-          );
-      }
-
+      const isSeller = conversation.sellerId === user.id;
       return json({
-        listing: {
-          id: listing.id,
-          title: listing.title,
-          seller: listing.seller,
-        },
-        messages: conversationMessages,
+        id: conversation.id,
+        listingId: conversation.listingId,
+        listing: conversation.listing,
+        seller: conversation.seller,
+        buyer: conversation.buyer,
+        role: isSeller ? "selling" : "buying",
+        messages: conversationMessages.map((msg) => ({
+          id: msg.id,
+          conversationId: msg.conversationId,
+          userId: msg.userId,
+          messageText: msg.messageText,
+          isRead: msg.isRead,
+          createdAt: msg.createdAt.toISOString(),
+          user: msg.user,
+        })),
       });
     } catch (e) {
       console.error("Get conversation error:", e);
-      return error("Failed to fetch messages", 500);
+      return error("Failed to fetch conversation", 500);
     }
   });
 
@@ -186,52 +226,98 @@ export function registerMessageRoutes(router: Router) {
       const result = sendMessageSchema.safeParse(body);
       if (!result.success) {
         const firstError = result.error.errors[0];
-        return error(`${firstError.path.join(".")}: ${firstError.message}`, 400);
+        return error(
+          `${firstError.path.join(".")}: ${firstError.message}`,
+          400
+        );
       }
 
-      const { listingId, content } = result.data;
+      const { conversationId, listingId, messageText } = result.data;
 
-      // Get listing to determine receiver
-      const listing = await db.query.marketplaceListings.findFirst({
-        where: eq(marketplaceListings.id, listingId),
-      });
-
-      if (!listing) {
-        return error("Listing not found", 404);
+      // Must provide either conversationId or listingId
+      if (!conversationId && !listingId) {
+        return error("Either conversationId or listingId is required", 400);
       }
 
-      // Determine receiver
-      let receiverId: number;
+      let targetConversationId: number;
 
-      if (listing.sellerId === user.id) {
-        // User is seller - find the other participant from existing messages
-        const existingMessage = await db.query.messages.findFirst({
-          where: and(
-            eq(messages.listingId, listingId),
-            eq(messages.receiverId, user.id)
-          ),
-        });
-
-        if (!existingMessage) {
-          return error("No conversation exists to reply to", 400);
+      if (conversationId) {
+        // Verify user is participant
+        const isParticipant = await isUserParticipant(conversationId, user.id);
+        if (!isParticipant) {
+          return error("You are not a participant in this conversation", 403);
         }
-        receiverId = existingMessage.senderId;
+        targetConversationId = conversationId;
       } else {
-        // User is buyer - receiver is seller
-        receiverId = listing.sellerId;
+        // Create or get conversation from listing
+        const listing = await getListingForConversation(listingId!);
+        if (!listing) {
+          return error("Listing not found", 404);
+        }
+
+        // Determine if user is buyer or seller
+        let sellerId: number;
+        let buyerId: number;
+
+        if (listing.sellerId === user.id) {
+          // User is seller - find existing conversation
+          const existingConv = await db.query.conversations.findFirst({
+            where: and(
+              eq(conversations.listingId, listingId!),
+              eq(conversations.sellerId, user.id)
+            ),
+            orderBy: [desc(conversations.updatedAt)],
+          });
+
+          if (!existingConv) {
+            return error("No conversation exists to reply to", 400);
+          }
+          targetConversationId = existingConv.id;
+        } else {
+          // User is buyer
+          sellerId = listing.sellerId;
+          buyerId = user.id;
+          const conversation = await getOrCreateConversation(
+            listingId!,
+            buyerId,
+            sellerId
+          );
+          targetConversationId = conversation.id;
+        }
       }
 
+      // Insert message
       const [message] = await db
         .insert(messages)
         .values({
-          listingId,
-          senderId: user.id,
-          receiverId,
-          content,
+          conversationId: targetConversationId,
+          userId: user.id,
+          messageText,
         })
         .returning();
 
-      return json(message);
+      // Update conversation timestamp
+      await touchConversation(targetConversationId);
+
+      // Fetch message with user info
+      const messageWithUser = await db.query.messages.findFirst({
+        where: eq(messages.id, message.id),
+        with: {
+          user: {
+            columns: { id: true, name: true, avatarUrl: true },
+          },
+        },
+      });
+
+      return json({
+        id: messageWithUser!.id,
+        conversationId: messageWithUser!.conversationId,
+        userId: messageWithUser!.userId,
+        messageText: messageWithUser!.messageText,
+        isRead: messageWithUser!.isRead,
+        createdAt: messageWithUser!.createdAt.toISOString(),
+        user: messageWithUser!.user,
+      });
     } catch (e) {
       console.error("Send message error:", e);
       return error("Failed to send message", 500);
@@ -247,23 +333,21 @@ export function registerMessageRoutes(router: Router) {
       const result = markReadSchema.safeParse(body);
       if (!result.success) {
         const firstError = result.error.errors[0];
-        return error(`${firstError.path.join(".")}: ${firstError.message}`, 400);
+        return error(
+          `${firstError.path.join(".")}: ${firstError.message}`,
+          400
+        );
       }
 
-      const { messageIds } = result.data;
+      const { conversationId } = result.data;
 
-      // Only mark messages where user is the receiver
-      for (const id of messageIds) {
-        await db
-          .update(messages)
-          .set({ isRead: true })
-          .where(
-            and(
-              eq(messages.id, id),
-              eq(messages.receiverId, user.id)
-            )
-          );
+      // Verify user is participant
+      const isParticipant = await isUserParticipant(conversationId, user.id);
+      if (!isParticipant) {
+        return error("You are not a participant in this conversation", 403);
       }
+
+      await markConversationAsRead(conversationId, user.id);
 
       return json({ message: "Messages marked as read" });
     } catch (e) {
