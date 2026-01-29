@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',  // 允许外部连接（Android 模拟器需要）
       port: 5173,
+      host: true, // Listen on all interfaces (0.0.0.0) for mobile access
       proxy: {
         "/api": {
           target: "http://localhost:3000",
