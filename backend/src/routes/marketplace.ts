@@ -149,6 +149,104 @@ export function registerMarketplaceRoutes(router: Router) {
     return json(listing);
   });
 
+  // Get similar listings
+  router.get("/api/v1/marketplace/listings/:id/similar", async (req, params) => {
+    const user = getUser(req);
+    const listingId = parseInt(params.id, 10);
+    const url = new URL(req.url);
+    const limit = parseInt(url.searchParams.get("limit") || "6", 10);
+
+    // Fetch target listing
+    const listing = await db.query.marketplaceListings.findFirst({
+      where: eq(marketplaceListings.id, listingId),
+      with: {
+        seller: { columns: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+
+    if (!listing) {
+      return error("Listing not found", 404);
+    }
+
+    // Fetch all active listings (excluding target and same seller)
+    const allListings = await db.query.marketplaceListings.findMany({
+      where: and(
+        ne(marketplaceListings.id, listingId),
+        ne(marketplaceListings.sellerId, listing.sellerId),
+        eq(marketplaceListings.status, "active")
+      ),
+      with: {
+        seller: { columns: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+
+    // Calculate distances and days until expiry
+    const targetCoords = parseCoordinates(listing.pickupLocation);
+    const now = Date.now();
+    const targetDaysUntilExpiry = listing.expiryDate
+      ? Math.ceil((new Date(listing.expiryDate).getTime() - now) / (1000 * 60 * 60 * 24))
+      : null;
+
+    const candidates = allListings.map((l) => {
+      const coords = parseCoordinates(l.pickupLocation);
+      const distance = targetCoords && coords ? calculateDistance(targetCoords, coords) : null;
+      const daysUntilExpiry = l.expiryDate
+        ? Math.ceil((new Date(l.expiryDate).getTime() - now) / (1000 * 60 * 60 * 24))
+        : null;
+
+      return {
+        ...l,
+        distance_km: distance,
+        days_until_expiry: daysUntilExpiry,
+      };
+    });
+
+    try {
+      // Call recommendation engine
+      const recommendationUrl = process.env.RECOMMENDATION_ENGINE_URL || "http://localhost:5000";
+      const response = await fetch(`${recommendationUrl}/api/v1/recommendations/similar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: {
+            id: listing.id,
+            title: listing.title,
+            description: listing.description,
+            category: listing.category,
+            price: listing.price,
+            days_until_expiry: targetDaysUntilExpiry,
+            sellerId: listing.sellerId,
+          },
+          candidates,
+          limit,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Recommendation engine error");
+      }
+
+      const result = await response.json();
+      return json({
+        listings: result.similar_products,
+        targetListing: { id: listing.id, title: listing.title },
+        fallback: false,
+      });
+    } catch (e) {
+      // Fallback: simple category match
+      console.error("Recommendation engine unavailable, using fallback:", e);
+      const fallbackResults = candidates
+        .filter((c) => c.category === listing.category)
+        .slice(0, limit);
+
+      return json({
+        listings: fallbackResults,
+        targetListing: { id: listing.id, title: listing.title },
+        fallback: true,
+      });
+    }
+  });
+
   // Create listing
   router.post("/api/v1/marketplace/listings", async (req) => {
     try {

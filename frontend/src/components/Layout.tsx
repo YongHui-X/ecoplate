@@ -67,13 +67,13 @@ export default function Layout() {
       </header>
 
       <div className="flex">
-        {/* Desktop sidebar */}
-        <aside className="hidden lg:flex flex-col w-64 min-h-screen bg-card border-r">
+        {/* Desktop sidebar - fixed position */}
+        <aside className="hidden lg:flex flex-col w-64 h-screen bg-card border-r fixed top-0 left-0 z-30">
           <div className="p-6">
             <span className="text-2xl font-bold text-primary">EcoPlate</span>
           </div>
 
-          <nav className="flex-1 px-4 space-y-1">
+          <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
             {sidebarItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -144,8 +144,8 @@ export default function Layout() {
           </div>
         </aside>
 
-        {/* Main content - adjusted for mobile header and bottom tabs */}
-        <main className="flex-1 min-h-screen lg:min-h-0">
+        {/* Main content - adjusted for mobile header and bottom tabs, with left margin for fixed sidebar */}
+        <main className="flex-1 min-h-screen lg:ml-64">
           <div className="pt-14 pb-20 lg:pt-8 lg:pb-8 p-4 lg:px-10 lg:py-8">
             <Outlet />
           </div>
