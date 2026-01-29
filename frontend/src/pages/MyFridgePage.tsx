@@ -13,9 +13,6 @@ import {
   Camera,
   Search,
   Trash2,
-  Check,
-  Share,
-  DollarSign,
   X,
   Upload,
   RotateCcw,
@@ -23,8 +20,12 @@ import {
   ChevronRight,
   ChevronLeft,
   UtensilsCrossed,
+  Leaf,
+  Check,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { formatCO2, getCO2ColorClass, calculateTotalCO2 } from "../utils/co2Utils";
 
 interface Product {
   id: number;
@@ -36,8 +37,6 @@ interface Product {
   description: string | null;
   co2Emission: number | null;
 }
-
-type ConsumeAction = "consumed" | "wasted" | "shared" | "sold";
 
 interface IdentifiedIngredient {
   id: string;
@@ -71,6 +70,7 @@ export default function MyFridgePage() {
   const [pendingConsumptions, setPendingConsumptions] = useState<PendingConsumptionRecord[]>([]);
   const [selectedPendingRecord, setSelectedPendingRecord] = useState<PendingConsumptionRecord | null>(null);
   const { addToast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadProducts();
@@ -109,28 +109,6 @@ export default function MyFridgePage() {
       addToast("Pending record deleted", "success");
     } catch {
       addToast("Failed to delete pending record", "error");
-    }
-  };
-
-  const handleConsume = async (product: Product, action: ConsumeAction) => {
-    try {
-      await api.post(`/myfridge/products/${product.id}/consume`, {
-        type: action,
-        quantity: product.quantity,
-      });
-      addToast(
-        action === "consumed"
-          ? "Product consumed! +5 points"
-          : action === "shared"
-          ? "Product shared! +10 points"
-          : action === "sold"
-          ? "Product sold! +8 points"
-          : "Product logged as wasted",
-        action === "wasted" ? "error" : "success"
-      );
-      loadProducts();
-    } catch (error) {
-      addToast("Failed to update product", "error");
     }
   };
 
@@ -257,6 +235,35 @@ export default function MyFridgePage() {
         />
       </div>
 
+      {/* Total CO2 Footprint Summary */}
+      {sortedProducts.length > 0 && (
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-full">
+                  <Leaf className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-green-900">
+                    Total Carbon Footprint
+                  </p>
+                  <p className="text-xs text-green-700">
+                    All items in your fridge
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-green-600">
+                  {calculateTotalCO2(sortedProducts).toFixed(1)} kg
+                </p>
+                <p className="text-xs text-green-700">CO2 emissions</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Products list */}
       {sortedProducts.length === 0 ? (
         <Card>
@@ -274,8 +281,8 @@ export default function MyFridgePage() {
             <ProductCard
               key={product.id}
               product={product}
-              onConsume={handleConsume}
               onDelete={handleDelete}
+              onSell={() => navigate("/marketplace/create", { state: { product } })}
             />
           ))}
         </div>
@@ -325,14 +332,13 @@ export default function MyFridgePage() {
 
 function ProductCard({
   product,
-  onConsume,
   onDelete,
+  onSell,
 }: {
   product: Product;
-  onConsume: (product: Product, action: ConsumeAction) => void;
   onDelete: (id: number) => void;
+  onSell: () => void;
 }) {
-  const [showActions, setShowActions] = useState(false);
   return (
     <Card className="transition-all">
       <CardContent className="p-4">
@@ -344,10 +350,16 @@ function ProductCard({
                 <Badge variant="secondary">{product.category}</Badge>
               )}
             </div>
-            <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+            <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 flex-wrap">
               <span>Qty: {product.quantity}</span>
               {product.unitPrice != null && (
                 <span>${product.unitPrice.toFixed(2)}</span>
+              )}
+              {product.co2Emission != null && (
+                <span className={cn("flex items-center gap-1", getCO2ColorClass(product.co2Emission))}>
+                  <Leaf className="h-3 w-3" />
+                  {formatCO2(product.co2Emission)}
+                </span>
               )}
               {product.purchaseDate && (
                 <span>
@@ -361,68 +373,22 @@ function ProductCard({
           </div>
 
           <div className="flex items-center gap-2">
-            {!showActions ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowActions(true)}
-                >
-                  Actions
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onDelete(product.id)}
-                >
-                  <Trash2 className="h-4 w-4 text-gray-400" />
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onConsume(product, "consumed")}
-                  className="text-green-600"
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  Consumed
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onConsume(product, "shared")}
-                >
-                  <Share className="h-4 w-4 mr-1" />
-                  Shared
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onConsume(product, "sold")}
-                >
-                  <DollarSign className="h-4 w-4 mr-1" />
-                  Sold
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onConsume(product, "wasted")}
-                  className="text-red-600"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Wasted
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowActions(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSell}
+              className="text-green-600 hover:text-green-700"
+            >
+              <DollarSign className="h-4 w-4 mr-1" />
+              Sell
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(product.id)}
+            >
+              <Trash2 className="h-4 w-4 text-gray-400" />
+            </Button>
           </div>
         </div>
       </CardContent>

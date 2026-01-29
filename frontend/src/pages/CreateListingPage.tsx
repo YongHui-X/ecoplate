@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "../services/api";
 import { useToast } from "../contexts/ToastContext";
 import { Button } from "../components/ui/button";
@@ -9,14 +9,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { ArrowLeft, ImagePlus, X } from "lucide-react";
 import { LocationAutocomplete } from "../components/common/LocationAutocomplete";
 
+interface Product {
+  id: number;
+  productName: string;
+  category: string | null;
+  quantity: number;
+  unitPrice: number | null;
+  purchaseDate: string | null;
+  description: string | null;
+  co2Emission: number | null;
+}
+
 export default function CreateListingPage() {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  const location = useLocation();
+  const product = (location.state as { product?: Product })?.product;
+
+  const [title, setTitle] = useState(product?.productName || "");
+  const [description, setDescription] = useState(product?.description || "");
+  const [category, setCategory] = useState(product?.category || "");
+  const [quantity, setQuantity] = useState(product?.quantity || 1);
   const [unit, setUnit] = useState("item");
   const [price, setPrice] = useState<string>("");
-  const [originalPrice, setOriginalPrice] = useState<string>("");
+  const [originalPrice, setOriginalPrice] = useState<string>(
+    product?.unitPrice ? product.unitPrice.toString() : ""
+  );
   const [expiryDate, setExpiryDate] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | undefined>();
@@ -141,6 +157,16 @@ export default function CreateListingPage() {
           <CardTitle>Create Listing</CardTitle>
         </CardHeader>
         <CardContent>
+          {product && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                <strong>Pre-filled from MyFridge:</strong> {product.productName}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                Review and update the details below, then add photos and pricing information.
+              </p>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="title">Title *</Label>
