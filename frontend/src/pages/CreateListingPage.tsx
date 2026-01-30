@@ -1,12 +1,6 @@
-<<<<<<< HEAD
-import { useState, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { api } from "../services/api";
-=======
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { marketplaceService } from "../services/marketplace";
->>>>>>> main
 import { useToast } from "../contexts/ToastContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -18,42 +12,7 @@ import { PRODUCT_UNITS } from "../constants/units";
 import { LocationAutocomplete } from "../components/common/LocationAutocomplete";
 import { ImagePicker } from "../components/common/ImagePicker";
 
-interface Product {
-  id: number;
-  productName: string;
-  category: string | null;
-  quantity: number;
-  unitPrice: number | null;
-  purchaseDate: string | null;
-  description: string | null;
-  co2Emission: number | null;
-}
-
 export default function CreateListingPage() {
-<<<<<<< HEAD
-  const location = useLocation();
-  const product = (location.state as { product?: Product })?.product;
-
-  const [title, setTitle] = useState(product?.productName || "");
-  const [description, setDescription] = useState(product?.description || "");
-  const [category, setCategory] = useState(product?.category || "");
-  const [quantity, setQuantity] = useState(product?.quantity || 1);
-  const [unit, setUnit] = useState("item");
-  const [price, setPrice] = useState<string>("");
-  const [originalPrice, setOriginalPrice] = useState<string>(
-    product?.unitPrice ? product.unitPrice.toString() : ""
-  );
-  const [expiryDate, setExpiryDate] = useState("");
-  const [pickupLocation, setPickupLocation] = useState("");
-  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | undefined>();
-  const [pickupInstructions, setPickupInstructions] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [uploadingImages, setUploadingImages] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-=======
->>>>>>> main
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -147,16 +106,6 @@ export default function CreateListingPage() {
           <CardTitle>Create Listing</CardTitle>
         </CardHeader>
         <CardContent>
-          {product && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700">
-                <strong>Pre-filled from MyFridge:</strong> {product.productName}
-              </p>
-              <p className="text-xs text-blue-600 mt-1">
-                Review and update the details below, then add photos and pricing information.
-              </p>
-            </div>
-          )}
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Title */}
             <div className="space-y-2">
