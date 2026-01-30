@@ -3,7 +3,7 @@ import { db } from "../index";
 import * as schema from "../db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getUser } from "../middleware/auth";
-import { getOrCreateUserPoints, getUserMetrics } from "../services/gamification-service";
+import { getOrCreateUserPoints, getUserMetrics, getDetailedPointsStats } from "../services/gamification-service";
 import { POINT_VALUES } from "../services/gamification-service";
 
 export function registerGamificationRoutes(router: Router) {
@@ -14,6 +14,7 @@ export function registerGamificationRoutes(router: Router) {
     const user = getUser(req);
 
     const points = await getOrCreateUserPoints(user.id);
+    const detailedStats = await getDetailedPointsStats(user.id);
 
     // Get recent interactions as "transactions" for the UI
     const recentInteractions = await db.query.ProductSustainabilityMetrics.findMany({
@@ -43,11 +44,22 @@ export function registerGamificationRoutes(router: Router) {
     return json({
       points: {
         total: points.totalPoints,
-        available: points.totalPoints, // Same as total in simplified model
+        available: points.totalPoints,
         lifetime: points.totalPoints,
         currentStreak: points.currentStreak,
-        longestStreak: points.currentStreak, // Track separately if needed
+        longestStreak: detailedStats.longestStreak,
       },
+      stats: {
+        totalActiveDays: detailedStats.totalActiveDays,
+        lastActiveDate: detailedStats.lastActiveDate,
+        firstActivityDate: detailedStats.firstActivityDate,
+        pointsToday: detailedStats.pointsToday,
+        pointsThisWeek: detailedStats.pointsThisWeek,
+        pointsThisMonth: detailedStats.pointsThisMonth,
+        bestDayPoints: detailedStats.bestDayPoints,
+        averagePointsPerActiveDay: detailedStats.averagePointsPerActiveDay,
+      },
+      breakdown: detailedStats.breakdownByType,
       transactions,
     });
   });
