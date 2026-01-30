@@ -4,12 +4,16 @@ import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
-import MyFridgePage from "./pages/MyFridgePage";
+// import MyFridgePage from "./pages/MyFridgePage";
 import MarketplacePage from "./pages/MarketplacePage";
 import CreateListingPage from "./pages/CreateListingPage";
+import EditListingPage from "./pages/EditListingPage";
 import ListingDetailPage from "./pages/ListingDetailPage";
+import MyListingsPage from "./pages/MyListingsPage";
 import MessagesPage from "./pages/MessagesPage";
+import ConversationPage from "./pages/ConversationPage";
 import EcoBoardPage from "./pages/EcoBoardPage";
+import EcopointsPage from "./pages/Ecopoints";
 import BadgesPage from "./pages/BadgesPage";
 import AccountPage from "./pages/AccountPage";
 
@@ -45,12 +49,16 @@ function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-        <Route path="myfridge" element={<MyFridgePage />} />
+        {/* <Route path="myfridge" element={<MyFridgePage />} /> */}
         <Route path="marketplace" element={<MarketplacePage />} />
         <Route path="marketplace/create" element={<CreateListingPage />} />
+        <Route path="marketplace/my-listings" element={<MyListingsPage />} />
         <Route path="marketplace/:id" element={<ListingDetailPage />} />
+        <Route path="marketplace/:id/edit" element={<EditListingPage />} />
         <Route path="messages" element={<MessagesPage />} />
+        <Route path="messages/:conversationId" element={<ConversationPage />} />
         <Route path="ecoboard" element={<EcoBoardPage />} />
+        <Route path="ecopoints" element={<EcopointsPage />} />
         <Route path="badges" element={<BadgesPage />} />
         <Route path="account" element={<AccountPage />} />
       </Route>

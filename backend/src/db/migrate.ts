@@ -1,50 +1,85 @@
 import { Database } from "bun:sqlite";
-import { readFileSync, readdirSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 
 const dbPath = "ecoplate.db";
 const migrationsDir = join(import.meta.dir, "migrations");
+// List of migrations in order
+const migrationFiles = [
+  "0000_acoustic_the_hood.sql",
+];
 
 console.log("Running database migrations...\n");
 
 try {
   const sqlite = new Database(dbPath);
 
-  // Get all SQL migration files sorted by name
-  const migrationFiles = readdirSync(migrationsDir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
+  // Create migrations tracking table if not exists
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      applied_at INTEGER NOT NULL
+    )
+  `);
 
-  console.log(`Found ${migrationFiles.length} migration files\n`);
+  // Get applied migrations
+  const appliedMigrations = new Set(
+    sqlite.query("SELECT name FROM _migrations").all().map((r: any) => r.name)
+  );
 
-  for (const file of migrationFiles) {
-    console.log(`Running migration: ${file}`);
-    const migrationPath = join(migrationsDir, file);
-    const migration = readFileSync(migrationPath, "utf-8");
+  let migrationsApplied = 0;
 
-    // Split by statement breakpoint (for drizzle-generated migrations) or semicolon
+  for (const migrationName of migrationFiles) {
+    if (appliedMigrations.has(migrationName)) {
+      console.log(`✓ ${migrationName} (already applied)`);
+      continue;
+    }
+
+    const migrationFile = join(migrationsDir, migrationName);
+    if (!existsSync(migrationFile)) {
+      console.error(`Migration file not found: ${migrationFile}`);
+      continue;
+    }
+
+    console.log(`\nApplying ${migrationName}...`);
+    const migration = readFileSync(migrationFile, "utf-8");
+
+    // Split by statement breakpoint and execute each statement
     const statements = migration
-      .split(/--> statement-breakpoint|;/)
+      .split("--> statement-breakpoint")
       .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith("--"));
+      .filter((s) => s.length > 0);
 
-    for (const statement of statements) {
+    console.log(`  Found ${statements.length} statements`);
+
+    for (let i = 0; i < statements.length; i++) {
       try {
-        sqlite.exec(statement + ";");
-      } catch (e: unknown) {
-        const err = e as { message?: string };
-        // Ignore "table already exists" errors when using IF NOT EXISTS
-        if (!err.message?.includes("already exists")) {
-          throw e;
+        sqlite.exec(statements[i]);
+        console.log(`  ✓ Statement ${i + 1}/${statements.length}`);
+      } catch (err: any) {
+        // Ignore "table already exists" or "column already exists" errors for idempotency
+        if (err.message?.includes("already exists") || err.message?.includes("duplicate column")) {
+          console.log(`  ⚠ Statement ${i + 1}/${statements.length} (skipped - already exists)`);
+        } else {
+          throw err;
         }
       }
     }
-    console.log(`  ✓ ${file} completed`);
+
+    // Record migration as applied
+    sqlite.exec(`INSERT INTO _migrations (name, applied_at) VALUES ('${migrationName}', ${Date.now()})`);
+    migrationsApplied++;
+    console.log(`  ✓ ${migrationName} applied`);
   }
 
   sqlite.close();
 
-  console.log("\n✓ All migrations completed successfully!");
+  if (migrationsApplied > 0) {
+    console.log(`\n✓ ${migrationsApplied} migration(s) completed successfully!`);
+  } else {
+    console.log("\n✓ Database is up to date!");
+  }
   console.log("\nNext steps:");
   console.log("  1. Run: bun run db:seed");
   console.log("  2. Start server: bun run dev\n");

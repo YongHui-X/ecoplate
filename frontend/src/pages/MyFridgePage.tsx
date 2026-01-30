@@ -91,6 +91,7 @@ export default function MyFridgePage() {
 
   const loadPendingConsumptions = async () => {
     try {
+<<<<<<< HEAD
       const data = await api.get<PendingConsumptionRecord[]>("/myfridge/consumption/pending");
       setPendingConsumptions(data);
     } catch {
@@ -110,6 +111,25 @@ export default function MyFridgePage() {
       addToast("Pending record deleted", "success");
     } catch {
       addToast("Failed to delete pending record", "error");
+=======
+      await api.post(`/myfridge/products/${product.id}/consume`, {
+        action,
+        quantity: product.quantity,
+      });
+      addToast(
+        action === "consumed"
+          ? "Product consumed! +5 points"
+          : action === "shared"
+          ? "Product shared! +10 points"
+          : action === "sold"
+          ? "Product sold! +8 points"
+          : "Product logged as wasted. -3 points",
+        action === "wasted" ? "error" : "success"
+      );
+      loadProducts();
+    } catch (error) {
+      addToast("Failed to update product", "error");
+>>>>>>> main
     }
   };
 
@@ -426,7 +446,7 @@ function AddProductModal({
         purchaseDate: purchaseDate || undefined,
         description: description || undefined,
       });
-      addToast("Product added! +2 points", "success");
+      addToast("Product added!", "success");
       onAdded();
     } catch (error) {
       addToast("Failed to add product", "error");

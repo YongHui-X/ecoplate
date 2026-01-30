@@ -1,66 +1,25 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { api } from "../services/api";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { marketplaceService } from "../services/marketplace";
+import { messageService } from "../services/messages";
+import { uploadService } from "../services/upload";
+import { formatQuantityWithUnit } from "../constants/units";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import {
-  ArrowLeft,
-  MapPin,
-  Clock,
-  Eye,
-  MessageCircle,
-  Send,
-  DollarSign,
-} from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Edit, Trash2, CheckCircle, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import { formatDate, getDaysUntilExpiry } from "../lib/utils";
-
-interface Listing {
-  id: number;
-  sellerId: number;
-  title: string;
-  description: string | null;
-  category: string | null;
-  quantity: number;
-  unit: string;
-  price: number | null;
-  originalPrice: number | null;
-  expiryDate: string | null;
-  pickupLocation: string | null;
-  pickupInstructions: string | null;
-  status: string;
-  viewCount: number;
-  createdAt: string;
-  seller: {
-    id: number;
-    name: string;
-    avatarUrl: string | null;
-  };
-  images: Array<{ id: number; imageUrl: string }>;
-}
-
-interface Message {
-  id: number;
-  content: string;
-  senderId: number;
-  createdAt: string;
-  sender: {
-    id: number;
-    name: string;
-  };
-}
+import { SimilarProducts } from "../components/marketplace/SimilarProducts";
+import type { MarketplaceListing } from "../types/marketplace";
 
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [listing, setListing] = useState<Listing | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
+  const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sendingMessage, setSendingMessage] = useState(false);
-  const [showMessages, setShowMessages] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const { user } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -71,74 +30,51 @@ export default function ListingDetailPage() {
 
   const loadListing = async () => {
     try {
-      const data = await api.get<Listing>(`/marketplace/listings/${id}`);
+      const data = await marketplaceService.getListing(Number(id));
       setListing(data);
-    } catch (error) {
-      addToast("Failed to load listing", "error");
+    } catch (error: any) {
+      addToast(error.message || "Failed to load listing", "error");
       navigate("/marketplace");
     } finally {
       setLoading(false);
     }
   };
 
-  const loadMessages = async () => {
-    try {
-      const data = await api.get<Message[]>(`/marketplace/listings/${id}/messages`);
-      setMessages(data.reverse());
-    } catch (error) {
-      console.error("Failed to load messages:", error);
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this listing?")) {
+      return;
     }
-  };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
-
-    setSendingMessage(true);
+    setActionLoading(true);
     try {
-      await api.post(`/marketplace/listings/${id}/messages`, {
-        content: newMessage,
-      });
-      setNewMessage("");
-      loadMessages();
-    } catch (error) {
-      addToast("Failed to send message", "error");
+      await marketplaceService.deleteListing(Number(id));
+      addToast("Listing deleted successfully!", "success");
+      navigate("/marketplace");
+    } catch (error: any) {
+      addToast(error.message || "Failed to delete listing", "error");
     } finally {
-      setSendingMessage(false);
+      setActionLoading(false);
     }
   };
 
-  const handleReserve = async () => {
+  const handleMarkCompleted = async () => {
+    if (
+      !window.confirm(
+        "Mark this listing as completed? This will remove it from the marketplace."
+      )
+    ) {
+      return;
+    }
+
+    setActionLoading(true);
     try {
-      await api.post(`/marketplace/listings/${id}/reserve`);
-      addToast("Listing reserved!", "success");
+      const result = await marketplaceService.completeListing(Number(id));
+      addToast(`Listing marked as completed! +${result.pointsAwarded} points`, "success");
       loadListing();
-    } catch (error) {
-      addToast("Failed to reserve listing", "error");
-    }
-  };
-
-  const handleMarkSold = async () => {
-    try {
-      await api.post(`/marketplace/listings/${id}/sold`);
-      addToast("Listing marked as sold!", "success");
-      loadListing();
-    } catch (error) {
-      addToast("Failed to mark as sold", "error");
-    }
-  };
-
-  const handleGetPriceRecommendation = async () => {
-    try {
-      const result = await api.post<{
-        recommendedPrice: number;
-        reasoning: string;
-      }>(`/marketplace/listings/${id}/price-recommendation`);
-      addToast(
-        `Recommended price: $${result.recommendedPrice}. ${result.reasoning}`,
-        "info"
-      );
-    } catch (error) {
-      addToast("Failed to get price recommendation", "error");
+    } catch (error: any) {
+      addToast(error.message || "Failed to complete listing", "error");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -161,45 +97,122 @@ export default function ListingDetailPage() {
       ? Math.round((1 - listing.price / listing.originalPrice) * 100)
       : null;
 
+  // Get listing images
+  const imageUrls = uploadService.getListingImageUrls(listing.images);
+  const hasImages = imageUrls.length > 0;
+
+  const handlePrevImage = () => {
+    setCurrentImageIndex((prev) => (prev === 0 ? imageUrls.length - 1 : prev - 1));
+  };
+
+  const handleNextImage = () => {
+    setCurrentImageIndex((prev) => (prev === imageUrls.length - 1 ? 0 : prev + 1));
+  };
+
+  const handleMessageSeller = async () => {
+    if (!listing) return;
+    setActionLoading(true);
+    try {
+      const conversation = await messageService.getOrCreateConversationForListing(listing.id);
+      navigate(`/messages/${conversation.id}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to start conversation";
+      addToast(message, "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <Button
-        variant="ghost"
-        className="mb-4"
-        onClick={() => navigate("/marketplace")}
-      >
+    <div className="max-w-4xl mx-auto space-y-6">
+      <Button variant="ghost" onClick={() => navigate("/marketplace")}>
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to Marketplace
       </Button>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Image */}
-        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-          {listing.images[0] ? (
-            <img
-              src={listing.images[0].imageUrl}
-              alt={listing.title}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
-              No image
+        {/* Image Gallery */}
+        <div className="space-y-4">
+          {/* Main Image */}
+          <div className="relative aspect-square bg-muted rounded-xl overflow-hidden border">
+            {hasImages ? (
+              <>
+                <img
+                  src={imageUrls[currentImageIndex]}
+                  alt={`${listing.title} - Image ${currentImageIndex + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                {imageUrls.length > 1 && (
+                  <>
+                    {/* Navigation Arrows */}
+                    <button
+                      onClick={handlePrevImage}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition"
+                      aria-label="Previous image"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={handleNextImage}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition"
+                      aria-label="Next image"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                    {/* Image Counter */}
+                    <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm">
+                      {currentImageIndex + 1} / {imageUrls.length}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-muted-foreground">
+                  <p className="text-4xl mb-2">📦</p>
+                  <p className="text-sm">No image</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Thumbnail Gallery */}
+          {imageUrls.length > 1 && (
+            <div className="grid grid-cols-5 gap-2">
+              {imageUrls.map((url, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentImageIndex(index)}
+                  className={`aspect-square rounded-xl overflow-hidden border-2 transition ${
+                    index === currentImageIndex
+                      ? "border-primary ring-2 ring-primary/20"
+                      : "border-border hover:border-muted-foreground"
+                  }`}
+                >
+                  <img
+                    src={url}
+                    alt={`Thumbnail ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
             </div>
           )}
         </div>
 
         {/* Details */}
         <div className="space-y-6">
+          {/* Title and Status */}
           <div>
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-2 mb-2">
               <h1 className="text-2xl font-bold">{listing.title}</h1>
               <Badge
                 variant={
                   listing.status === "active"
-                    ? "success"
-                    : listing.status === "reserved"
-                    ? "warning"
-                    : "secondary"
+                    ? "default"
+                    : listing.status === "completed"
+                    ? "secondary"
+                    : "outline"
                 }
               >
                 {listing.status}
@@ -207,8 +220,9 @@ export default function ListingDetailPage() {
             </div>
 
             {listing.category && (
-              <Badge variant="secondary" className="mt-2">
-                {listing.category}
+              <Badge variant="secondary">
+                {listing.category.charAt(0).toUpperCase() +
+                  listing.category.slice(1)}
               </Badge>
             )}
           </div>
@@ -216,17 +230,17 @@ export default function ListingDetailPage() {
           {/* Price */}
           <div className="flex items-baseline gap-3">
             {listing.price === null || listing.price === 0 ? (
-              <span className="text-3xl font-bold text-green-600">Free</span>
+              <span className="text-3xl font-bold text-success">Free</span>
             ) : (
               <>
-                <span className="text-3xl font-bold">${listing.price}</span>
+                <span className="text-3xl font-bold">${listing.price.toFixed(2)}</span>
                 {listing.originalPrice && (
                   <>
-                    <span className="text-lg text-gray-400 line-through">
-                      ${listing.originalPrice}
+                    <span className="text-lg text-muted-foreground line-through">
+                      ${listing.originalPrice.toFixed(2)}
                     </span>
                     {discount && (
-                      <Badge className="bg-red-500">-{discount}%</Badge>
+                      <Badge variant="destructive">-{discount}%</Badge>
                     )}
                   </>
                 )}
@@ -235,23 +249,25 @@ export default function ListingDetailPage() {
           </div>
 
           {/* Info */}
-          <div className="space-y-2 text-gray-600">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              {daysUntil !== null ? (
-                daysUntil < 0 ? (
-                  <span className="text-red-600">
-                    Expired {Math.abs(daysUntil)} days ago
-                  </span>
-                ) : daysUntil === 0 ? (
-                  <span className="text-yellow-600">Expires today</span>
+          <div className="space-y-3 text-muted-foreground">
+            {listing.expiryDate && (
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                {daysUntil !== null ? (
+                  daysUntil < 0 ? (
+                    <span className="text-destructive">
+                      Expired {Math.abs(daysUntil)} days ago
+                    </span>
+                  ) : daysUntil === 0 ? (
+                    <span className="text-warning">Expires today</span>
+                  ) : (
+                    <span>Expires in {daysUntil} days</span>
+                  )
                 ) : (
-                  <span>Expires in {daysUntil} days</span>
-                )
-              ) : (
-                <span>No expiry date set</span>
-              )}
-            </div>
+                  <span>No expiry date set</span>
+                )}
+              </div>
+            )}
 
             {listing.pickupLocation && (
               <div className="flex items-center gap-2">
@@ -260,132 +276,113 @@ export default function ListingDetailPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              <span>{listing.viewCount} views</span>
+            <div>
+              <strong>Quantity:</strong> {formatQuantityWithUnit(listing.quantity, listing.unit)}
             </div>
 
-            <p>
-              <strong>Quantity:</strong> {listing.quantity} {listing.unit}
-            </p>
+            <div className="text-sm text-muted-foreground">
+              Posted {formatDate(listing.createdAt)}
+            </div>
           </div>
 
+          {/* Description */}
           {listing.description && (
             <div>
               <h3 className="font-semibold mb-2">Description</h3>
-              <p className="text-gray-600">{listing.description}</p>
-            </div>
-          )}
-
-          {listing.pickupInstructions && (
-            <div>
-              <h3 className="font-semibold mb-2">Pickup Instructions</h3>
-              <p className="text-gray-600">{listing.pickupInstructions}</p>
+              <p className="text-muted-foreground whitespace-pre-wrap">
+                {listing.description}
+              </p>
             </div>
           )}
 
           {/* Seller */}
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-              {listing.seller.name.charAt(0).toUpperCase()}
+          {listing.seller && (
+            <div className="flex items-center gap-3 p-4 bg-muted rounded-xl">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
+                {listing.seller.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="font-medium">{listing.seller.name}</p>
+                <p className="text-sm text-muted-foreground">Seller</p>
+              </div>
             </div>
-            <div>
-              <p className="font-medium">{listing.seller.name}</p>
-              <p className="text-sm text-gray-500">Seller</p>
-            </div>
-          </div>
+          )}
 
           {/* Actions */}
-          <div className="flex gap-3">
-            {isOwner ? (
-              <>
-                {listing.status === "active" && (
+          {isOwner ? (
+            <div className="space-y-3">
+              {listing.status === "active" && (
+                <>
                   <Button
-                    variant="outline"
-                    onClick={handleGetPriceRecommendation}
-                    className="flex-1"
+                    onClick={handleMarkCompleted}
+                    disabled={actionLoading}
+                    className="w-full"
                   >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Get Price Recommendation
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Mark as Completed
                   </Button>
-                )}
-                {(listing.status === "active" || listing.status === "reserved") && (
-                  <Button onClick={handleMarkSold} className="flex-1">
-                    Mark as Sold
-                  </Button>
-                )}
-              </>
-            ) : (
-              <>
-                {listing.status === "active" && (
-                  <Button onClick={handleReserve} className="flex-1">
-                    Reserve
-                  </Button>
-                )}
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      asChild
+                      disabled={actionLoading}
+                      className="flex-1"
+                    >
+                      <Link to={`/marketplace/${listing.id}/edit`}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleDelete}
+                      disabled={actionLoading}
+                      className="flex-1 text-destructive hover:text-destructive/80"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </div>
+                </>
+              )}
+              {listing.status === "completed" && listing.completedAt && (
+                <Card className="bg-success/10 border-success/20">
+                  <CardContent className="p-4">
+                    <p className="text-sm text-success">
+                      Completed on {formatDate(listing.completedAt)}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {listing.status === "active" ? (
                 <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowMessages(true);
-                    loadMessages();
-                  }}
-                  className="flex-1"
+                  onClick={handleMessageSeller}
+                  disabled={actionLoading}
+                  className="w-full"
                 >
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Message Seller
                 </Button>
-              </>
-            )}
-          </div>
+              ) : (
+                <Card className="bg-muted">
+                  <CardContent className="p-4">
+                    <p className="text-sm text-muted-foreground">
+                      This listing is no longer available.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Messages Modal */}
-      {showMessages && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md max-h-[80vh] flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Messages</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setShowMessages(false)}>
-                &times;
-              </Button>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto space-y-3 min-h-[200px]">
-              {messages.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
-                  No messages yet. Start the conversation!
-                </p>
-              ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`p-3 rounded-lg ${
-                      msg.senderId === user?.id
-                        ? "bg-primary/10 ml-8"
-                        : "bg-gray-100 mr-8"
-                    }`}
-                  >
-                    <p className="text-sm font-medium">{msg.sender.name}</p>
-                    <p>{msg.content}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formatDate(msg.createdAt)}
-                    </p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-            <div className="p-4 border-t flex gap-2">
-              <Input
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-              />
-              <Button onClick={handleSendMessage} disabled={sendingMessage}>
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </Card>
-        </div>
+      {/* Similar Products Section */}
+      {listing && listing.status === "active" && !isOwner && (
+        <SimilarProducts listingId={listing.id} />
       )}
     </div>
   );

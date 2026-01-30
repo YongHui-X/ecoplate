@@ -35,20 +35,35 @@ export const products = sqliteTable("products", {
   co2Emission: real("co2_emission"),
 });
 
+// ==================== User Points (per LDM) ====================
+
+export const userPoints = sqliteTable("user_points", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  totalPoints: integer("total_points").notNull().default(0),
+  currentStreak: integer("current_streak").notNull().default(0),
+});
+
 // ==================== Product Sustainability Metrics ====================
+// Records each product action (consumed, wasted, shared, sold)
 
 export const productSustainabilityMetrics = sqliteTable("product_sustainability_metrics", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   productId: integer("product_id")
-    .notNull()
     .references(() => products.id, { onDelete: "cascade" }),
   userId: integer("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   todayDate: text("today_date"), // YYYY-MM-DD format
   quantity: real("quantity"),
-  type: text("type"), // e.g., "Add", "Consume", "Waste"
+  type: text("type"), // e.g., "Add", "Consume", "Waste", "consumed", "wasted", "shared", "sold"
 });
+
+// Alias for backward compatibility with main branch code
+export const ProductSustainabilityMetrics = productSustainabilityMetrics;
 
 // ==================== Pending Consumption Records ====================
 
@@ -134,7 +149,7 @@ export const messages = sqliteTable("messages", {
 
 // ==================== Relations ====================
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   products: many(products),
   productSustainabilityMetrics: many(productSustainabilityMetrics),
   pendingConsumptionRecords: many(pendingConsumptionRecords),
@@ -143,6 +158,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   conversationsAsSeller: many(conversations, { relationName: "seller" }),
   conversationsAsBuyer: many(conversations, { relationName: "buyer" }),
   messages: many(messages),
+  points: one(userPoints),
+}));
+
+export const userPointsRelations = relations(userPoints, ({ one }) => ({
+  user: one(users, {
+    fields: [userPoints.userId],
+    references: [users.id],
+  }),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -153,6 +176,30 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   sustainabilityMetrics: many(productSustainabilityMetrics),
   listings: many(marketplaceListings),
 }));
+
+export const productSustainabilityMetricsRelations = relations(
+  productSustainabilityMetrics,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [productSustainabilityMetrics.productId],
+      references: [products.id],
+    }),
+    user: one(users, {
+      fields: [productSustainabilityMetrics.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const pendingConsumptionRecordsRelations = relations(
+  pendingConsumptionRecords,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [pendingConsumptionRecords.userId],
+      references: [users.id],
+    }),
+  })
+);
 
 export const marketplaceListingsRelations = relations(
   marketplaceListings,
@@ -206,27 +253,3 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     references: [users.id],
   }),
 }));
-
-export const productSustainabilityMetricsRelations = relations(
-  productSustainabilityMetrics,
-  ({ one }) => ({
-    product: one(products, {
-      fields: [productSustainabilityMetrics.productId],
-      references: [products.id],
-    }),
-    user: one(users, {
-      fields: [productSustainabilityMetrics.userId],
-      references: [users.id],
-    }),
-  })
-);
-
-export const pendingConsumptionRecordsRelations = relations(
-  pendingConsumptionRecords,
-  ({ one }) => ({
-    user: one(users, {
-      fields: [pendingConsumptionRecords.userId],
-      references: [users.id],
-    }),
-  })
-);

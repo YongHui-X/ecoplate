@@ -7,8 +7,47 @@
 This is a monorepo with three main components:
 
 - `backend/` - Bun API server
-- `frontend/` - React application with Capacitor
+- `frontend/` - React application with Capacitor (Web + Android only)
 - `recommendation-engine/` - Python Flask API for ML recommendations
+
+## Database Schema
+
+The project uses SQLite with Drizzle ORM. Schema is defined in `backend/src/db/schema.ts`.
+
+**Core Tables (matching ERD):**
+- `users` - User accounts and profiles
+- `products` - MyFridge inventory items
+- `marketplace_listings` - Marketplace listings
+
+**CRITICAL: Database Migration Process**
+
+Each developer maintains their own **local SQLite database** (`backend/ecoplate.db`). The `.db` file is **NOT committed to git** - only migrations and seed scripts are shared.
+
+**First Time Setup (New Clone):**
+```bash
+cd backend
+bun run db:migrate  # Create database and run migrations
+bun run db:seed     # Populate with demo data
+```
+
+**Daily Development:**
+
+1. **Never modify the database directly** - Always modify `schema.ts`
+2. **The `.db` file is NOT committed** - Each developer has their own local database with their own test data
+3. **When pulling schema changes:**
+   - Delete your local database: `rm -f ecoplate.db` (or `del ecoplate.db` on Windows)
+   - Run migrations: `bun run db:migrate`
+   - Seed demo data: `bun run db:seed`
+
+4. **When modifying schema:**
+   - Edit `backend/src/db/schema.ts`
+   - Delete old migration: `rm -rf backend/src/db/migrations` (or `rmdir /s backend\src\db\migrations` on Windows)
+   - Generate new migration: `cd backend && bunx drizzle-kit generate:sqlite`
+   - Update `migrate.ts` to reference new migration file name
+   - Test locally, then commit ONLY: `schema.ts`, migration files, and `migrate.ts`
+   - **DO NOT commit the `.db` file** - it's in `.gitignore`
+
+**Note:** Since each developer has their own database, you cannot share test data via git. For shared test scenarios, update the seed script (`src/db/seed.ts`).
 
 ## Backend (Bun API Server)
 
@@ -68,6 +107,15 @@ bun install      # Install dependencies
 
 The frontend is a React application with Tailwind CSS, shadcn/ui, and Capacitor for mobile deployment.
 
+**IMPORTANT: Follow the UI/UX Design Guide**
+
+Before making any UI changes, read `docs/UI-UX-DESIGN-GUIDE.md`. Key rules:
+- Use theme color variables (e.g., `bg-primary`, `text-muted-foreground`), NOT hardcoded colors
+- Use `rounded-xl` or `rounded-2xl` for components
+- Use skeleton loaders for loading states, NOT spinners
+- NO page transition animations (no `animate-fade-in`, `animate-slide-up`)
+- Mobile uses bottom tab navigation, desktop uses sidebar
+
 ### Project Structure
 
 ```
@@ -91,7 +139,6 @@ frontend/
 │   ├── App.tsx             # Root component
 │   └── main.tsx            # React entry point
 ├── android/                # Capacitor Android project
-├── ios/                    # Capacitor iOS project
 ├── capacitor.config.ts     # Capacitor configuration
 ├── tailwind.config.js      # Tailwind CSS configuration
 ├── components.json         # shadcn/ui configuration
@@ -107,7 +154,6 @@ bun run dev        # Development with hot reload
 bun run build      # Production build
 bun run preview    # Preview production build
 npx cap sync       # Sync Capacitor native projects
-npx cap open ios   # Open iOS project in Xcode
 npx cap open android  # Open Android project in Android Studio
 ```
 
