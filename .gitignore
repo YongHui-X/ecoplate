@@ -65,3 +65,4 @@ android/
 ios/
 !android/.gitignore  # Keep the Android .gitignore
 !ios/.gitignore      # Keep the iOS .gitignore
+design/

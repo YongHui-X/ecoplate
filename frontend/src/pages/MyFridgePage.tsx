@@ -426,7 +426,7 @@ function AddProductModal({
         purchaseDate: purchaseDate || undefined,
         description: description || undefined,
       });
-      addToast("Product added!", "success");
+      addToast("Product added! +2 points", "success");
       onAdded();
     } catch (error) {
       addToast("Failed to add product", "error");

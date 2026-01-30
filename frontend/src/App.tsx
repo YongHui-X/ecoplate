@@ -4,7 +4,7 @@ import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
-// import MyFridgePage from "./pages/MyFridgePage";
+import MyFridgePage from "./pages/MyFridgePage";
 import MarketplacePage from "./pages/MarketplacePage";
 import CreateListingPage from "./pages/CreateListingPage";
 import EditListingPage from "./pages/EditListingPage";
@@ -49,7 +49,7 @@ function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-        {/* <Route path="myfridge" element={<MyFridgePage />} /> */}
+        <Route path="myfridge" element={<MyFridgePage />} />
         <Route path="marketplace" element={<MarketplacePage />} />
         <Route path="marketplace/create" element={<CreateListingPage />} />
         <Route path="marketplace/my-listings" element={<MyListingsPage />} />

@@ -16,7 +16,7 @@ import { cn } from "../lib/utils";
 // Desktop sidebar items (full list)
 const sidebarItems = [
   { to: "/", icon: Home, label: "Dashboard" },
-  // { to: "/myfridge", icon: Refrigerator, label: "MyFridge" },
+  { to: "/myfridge", icon: Refrigerator, label: "MyFridge" },
   { to: "/marketplace", icon: Store, label: "Marketplace" },
   { to: "/messages", icon: MessageCircle, label: "Messages" },
   { to: "/ecoboard", icon: Trophy, label: "EcoBoard" },

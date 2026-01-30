@@ -25,7 +25,6 @@
   "dependencies": {
     "@capacitor/app": "^6.0.0",
     "@capacitor/camera": "^6.0.0",
-    "@capacitor/core": "^6.2.1",
     "@capacitor/filesystem": "^6.0.0",
     "@capacitor/geolocation": "^8.0.0",
     "@capacitor/haptics": "^6.0.0",
@@ -52,12 +51,14 @@
     "react-leaflet": "^5.0.0",
     "react-leaflet-cluster": "^4.0.0",
     "react-router-dom": "^6.22.0",
+    "recharts": "^3.7.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@capacitor/android": "^6.2.1",
-    "@capacitor/cli": "^6.2.1",
+    "@capacitor/android": "6.1.2",
+    "@capacitor/cli": "6.1.2",
+    "@capacitor/core": "6.1.2",
     "@capacitor/ios": "^6.0.0",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^18.2.0",
