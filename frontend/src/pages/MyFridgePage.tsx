@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { formatCO2, getCO2ColorClass, calculateTotalCO2 } from "../utils/co2Utils";
+import { PRODUCT_UNITS } from "../constants/units";
 
 interface Product {
   id: number;
@@ -407,6 +408,7 @@ function AddProductModal({
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [unit, setUnit] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
   const [purchaseDate, setPurchaseDate] = useState("");
   const [description, setDescription] = useState("");
@@ -422,6 +424,7 @@ function AddProductModal({
         productName: name,
         category: category || undefined,
         quantity,
+        unit: unit || undefined,
         unitPrice: unitPrice ? parseFloat(unitPrice) : undefined,
         purchaseDate: purchaseDate || undefined,
         description: description || undefined,
@@ -481,7 +484,7 @@ function AddProductModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity</Label>
+                <Label htmlFor="quantity">Quantity *</Label>
                 <Input
                   id="quantity"
                   type="number"
@@ -489,21 +492,40 @@ function AddProductModal({
                   step="0.1"
                   value={quantity}
                   onChange={(e) => setQuantity(parseFloat(e.target.value))}
+                  required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="unitPrice">Unit Price ($)</Label>
-                <Input
-                  id="unitPrice"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={unitPrice}
-                  onChange={(e) => setUnitPrice(e.target.value)}
-                  placeholder="0.00"
-                />
+                <Label htmlFor="unit">Unit *</Label>
+                <select
+                  id="unit"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3"
+                  required
+                >
+                  <option value="">Select...</option>
+                  {PRODUCT_UNITS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="unitPrice">Unit Price ($)</Label>
+              <Input
+                id="unitPrice"
+                type="number"
+                min="0"
+                step="0.01"
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(e.target.value)}
+                placeholder="0.00"
+              />
             </div>
 
             <div className="space-y-2">
