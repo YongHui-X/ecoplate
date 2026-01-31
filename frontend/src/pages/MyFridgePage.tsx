@@ -437,7 +437,7 @@ function AddProductModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             Add Product
@@ -793,7 +793,7 @@ function ScanReceiptModal({
   // --- Main Modal ---
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+      <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             Scan Receipt
@@ -1443,7 +1443,7 @@ function TrackConsumptionModal({
     backButton?: React.ReactNode;
   }) => (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+      <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             {title}
@@ -1524,7 +1524,7 @@ function TrackConsumptionModal({
     if (identifyingIngredients) {
       return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
             <CardContent className="p-12 text-center">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4" />
               <p className="text-gray-600 font-medium">Identifying ingredients...</p>
@@ -1594,7 +1594,7 @@ function TrackConsumptionModal({
   if (step === "raw-review") {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Review Ingredients
@@ -1725,7 +1725,7 @@ function TrackConsumptionModal({
     if (analyzingWaste) {
       return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
             <CardContent className="p-12 text-center">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4" />
               <p className="text-gray-600 font-medium">Analyzing waste...</p>
@@ -1740,7 +1740,7 @@ function TrackConsumptionModal({
     if (!rawPhoto) {
       return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
             <CardContent className="p-6 text-center">
               <AlertCircle className="h-12 w-12 mx-auto text-yellow-500 mb-4" />
               <p className="text-gray-600 mb-4">No raw photo found. Please start from the beginning.</p>
@@ -1755,7 +1755,7 @@ function TrackConsumptionModal({
 
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Capture Leftovers
@@ -1905,7 +1905,7 @@ function TrackConsumptionModal({
   if (step === "waste-review") {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Review Waste Details
@@ -2041,7 +2041,7 @@ function TrackConsumptionModal({
   if (step === "metrics") {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Consumption Tracked!
