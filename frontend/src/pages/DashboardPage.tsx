@@ -19,7 +19,6 @@ interface DashboardStats {
     totalCo2Reduced: number;
     totalFoodSaved: number;
     totalMoneySaved: number;
-    ecoPointsEarned: number;
   };
   co2ChartData: Array<{ date: string; value: number }>;
   foodChartData: Array<{ date: string; value: number }>;
@@ -27,6 +26,16 @@ interface DashboardStats {
     carKmAvoided: number;
     treesPlanted: number;
     electricitySaved: number;
+  };
+}
+
+interface PointsData {
+  points: {
+    total: number;
+    available: number;
+    lifetime: number;
+    currentStreak: number;
+    longestStreak: number;
   };
 }
 
@@ -51,6 +60,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("summary");
   const [activePeriod, setActivePeriod] = useState<Period>("month");
+  const [pointsData, setPointsData] = useState<PointsData | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -60,10 +70,12 @@ export default function DashboardPage() {
   const loadStats = async () => {
     try {
       setLoading(true);
-      const response = await api.get<DashboardStats>(
-        `/dashboard/stats?period=${activePeriod}`
-      );
-      setData(response);
+      const [statsResponse, pointsResponse] = await Promise.all([
+          api.get<DashboardStats>(`/dashboard/stats?period=${activePeriod}`),
+          api.get<PointsData>("/gamification/points"),
+      ]);
+      setData(statsResponse);
+      setPointsData(pointsResponse);
     } catch (error) {
       console.error("Failed to load dashboard stats:", error);
     } finally {
@@ -123,7 +135,7 @@ export default function DashboardPage() {
     },
     {
       label: "EcoPoints Earned",
-      value: `${summary?.ecoPointsEarned ?? 0}`,
+      value: `${pointsData?.points.total ?? 0}`,
       icon: Star,
       color: "text-yellow-500",
       bg: "bg-yellow-500/10",

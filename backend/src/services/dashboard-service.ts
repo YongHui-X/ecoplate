@@ -81,7 +81,7 @@ export async function getDashboardStats(userId: number, period: Period = "month"
 
   const totalFoodSaved = positiveMetrics.reduce((sum, m) => sum + m.quantity, 0);
   const totalMoneySaved = soldListings.reduce((sum, l) => sum + (l.price || 0), 0);
-  const ecoPointsEarned = positiveMetrics.length * 10 + soldListings.length * 25;
+  // const ecoPointsEarned = positiveMetrics.length * 10 + soldListings.length * 25;
 
   // Build chart data grouped by period
   const co2Map = new Map<string, number>();
@@ -119,7 +119,7 @@ export async function getDashboardStats(userId: number, period: Period = "month"
       totalCo2Reduced: Math.round(totalCo2Reduced * 100) / 100,
       totalFoodSaved: Math.round(totalFoodSaved * 100) / 100,
       totalMoneySaved: Math.round(totalMoneySaved * 100) / 100,
-      ecoPointsEarned,
+      // ecoPointsEarned,
     },
     co2ChartData,
     foodChartData,
