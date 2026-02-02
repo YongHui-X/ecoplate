@@ -198,6 +198,8 @@ export async function getDetailedPointsStats(userId: number) {
   const activeDateSet = new Set<string>();
   // Track points per day for bestDayPoints
   const pointsByDay = new Map<string, number>();
+  // Track points per month for monthly bar chart
+  const pointsByMonth = new Map<string, number>();
 
   let firstActivityDate: string | null = null;
   let lastActiveDate: string | null = null;
@@ -220,6 +222,10 @@ export async function getDetailedPointsStats(userId: number) {
 
     // Points by day
     pointsByDay.set(dateKey, (pointsByDay.get(dateKey) || 0) + points);
+
+    // Points by month
+    const monthKey = dateKey.substring(0, 7); // YYYY-MM
+    pointsByMonth.set(monthKey, (pointsByMonth.get(monthKey) || 0) + points);
 
     // Time-windowed points
     if (interactionDate >= todayStart) {
@@ -277,6 +283,14 @@ export async function getDetailedPointsStats(userId: number) {
     ? Math.max(...pointsByDay.values())
     : 0;
 
+  // Compute last 6 months of points for bar chart
+  const last6Months: Array<{ month: string; points: number }> = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    last6Months.push({ month: key, points: pointsByMonth.get(key) || 0 });
+  }
+
   return {
     longestStreak,
     totalActiveDays,
@@ -288,6 +302,7 @@ export async function getDetailedPointsStats(userId: number) {
     bestDayPoints,
     averagePointsPerActiveDay,
     breakdownByType,
+    pointsByMonth: last6Months,
   };
 }
 

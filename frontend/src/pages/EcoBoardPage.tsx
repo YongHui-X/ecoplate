@@ -10,17 +10,19 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
 } from "recharts";
 import {
   Trophy,
   Leaf,
-  TrendingUp,
   Flame,
   Users,
   Check,
-  X,
-  Share,
-  DollarSign,
+  BarChart3,
   Lightbulb,
   ChevronDown,
   ChevronUp,
@@ -46,6 +48,7 @@ interface PointsData {
     averagePointsPerActiveDay: number;
   };
   breakdown: Record<string, { count: number; totalPoints: number }>;
+  pointsByMonth: Array<{ month: string; points: number }>;
   transactions: Array<{
     id: number;
     amount: number;
@@ -53,16 +56,6 @@ interface PointsData {
     action: string;
     createdAt: string;
   }>;
-}
-
-interface MetricsData {
-  totalItemsConsumed: number;
-  totalItemsWasted: number;
-  totalItemsShared: number;
-  totalItemsSold: number;
-  estimatedMoneySaved: number;
-  estimatedCo2Saved: number;
-  wasteReductionRate: number;
 }
 
 interface LeaderboardEntry {
@@ -75,7 +68,6 @@ interface LeaderboardEntry {
 
 export default function EcoBoardPage() {
   const [pointsData, setPointsData] = useState<PointsData | null>(null);
-  const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllTx, setShowAllTx] = useState(false);
@@ -86,13 +78,11 @@ export default function EcoBoardPage() {
 
   const loadData = async () => {
     try {
-      const [points, metricsData, leaderboardData] = await Promise.all([
+      const [points, leaderboardData] = await Promise.all([
         api.get<PointsData>("/gamification/points"),
-        api.get<MetricsData>("/gamification/metrics"),
         api.get<LeaderboardEntry[]>("/gamification/leaderboard"),
       ]);
       setPointsData(points);
-      setMetrics(metricsData);
       setLeaderboard(leaderboardData);
     } catch (error) {
       console.error("Failed to load gamification data:", error);
@@ -140,7 +130,7 @@ export default function EcoBoardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl lg:text-3xl font-bold">EcoBoard</h1>
+        <h1 className="text-2xl lg:text-3xl font-bold">EcoPoints</h1>
         <p className="text-muted-foreground">Track your sustainability journey</p>
       </div>
 
@@ -197,12 +187,12 @@ export default function EcoBoardPage() {
           </CardContent>
         </Card>
 
-        {/* Panel 2: Points Breakdown */}
+        {/* Panel 2: Activity Summary */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Leaf className="h-5 w-5 text-primary" />
-              Points Breakdown
+              Activity Summary
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -214,7 +204,7 @@ export default function EcoBoardPage() {
                     <PieChart>
                       <Pie
                         data={pieData}
-                        cx="50%"
+                        cx="40%"
                         cy="50%"
                         labelLine={false}
                         outerRadius={80}
@@ -304,56 +294,52 @@ export default function EcoBoardPage() {
           </CardContent>
         </Card>
 
-        {/* Panel 3: Activity Summary */}
+        {/* Panel 3: Points Breakdown (monthly bar chart) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Activity Summary
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Points Breakdown
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-success/10 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-success" />
-                  <span>Consumed</span>
-                </div>
-                <span className="text-xl font-bold text-success">
-                  {metrics?.totalItemsConsumed || 0}
-                </span>
-              </div>
+            {(() => {
+              const monthlyData = (pointsData?.pointsByMonth || []).map((m) => {
+                const [, mm] = m.month.split("-");
+                const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                return { label: monthNames[parseInt(mm, 10) - 1], points: m.points };
+              });
+              const hasData = monthlyData.some((d) => d.points > 0);
 
-              <div className="flex items-center justify-between p-3 bg-primary/10 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <Share className="h-5 w-5 text-primary" />
-                  <span>Shared</span>
+              return hasData ? (
+                <div className="h-[220px] sm:h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip
+                        formatter={(value: unknown) => [`${Number(value) || 0} pts`, "Points"]}
+                        contentStyle={{
+                          borderRadius: "12px",
+                          border: "1px solid hsl(var(--border))",
+                          background: "hsl(var(--card))",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
+                      <Bar dataKey="points" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <span className="text-xl font-bold text-primary">
-                  {metrics?.totalItemsShared || 0}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-accent/10 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-accent" />
-                  <span>Sold</span>
+              ) : (
+                <div className="text-center py-8">
+                  <BarChart3 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">
+                    No points earned yet. Start your journey!
+                  </p>
                 </div>
-                <span className="text-xl font-bold text-accent">
-                  {metrics?.totalItemsSold || 0}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-destructive/10 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <X className="h-5 w-5 text-destructive" />
-                  <span>Wasted</span>
-                </div>
-                <span className="text-xl font-bold text-destructive">
-                  {metrics?.totalItemsWasted || 0}
-                </span>
-              </div>
-            </div>
+              );
+            })()}
           </CardContent>
         </Card>
 

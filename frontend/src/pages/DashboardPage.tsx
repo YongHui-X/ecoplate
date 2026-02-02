@@ -37,6 +37,11 @@ interface PointsData {
     currentStreak: number;
     longestStreak: number;
   };
+  stats: {
+    pointsToday: number;
+    pointsThisWeek: number;
+    pointsThisMonth: number;
+  };
 }
 
 type Tab = "summary" | "co2" | "financial" | "food";
@@ -134,8 +139,18 @@ export default function DashboardPage() {
       bg: "bg-blue-500/10",
     },
     {
-      label: "EcoPoints Earned",
-      value: `${pointsData?.points.total ?? 0}`,
+      label: activePeriod === "day"
+        ? "EcoPoints (Today)"
+        : activePeriod === "month"
+        ? "EcoPoints (Month)"
+        : "EcoPoints (Annual)",
+      value: `${
+        activePeriod === "day"
+          ? (pointsData?.stats?.pointsToday ?? 0)
+          : activePeriod === "month"
+          ? (pointsData?.stats?.pointsThisMonth ?? 0)
+          : (pointsData?.points.total ?? 0)
+      }`,
       icon: Star,
       color: "text-yellow-500",
       bg: "bg-yellow-500/10",

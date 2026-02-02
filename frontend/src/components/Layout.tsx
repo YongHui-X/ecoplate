@@ -20,7 +20,7 @@ const sidebarItems = [
   { to: "/myfridge", icon: Refrigerator, label: "MyFridge" },
   { to: "/marketplace", icon: Store, label: "Marketplace" },
   { to: "/messages", icon: MessageCircle, label: "Messages" },
-  { to: "/ecoboard", icon: Trophy, label: "EcoBoard" },
+  { to: "/ecoboard", icon: Trophy, label: "EcoPoints" },
   { to: "/badges", icon: Award, label: "Badges" },
 ];
 
@@ -39,8 +39,8 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/myfridge")) return "MyFridge";
   if (pathname.startsWith("/marketplace")) return "Marketplace";
   if (pathname.startsWith("/messages")) return "Messages";
-  if (pathname.startsWith("/ecopoints")) return "Eco Points";
-  if (pathname.startsWith("/ecoboard")) return "EcoBoard";
+  if (pathname.startsWith("/ecopoints")) return "EcoPoints";
+  if (pathname.startsWith("/ecoboard")) return "EcoPoints";
   if (pathname.startsWith("/badges")) return "Badges";
   if (pathname.startsWith("/account")) return "Account";
   return "EcoPlate";

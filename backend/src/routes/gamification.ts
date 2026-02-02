@@ -60,6 +60,7 @@ export function registerGamificationRoutes(router: Router) {
         averagePointsPerActiveDay: detailedStats.averagePointsPerActiveDay,
       },
       breakdown: detailedStats.breakdownByType,
+      pointsByMonth: detailedStats.pointsByMonth,
       transactions,
     });
   });
