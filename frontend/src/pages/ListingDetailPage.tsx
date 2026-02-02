@@ -9,7 +9,7 @@ import { useToast } from "../contexts/ToastContext";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import { ArrowLeft, MapPin, Clock, Edit, Trash2, CheckCircle, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Edit, Trash2, CheckCircle, ChevronLeft, ChevronRight, MessageCircle, BookmarkPlus, ShoppingCart } from "lucide-react";
 import { formatDate, getDaysUntilExpiry } from "../lib/utils";
 import { SimilarProducts } from "../components/marketplace/SimilarProducts";
 import { showBadgeToasts } from "../utils/badgeNotification";
@@ -119,6 +119,42 @@ export default function ListingDetailPage() {
       navigate(`/messages/${conversation.id}`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to start conversation";
+      addToast(message, "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReserve = async () => {
+    if (!listing) return;
+    if (!window.confirm("Do you want to reserve this item? The seller will be notified.")) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await marketplaceService.reserveListing(listing.id);
+      addToast("Item reserved successfully!", "success");
+      loadListing();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to reserve listing";
+      addToast(message, "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBuy = async () => {
+    if (!listing) return;
+    if (!window.confirm("Do you want to buy this item? This will mark the item as sold.")) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await marketplaceService.buyListing(listing.id);
+      addToast("Purchase successful!", "success");
+      loadListing();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to complete purchase";
       addToast(message, "error");
     } finally {
       setActionLoading(false);
@@ -360,14 +396,63 @@ export default function ListingDetailPage() {
           ) : (
             <div className="space-y-3">
               {listing.status === "active" ? (
-                <Button
-                  onClick={handleMessageSeller}
-                  disabled={actionLoading}
-                  className="w-full"
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Message Seller
-                </Button>
+                <>
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleReserve}
+                      disabled={actionLoading}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      <BookmarkPlus className="h-4 w-4 mr-2" />
+                      Reserve
+                    </Button>
+                    <Button
+                      onClick={handleBuy}
+                      disabled={actionLoading}
+                      className="flex-1"
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Buy
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={handleMessageSeller}
+                    disabled={actionLoading}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Message Seller
+                  </Button>
+                </>
+              ) : listing.status === "reserved" && listing.buyerId === user?.id ? (
+                <>
+                  <Card className="bg-primary/10 border-primary/20">
+                    <CardContent className="p-4">
+                      <p className="text-sm text-primary font-medium">
+                        You have reserved this item.
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Button
+                    onClick={handleBuy}
+                    disabled={actionLoading}
+                    className="w-full"
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    Complete Purchase
+                  </Button>
+                  <Button
+                    onClick={handleMessageSeller}
+                    disabled={actionLoading}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Message Seller
+                  </Button>
+                </>
               ) : (
                 <Card className="bg-muted">
                   <CardContent className="p-4">

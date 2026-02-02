@@ -452,6 +452,44 @@ export function registerMarketplaceRoutes(router: Router) {
     return json({ message: "Listing reserved" });
   });
 
+  // Buy listing (buyer directly purchases)
+  router.post("/api/v1/marketplace/listings/:id/buy", async (req, params) => {
+    const user = getUser(req);
+    const listingId = parseInt(params.id, 10);
+
+    const listing = await db.query.marketplaceListings.findFirst({
+      where: eq(marketplaceListings.id, listingId),
+    });
+
+    if (!listing) {
+      return error("Listing not found", 404);
+    }
+
+    if (listing.status !== "active" && listing.status !== "reserved") {
+      return error("Listing is not available", 400);
+    }
+
+    if (listing.sellerId === user.id) {
+      return error("Cannot buy your own listing", 400);
+    }
+
+    // If reserved by someone else, only that person can buy
+    if (listing.status === "reserved" && listing.buyerId !== user.id) {
+      return error("This listing is reserved by another buyer", 400);
+    }
+
+    await db
+      .update(marketplaceListings)
+      .set({
+        status: "sold",
+        buyerId: user.id,
+        completedAt: new Date(),
+      })
+      .where(eq(marketplaceListings.id, listingId));
+
+    return json({ message: "Purchase successful" });
+  });
+
   // Mark as sold
   router.post("/api/v1/marketplace/listings/:id/sold", async (req, params) => {
     const user = getUser(req);

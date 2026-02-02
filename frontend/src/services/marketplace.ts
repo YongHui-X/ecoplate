@@ -110,4 +110,18 @@ export const marketplaceService = {
       { buyerId }
     );
   },
+
+  /**
+   * Reserve a listing (as buyer)
+   */
+  async reserveListing(id: number): Promise<{ message: string }> {
+    return api.post<{ message: string }>(`/marketplace/listings/${id}/reserve`);
+  },
+
+  /**
+   * Buy a listing directly (as buyer)
+   */
+  async buyListing(id: number): Promise<{ message: string }> {
+    return api.post<{ message: string }>(`/marketplace/listings/${id}/buy`);
+  },
 };
