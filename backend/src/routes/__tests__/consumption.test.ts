@@ -70,6 +70,9 @@ mock.module("openai", () => {
   };
 });
 
+// Set fake API key so the route doesn't bail early
+process.env.OPENAI_API_KEY = "test-key-for-mocked-openai";
+
 // Set up in-memory test database
 let sqlite: Database;
 let testDb: ReturnType<typeof drizzle<typeof schema>>;
@@ -283,14 +286,10 @@ describe("POST /api/v1/consumption/analyze-waste", () => {
     // Check waste analysis structure
     expect(res.data.wasteAnalysis).toBeDefined();
     expect(res.data.wasteAnalysis.wasteItems).toBeDefined();
-
-    // Check interactions recorded
-    expect(res.data.interactions).toBeDefined();
-    expect(res.data.interactions.recorded).toBe(true);
-    expect(res.data.interactions.count).toBeGreaterThan(0);
+    expect(res.data.wasteAnalysis.overallObservation).toBeDefined();
   });
 
-  test("records product interactions in database", async () => {
+  test("does not record interactions (recording happens in confirm endpoints)", async () => {
     // Clear any existing interactions first
     await testDb
       .delete(schema.productSustainabilityMetrics)
@@ -311,17 +310,12 @@ describe("POST /api/v1/consumption/analyze-waste", () => {
       ],
     });
 
-    // Verify interactions in database
+    // analyze-waste only returns AI results, no DB recording
     const interactions = await testDb.query.productSustainabilityMetrics.findMany({
       where: eq(schema.productSustainabilityMetrics.userId, testUserId),
     });
 
-    expect(interactions.length).toBeGreaterThan(0);
-    // Should have both consumed and wasted interactions (since mock returns waste)
-    const types = interactions.map((i) => i.type);
-    expect(types).toContain("consumed");
-    expect(types).toContain("wasted");
-    expect(res.data.wasteAnalysis.overallObservation).toBeDefined();
+    expect(interactions.length).toBe(0);
   });
 
 });

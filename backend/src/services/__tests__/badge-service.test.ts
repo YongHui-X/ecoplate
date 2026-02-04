@@ -38,7 +38,8 @@ sqlite.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     total_points INTEGER NOT NULL DEFAULT 0,
-    current_streak INTEGER NOT NULL DEFAULT 0
+    current_streak INTEGER NOT NULL DEFAULT 0,
+    total_co2_saved REAL NOT NULL DEFAULT 0
   );
 
   CREATE TABLE product_sustainability_metrics (
@@ -65,7 +66,8 @@ sqlite.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     badge_id INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
-    earned_at INTEGER NOT NULL DEFAULT (unixepoch())
+    earned_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    UNIQUE(user_id, badge_id)
   );
 `);
 
@@ -73,6 +75,12 @@ const testDb = drizzle(sqlite, { schema });
 
 // Mock the db export used by badge-service and gamification-service
 mock.module("../../index", () => ({ db: testDb }));
+
+// Mock notification service to avoid DB calls to notifications table
+mock.module("../notification-service", () => ({
+  notifyStreakMilestone: async () => {},
+  notifyBadgeUnlocked: async () => {},
+}));
 
 // Import AFTER mocking
 import {
