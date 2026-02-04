@@ -6,7 +6,8 @@ import { hashPassword } from "../middleware/auth";
 import { BADGE_DEFINITIONS } from "../services/badge-service";
 import { calculateCo2Saved } from "../utils/co2-calculator";
 
-const sqlite = new Database("ecoplate.db");
+const dbPath = process.env.DATABASE_PATH || "ecoplate.db";
+const sqlite = new Database(dbPath);
 const db = drizzle(sqlite, { schema });
 
 console.log("Seeding database...\n");
