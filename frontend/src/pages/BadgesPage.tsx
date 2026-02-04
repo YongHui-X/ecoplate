@@ -135,11 +135,11 @@ export default function BadgesPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate("/ecopoints")}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to EcoPoints
-      </Button>
       <div>
+        <Button variant="ghost" className="lg:hidden mb-2" onClick={() => navigate("/ecopoints")}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to EcoPoints
+        </Button>
         <h1 className="text-2xl font-bold">Badges</h1>
         <p className="text-muted-foreground">
           Collect badges by completing sustainability challenges

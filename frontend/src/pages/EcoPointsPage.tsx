@@ -138,11 +138,11 @@ export default function EcoBoardPage() {
 
   return (
       <div className="space-y-6">
-        <Button variant="ghost" onClick={() => navigate("/")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
-        </Button>
         <div>
+          <Button variant="ghost" className="lg:hidden mb-2" onClick={() => navigate("/")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
           <h1 className="text-2xl lg:text-3xl font-bold">EcoPoints</h1>
           <p className="text-muted-foreground">Track your sustainability journey</p>
         </div>
