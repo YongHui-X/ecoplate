@@ -439,16 +439,8 @@ Return JSON:
         // Find waste for this ingredient
         const waste = wasteItems.find(w => w.productId === ing.productId);
         const wastedQty = waste?.quantityWasted || 0;
-        const consumedQty = ing.quantityUsed - wastedQty;
 
-        // 1. Update existing Consume interaction (reduce to actual consumed)
-        if (ing.interactionId) {
-          await db.update(productSustainabilityMetrics)
-            .set({ quantity: consumedQty })
-            .where(eq(productSustainabilityMetrics.id, ing.interactionId));
-        }
-
-        // 2. Create wasted interaction if any waste
+        // 1. Create wasted interaction if any waste
         if (wastedQty > 0) {
           await db.insert(productSustainabilityMetrics).values({
             productId: ing.productId,

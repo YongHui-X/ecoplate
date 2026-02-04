@@ -298,3 +298,4 @@ gunicorn app:app                  # Production server
 - Use numpy for numerical calculations
 - Return JSON responses
 - Include proper error handling with status codes
+- consume and sold should add 1 to streak if it is not already been added during the day. Otherwise, do not increment.

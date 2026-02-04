@@ -12,61 +12,70 @@ export function registerGamificationRoutes(router: Router) {
   // GET /api/v1/gamification/points
   // ================================
   router.get("/api/v1/gamification/points", async (req) => {
-    const user = getUser(req);
+    try {
+      const user = getUser(req);
 
-    const points = await getOrCreateUserPoints(user.id);
-    const detailedStats = await getDetailedPointsStats(user.id);
+      const points = await getOrCreateUserPoints(user.id);
+      const detailedStats = await getDetailedPointsStats(user.id);
 
-    // Get recent interactions as "transactions" for the UI
-    const recentInteractions = await db.query.productSustainabilityMetrics.findMany({
-      where: eq(schema.productSustainabilityMetrics.userId, user.id),
-      orderBy: [desc(schema.productSustainabilityMetrics.todayDate)],
-      limit: 20,
-      with: {
-        product: {
-          columns: { productName: true },
+      // Get recent interactions as "transactions" for the UI
+      const recentInteractions = await db.query.productSustainabilityMetrics.findMany({
+        where: eq(schema.productSustainabilityMetrics.userId, user.id),
+        orderBy: [
+          desc(schema.productSustainabilityMetrics.todayDate),
+          desc(schema.productSustainabilityMetrics.id),
+        ],
+        limit: 20,
+        with: {
+          product: {
+            columns: { productName: true },
+          },
         },
-      },
-    });
-
-    // Map interactions to transaction like format, filtering out "add" entries
-    const transactions = recentInteractions
-      .filter((i) => (i.type || "").toLowerCase() !== "add")
-      .map((i) => {
-        const normalizedType = (i.type || "").toLowerCase() as keyof typeof POINT_VALUES;
-        const amount = POINT_VALUES[normalizedType] ?? 0;
-
-        return {
-          id: i.id,
-          amount,
-          type: amount < 0 ? "penalty" : "earned",
-          action: normalizedType,
-          createdAt: i.todayDate,
-        };
       });
 
-    return json({
-      points: {
-        total: points.totalPoints,
-        available: points.totalPoints,
-        lifetime: points.totalPoints,
-        currentStreak: points.currentStreak,
-        longestStreak: detailedStats.longestStreak,
-      },
-      stats: {
-        totalActiveDays: detailedStats.totalActiveDays,
-        lastActiveDate: detailedStats.lastActiveDate,
-        firstActivityDate: detailedStats.firstActivityDate,
-        pointsToday: detailedStats.pointsToday,
-        pointsThisWeek: detailedStats.pointsThisWeek,
-        pointsThisMonth: detailedStats.pointsThisMonth,
-        bestDayPoints: detailedStats.bestDayPoints,
-        averagePointsPerActiveDay: detailedStats.averagePointsPerActiveDay,
-      },
-      breakdown: detailedStats.breakdownByType,
-      pointsByMonth: detailedStats.pointsByMonth,
-      transactions,
-    });
+      // Map interactions to transaction like format, filtering out "add" entries
+      const transactions = recentInteractions
+        .filter((i) => (i.type || "").toLowerCase() !== "add")
+        .map((i) => {
+          const normalizedType = (i.type || "").toLowerCase() as keyof typeof POINT_VALUES;
+          const baseAmount = POINT_VALUES[normalizedType] ?? 0;
+          const amount = Math.round(baseAmount * Math.abs(i.quantity ?? 1));
+
+          return {
+            id: i.id,
+            amount,
+            type: amount < 0 ? "penalty" : "earned",
+            action: normalizedType,
+            createdAt: i.todayDate,
+          };
+        });
+
+      return json({
+        points: {
+          total: points.totalPoints,
+          available: points.totalPoints,
+          lifetime: points.totalPoints,
+          currentStreak: points.currentStreak,
+          longestStreak: detailedStats.longestStreak,
+        },
+        stats: {
+          totalActiveDays: detailedStats.totalActiveDays,
+          lastActiveDate: detailedStats.lastActiveDate,
+          firstActivityDate: detailedStats.firstActivityDate,
+          pointsToday: detailedStats.pointsToday,
+          pointsThisWeek: detailedStats.pointsThisWeek,
+          pointsThisMonth: detailedStats.pointsThisMonth,
+          bestDayPoints: detailedStats.bestDayPoints,
+          averagePointsPerActiveDay: detailedStats.averagePointsPerActiveDay,
+        },
+        breakdown: detailedStats.breakdownByType,
+        pointsByMonth: detailedStats.pointsByMonth,
+        transactions,
+      });
+    } catch (error) {
+      console.error("Error fetching gamification points:", error);
+      return json({ error: "Failed to fetch points data" }, 500);
+    }
   });
 
   // ================================

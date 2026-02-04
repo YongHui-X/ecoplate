@@ -118,13 +118,14 @@ export default function EcoBoardPage() {
       .filter(([action]) => (breakdown[action]?.count || 0) > 0)
       .map(([action, config]) => ({
         name: config.label,
-        value: breakdown[action]?.totalPoints || 0,
+        value: Math.abs(breakdown[action]?.totalPoints || 0),
+        rawValue: breakdown[action]?.totalPoints || 0,
         count: breakdown[action]?.count || 0,
         color: config.chartColor,
         action,
       }));
 
-  const totalPoints = pieData.reduce((sum, d) => sum + Math.abs(d.value), 0);
+  const totalPoints = pieData.reduce((sum, d) => sum + d.value, 0);
   const hasPieData = pieData.length > 0;
 
   return (
@@ -209,6 +210,7 @@ export default function EcoBoardPage() {
                               labelLine={false}
                               outerRadius={80}
                               dataKey="value"
+                              isAnimationActive={false}
                               label={(props: { name?: string; percent?: number }) =>
                                   `${props.name ?? ""} ${((props.percent ?? 0) * 100).toFixed(0)}%`
                               }
@@ -257,12 +259,8 @@ export default function EcoBoardPage() {
                             <span className="font-medium text-foreground text-sm">
                               {entry.name}
                             </span>
-                                  <span
-                                      className="font-bold text-sm"
-                                      style={{ color: entry.color }}
-                                  >
-                              {entry.value > 0 ? "+" : ""}
-                                    {entry.value} pts
+                                  <span className={`font-bold text-sm ${entry.rawValue >= 0 ? "text-success" : "text-destructive"}`}>
+                              {entry.rawValue > 0 ? "+" : ""}{entry.rawValue} pts
                             </span>
                                 </div>
                                 <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
@@ -307,7 +305,7 @@ export default function EcoBoardPage() {
                 const monthlyData = (pointsData?.pointsByMonth || []).map((m) => {
                   const [, mm] = m.month.split("-");
                   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                  return { label: monthNames[parseInt(mm, 10) - 1], points: m.points };
+                  return { label: monthNames[parseInt(mm, 10) - 1], points: Math.max(0, m.points) };
                 });
                 const hasData = monthlyData.some((d) => d.points > 0);
 
