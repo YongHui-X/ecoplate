@@ -238,7 +238,9 @@ export default function EcoBoardPage() {
                               labelLine={false}
                               outerRadius="70%"
                               dataKey="value"
-                              label={false}
+                              label={({ name, percent }: { name?: string; percent?: number }) =>
+                                  `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`
+                              }
                           >
                             {pieData.map((entry, index) => (
                                 <Cell key={index} fill={entry.color} />
@@ -282,7 +284,7 @@ export default function EcoBoardPage() {
 
                                 <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between mb-0.5 sm:mb-1 gap-2">
-                                <span className="font-medium text-foreground text-xs sm:text-sm">
+                                <span className="font-medium text-foreground text-xs sm:text-sm truncate">
                                   {entry.name}
                                 </span>
                                     <span className={`font-bold text-xs sm:text-sm flex-shrink-0 ${entry.rawValue >= 0 ?
