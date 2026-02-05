@@ -1,8 +1,10 @@
 name: CD
 
 on:
-  push:
-    branches: [deployment]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
 
 concurrency:
   group: cd-deployment
@@ -16,12 +18,15 @@ env:
 jobs:
   build-and-push:
     name: Build & Push Images
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -40,7 +45,7 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ env.APP_IMAGE }}:${{ github.sha }}
+            ${{ env.APP_IMAGE }}:${{ github.event.workflow_run.head_sha }}
             ${{ env.APP_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -52,7 +57,7 @@ jobs:
           file: ./recommendation-engine/Dockerfile
           push: true
           tags: |
-            ${{ env.REC_IMAGE }}:${{ github.sha }}
+            ${{ env.REC_IMAGE }}:${{ github.event.workflow_run.head_sha }}
             ${{ env.REC_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -63,6 +68,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Copy deploy files to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -83,7 +90,7 @@ jobs:
           script: |
             echo "${{ secrets.GHCR_DEPLOY_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_DEPLOY_USER }}" --password-stdin
             cd /ecoplate
-            export IMAGE_TAG="${{ github.sha }}"
+            export IMAGE_TAG="${{ github.event.workflow_run.head_sha }}"
             export APP_IMAGE="${{ env.APP_IMAGE }}"
             export REC_IMAGE="${{ env.REC_IMAGE }}"
             bash deploy/deploy.sh
