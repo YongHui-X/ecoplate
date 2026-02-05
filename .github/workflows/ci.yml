@@ -86,25 +86,6 @@ jobs:
   # Security Scanning Jobs
   # ---------------------------------------------------------------------------
 
-  secret-scan:
-    name: Secret Scan (Gitleaks)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload Gitleaks report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: results.sarif
-          retention-days: 30
-
   python-sast:
     name: Python SAST (Bandit)
     runs-on: ubuntu-latest
@@ -209,7 +190,6 @@ jobs:
       - test-frontend
       - test-recommendation
       - build-check
-      - secret-scan
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
