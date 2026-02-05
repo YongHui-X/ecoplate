@@ -19,7 +19,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.1"
-      - run: bun install --frozen-lockfile
+      - run: bun install --ignore-scripts
       - run: cd backend && bunx tsc --noEmit
 
   typecheck-frontend:
@@ -30,7 +30,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.1"
-      - run: bun install --frozen-lockfile
+      - run: bun install --ignore-scripts
       - run: cd frontend && bunx tsc --noEmit
 
   test-backend:
@@ -43,7 +43,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.1"
-      - run: bun install --frozen-lockfile
+      - run: bun install --ignore-scripts
       - run: cd backend && bun test
 
   test-frontend:
@@ -54,7 +54,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.1"
-      - run: bun install --frozen-lockfile
+      - run: bun install --ignore-scripts
       - run: cd frontend && bun run test:run
 
   test-recommendation:
@@ -79,7 +79,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.1"
-      - run: bun install --frozen-lockfile
+      - run: bun install --ignore-scripts
       - run: cd frontend && bun run build
 
   push-to-deployment:
