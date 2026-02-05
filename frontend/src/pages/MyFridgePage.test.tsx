@@ -89,20 +89,25 @@ describe("MyFridgePage", () => {
   });
 
   it("should load products on mount", async () => {
-    vi.mocked(api.get).mockResolvedValue([
-      {
-        id: 1,
-        productName: "Apples",
-        category: "produce",
-        quantity: 3,
-        unitPrice: null,
-        purchaseDate: null,
-        expiryDate: "2026-02-15",
-        description: null,
-        co2Emission: 0.4,
-        isConsumed: false,
-      },
-    ]);
+    vi.mocked(api.get).mockImplementation((url: string) => {
+      if (url === "/myfridge/products") {
+        return Promise.resolve([
+          {
+            id: 1,
+            productName: "Apples",
+            category: "produce",
+            quantity: 3,
+            unitPrice: null,
+            purchaseDate: null,
+            expiryDate: "2026-02-15",
+            description: null,
+            co2Emission: 0.4,
+            isConsumed: false,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
 
     renderWithProviders(<MyFridgePage />);
 
@@ -798,6 +803,18 @@ describe("TrackConsumptionModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.get).mockResolvedValue([]);
+    vi.mocked(api.post).mockImplementation((url: string) => {
+      if (url === "/myfridge/consumption/pending") {
+        return Promise.resolve({ id: 1 });
+      }
+      if (url === "/consumption/confirm-ingredients") {
+        return Promise.resolve({ interactionIds: [1], success: true });
+      }
+      if (url === "/consumption/confirm-waste") {
+        return Promise.resolve({ metrics: {}, success: true });
+      }
+      return Promise.resolve({});
+    });
   });
 
   /** Helper: open the Track Consumption modal */

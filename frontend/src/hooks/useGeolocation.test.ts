@@ -112,7 +112,7 @@ describe('useGeolocation', () => {
         await result.current.getCurrentPosition();
       });
 
-      expect(result.current.error).toBe('Location permission denied');
+      expect(result.current.error).toBe('Location permission denied. Please enable location access in your browser settings.');
       expect(result.current.permission).toBe('denied');
       expect(result.current.coordinates).toBeNull();
     });
