@@ -4,7 +4,7 @@
 # =============================================================================
 # Stage 1: Build Frontend
 # =============================================================================
-FROM oven/bun:1.1-alpine AS frontend-builder
+FROM oven/bun:1-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -23,7 +23,7 @@ RUN bun run build
 # =============================================================================
 # Stage 2: Build Backend
 # =============================================================================
-FROM oven/bun:1.1-alpine AS backend-builder
+FROM oven/bun:1-alpine AS backend-builder
 
 WORKDIR /app/backend
 
@@ -39,9 +39,12 @@ COPY backend/ .
 # =============================================================================
 # Stage 3: Production Runtime
 # =============================================================================
-FROM oven/bun:1.1-alpine AS production
+FROM oven/bun:1-alpine AS production
 
 WORKDIR /app
+
+# Update system packages to get security patches
+RUN apk update && apk upgrade --no-cache
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S ecoplate && \

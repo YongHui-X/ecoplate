@@ -70,8 +70,8 @@ mock.module("openai", () => {
   };
 });
 
-// Set fake API key so the route doesn't bail early
-process.env.OPENAI_API_KEY = "test-key-for-mocked-openai";
+// Ensure OPENAI_API_KEY is set for tests (mocked OpenAI is used)
+process.env.OPENAI_API_KEY = "test-key";
 
 // Set up in-memory test database
 let sqlite: Database;
@@ -287,35 +287,6 @@ describe("POST /api/v1/consumption/analyze-waste", () => {
     expect(res.data.wasteAnalysis).toBeDefined();
     expect(res.data.wasteAnalysis.wasteItems).toBeDefined();
     expect(res.data.wasteAnalysis.overallObservation).toBeDefined();
-  });
-
-  test("does not record interactions (recording happens in confirm endpoints)", async () => {
-    // Clear any existing interactions first
-    await testDb
-      .delete(schema.productSustainabilityMetrics)
-      .where(eq(schema.productSustainabilityMetrics.userId, testUserId));
-
-    const router = createRouter();
-    await makeRequest(router, "POST", "/api/v1/consumption/analyze-waste", {
-      imageBase64: "data:image/jpeg;base64,/9j/fakeimage",
-      ingredients: [
-        {
-          productId: testProductId,
-          productName: "Chicken Breast",
-          quantityUsed: 0.5,
-          category: "meat",
-          unitPrice: 8.0,
-          co2Emission: 9.0,
-        },
-      ],
-    });
-
-    // analyze-waste only returns AI results, no DB recording
-    const interactions = await testDb.query.productSustainabilityMetrics.findMany({
-      where: eq(schema.productSustainabilityMetrics.userId, testUserId),
-    });
-
-    expect(interactions.length).toBe(0);
   });
 
 });

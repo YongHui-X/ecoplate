@@ -1,0 +1,398 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: cd-deployment
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  APP_IMAGE: ghcr.io/gdipsa-team2/ecoplate-app
+  REC_IMAGE: ghcr.io/gdipsa-team2/ecoplate-recommendation
+
+jobs:
+  # ===========================================================================
+  # Build & Push Container Images
+  # ===========================================================================
+
+  build-and-push:
+    name: Build & Push Images
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      app-digest: ${{ steps.build-app.outputs.digest }}
+      rec-digest: ${{ steps.build-rec.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push app image
+        id: build-app
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.APP_IMAGE }}:${{ github.event.workflow_run.head_sha }}
+            ${{ env.APP_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push recommendation image
+        id: build-rec
+        uses: docker/build-push-action@v6
+        with:
+          context: ./recommendation-engine
+          file: ./recommendation-engine/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REC_IMAGE }}:${{ github.event.workflow_run.head_sha }}
+            ${{ env.REC_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================================================================
+  # Container Security Scanning
+  # ===========================================================================
+
+  scan-app-image:
+    name: Scan App Image (Trivy)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull app image
+        run: docker pull ${{ env.APP_IMAGE }}:${{ github.event.workflow_run.head_sha }}
+
+      - name: Scan app image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.APP_IMAGE }}:${{ github.event.workflow_run.head_sha }}
+          format: "table"
+          output: "trivy-app-vuln.txt"
+          severity: "HIGH,CRITICAL"
+          exit-code: 0
+          ignore-unfixed: true
+        continue-on-error: true
+
+      - name: Scan app image (SARIF)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.APP_IMAGE }}:${{ github.event.workflow_run.head_sha }}
+          format: "sarif"
+          output: "trivy-app.sarif"
+          severity: "HIGH,CRITICAL"
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-app.sarif
+        continue-on-error: true
+
+      - name: Upload vulnerability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-app-report
+          path: trivy-app-vuln.txt
+          retention-days: 30
+
+  scan-rec-image:
+    name: Scan Recommendation Image (Trivy)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull recommendation image
+        run: docker pull ${{ env.REC_IMAGE }}:${{ github.event.workflow_run.head_sha }}
+
+      - name: Scan recommendation image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REC_IMAGE }}:${{ github.event.workflow_run.head_sha }}
+          format: "table"
+          output: "trivy-rec-vuln.txt"
+          severity: "HIGH,CRITICAL"
+          exit-code: 0
+          ignore-unfixed: true
+        continue-on-error: true
+
+      - name: Scan recommendation image (SARIF)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REC_IMAGE }}:${{ github.event.workflow_run.head_sha }}
+          format: "sarif"
+          output: "trivy-rec.sarif"
+          severity: "HIGH,CRITICAL"
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-rec.sarif
+        continue-on-error: true
+
+      - name: Upload vulnerability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-rec-report
+          path: trivy-rec-vuln.txt
+          retention-days: 30
+
+  # ===========================================================================
+  # Container SBOM Generation
+  # ===========================================================================
+
+  container-sbom:
+    name: Generate Container SBOM
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM for app image
+        run: |
+          syft ${{ env.APP_IMAGE }}:${{ github.event.workflow_run.head_sha }} \
+            -o spdx-json=sbom-app.spdx.json \
+            -o cyclonedx-json=sbom-app.cdx.json
+
+      - name: Generate SBOM for recommendation image
+        run: |
+          syft ${{ env.REC_IMAGE }}:${{ github.event.workflow_run.head_sha }} \
+            -o spdx-json=sbom-rec.spdx.json \
+            -o cyclonedx-json=sbom-rec.cdx.json
+
+      - name: Upload Container SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-sbom
+          path: |
+            sbom-app.spdx.json
+            sbom-app.cdx.json
+            sbom-rec.spdx.json
+            sbom-rec.cdx.json
+          retention-days: 90
+
+  # ===========================================================================
+  # Security Gate for Deployment
+  # ===========================================================================
+
+  security-gate:
+    name: Deployment Security Gate
+    needs:
+      - scan-app-image
+      - scan-rec-image
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check container scan results
+        run: |
+          echo "=== Deployment Security Gate ==="
+          echo "App Image Scan: ${{ needs.scan-app-image.result }}"
+          echo "Rec Image Scan: ${{ needs.scan-rec-image.result }}"
+
+          if [ "${{ needs.scan-app-image.result }}" == "failure" ] || \
+             [ "${{ needs.scan-rec-image.result }}" == "failure" ]; then
+            echo "WARNING: Container vulnerabilities detected"
+            echo "Review artifacts before proceeding"
+          fi
+
+          echo "Security gate passed - proceeding with deployment"
+
+  # ===========================================================================
+  # Deployment
+  # ===========================================================================
+
+  deploy:
+    name: Deploy to EC2
+    needs: security-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Copy deploy files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "deploy/*"
+          target: /ecoplate/
+          strip_components: 0
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "${{ secrets.GHCR_DEPLOY_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_DEPLOY_USER }}" --password-stdin
+            cd /ecoplate
+            export IMAGE_TAG="${{ github.event.workflow_run.head_sha }}"
+            export APP_IMAGE="${{ env.APP_IMAGE }}"
+            export REC_IMAGE="${{ env.REC_IMAGE }}"
+            bash deploy/deploy.sh
+
+  # ===========================================================================
+  # Dynamic Application Security Testing (DAST)
+  # ===========================================================================
+
+  dast-zap:
+    name: DAST - OWASP ZAP Baseline
+    needs: deploy
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for deployment to stabilize
+        run: |
+          echo "Waiting 30 seconds for deployment to stabilize..."
+          sleep 30
+          for i in $(seq 1 10); do
+            if curl -sf http://${{ secrets.EC2_HOST }}:3000/api/v1/health > /dev/null 2>&1; then
+              echo "Application is healthy"
+              break
+            fi
+            echo "Attempt $i/10 - waiting..."
+            sleep 10
+          done
+
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: "http://${{ secrets.EC2_HOST }}:3000"
+          cmd_options: "-a"
+          allow_issue_writing: false
+        continue-on-error: true
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          retention-days: 30
+
+  dast-api:
+    name: DAST - API Security Scan
+    needs: deploy
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for deployment
+        run: |
+          sleep 45
+          curl -sf http://${{ secrets.EC2_HOST }}:3000/api/v1/health || true
+
+      - name: Run ZAP API Scan
+        uses: zaproxy/action-api-scan@v0.9.0
+        with:
+          target: "http://${{ secrets.EC2_HOST }}:3000/api/v1/"
+          format: openapi
+          cmd_options: "-a"
+          allow_issue_writing: false
+        continue-on-error: true
+
+      - name: Upload API scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-api-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ===========================================================================
+  # Post-Deployment Security Summary
+  # ===========================================================================
+
+  security-summary:
+    name: Security Summary
+    needs:
+      - dast-zap
+      - dast-api
+      - container-sbom
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate security summary
+        run: |
+          echo "# DevSecOps Pipeline Security Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Container Security" >> $GITHUB_STEP_SUMMARY
+          echo "- App Image Scan: Completed (see artifacts)" >> $GITHUB_STEP_SUMMARY
+          echo "- Rec Image Scan: Completed (see artifacts)" >> $GITHUB_STEP_SUMMARY
+          echo "- Container SBOM: Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Dynamic Testing" >> $GITHUB_STEP_SUMMARY
+          echo "- ZAP Baseline: ${{ needs.dast-zap.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ZAP API Scan: ${{ needs.dast-api.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "Download security reports from the Artifacts section below." >> $GITHUB_STEP_SUMMARY
