@@ -261,6 +261,107 @@ describe("awardPoints", () => {
     expect(result.amount).toBe(24); // 8 * 3
   });
 
+  // ── Quantity scaling by unit (kg, L, pcs) ──────────────────────────
+
+  test("consumed 2.5 kg awards 13 pts (5 * 2.5 rounded)", async () => {
+    const result = await awardPoints(userId, "consumed", productId, 2.5);
+    expect(result.amount).toBe(13); // Math.round(5 * 2.5) = 13
+  });
+
+  test("consumed 0.5 kg awards 5 pts (minimum base)", async () => {
+    const result = await awardPoints(userId, "consumed", productId, 0.5);
+    // 5 * 0.5 = 2.5 → rounds to 3, but |3| < |5| so minimum base = 5
+    expect(result.amount).toBe(5);
+  });
+
+  test("consumed 1.0 kg awards exactly base (5 pts)", async () => {
+    const result = await awardPoints(userId, "consumed", productId, 1.0);
+    expect(result.amount).toBe(5);
+  });
+
+  test("consumed 10 pcs awards 50 pts (5 * 10)", async () => {
+    const result = await awardPoints(userId, "consumed", productId, 10);
+    expect(result.amount).toBe(50);
+  });
+
+  test("wasted 2.0 kg penalizes 6 pts (-3 * 2)", async () => {
+    await getOrCreateUserPoints(userId);
+    await testDb.update(schema.userPoints)
+      .set({ totalPoints: 100 })
+      .where(eq(schema.userPoints.userId, userId));
+
+    const result = await awardPoints(userId, "wasted", productId, 2.0);
+    expect(result.amount).toBe(-6); // -3 * 2
+    expect(result.newTotal).toBe(94); // 100 - 6
+  });
+
+  test("wasted 0.5 kg penalizes minimum base (-3 pts)", async () => {
+    await getOrCreateUserPoints(userId);
+    await testDb.update(schema.userPoints)
+      .set({ totalPoints: 50 })
+      .where(eq(schema.userPoints.userId, userId));
+
+    const result = await awardPoints(userId, "wasted", productId, 0.5);
+    // -3 * 0.5 = -1.5 → rounds to -2, but |-2| < |-3| so minimum base = -3
+    expect(result.amount).toBe(-3);
+    expect(result.newTotal).toBe(47);
+  });
+
+  test("wasted 5.0 kg penalizes 15 pts (-3 * 5)", async () => {
+    await getOrCreateUserPoints(userId);
+    await testDb.update(schema.userPoints)
+      .set({ totalPoints: 100 })
+      .where(eq(schema.userPoints.userId, userId));
+
+    const result = await awardPoints(userId, "wasted", productId, 5.0);
+    expect(result.amount).toBe(-15);
+    expect(result.newTotal).toBe(85);
+  });
+
+  test("shared 2.0 L awards 20 pts (10 * 2)", async () => {
+    const result = await awardPoints(userId, "shared", productId, 2.0);
+    expect(result.amount).toBe(20);
+  });
+
+  test("shared 0.3 L awards minimum base (10 pts)", async () => {
+    const result = await awardPoints(userId, "shared", productId, 0.3);
+    // 10 * 0.3 = 3, but |3| < |10| so minimum base = 10
+    expect(result.amount).toBe(10);
+  });
+
+  test("sold 1.5 kg awards 12 pts (8 * 1.5)", async () => {
+    const result = await awardPoints(userId, "sold", productId, 1.5);
+    expect(result.amount).toBe(12);
+  });
+
+  test("cumulative points: consume 2kg + waste 0.5kg", async () => {
+    // Consume 2kg first
+    const r1 = await awardPoints(userId, "consumed", productId, 2.0);
+    expect(r1.amount).toBe(10); // 5 * 2
+    expect(r1.newTotal).toBe(10);
+
+    // Then waste 0.5kg (below base threshold, so uses base -3)
+    const r2 = await awardPoints(userId, "wasted", productId, 0.5);
+    expect(r2.amount).toBe(-3);
+    expect(r2.newTotal).toBe(7); // 10 - 3
+  });
+
+  test("cumulative points: multiple kg-based actions accumulate correctly", async () => {
+    // Consume 3.0 kg → 15 pts
+    const r1 = await awardPoints(userId, "consumed", productId, 3.0);
+    expect(r1.newTotal).toBe(15);
+
+    // Sold 2.0 kg → 16 pts
+    const r2 = await awardPoints(userId, "sold", productId, 2.0);
+    expect(r2.amount).toBe(16); // 8 * 2
+    expect(r2.newTotal).toBe(31); // 15 + 16
+
+    // Wasted 4.0 kg → -12 pts
+    const r3 = await awardPoints(userId, "wasted", productId, 4.0);
+    expect(r3.amount).toBe(-12); // -3 * 4
+    expect(r3.newTotal).toBe(19); // 31 - 12
+  });
+
   test("consume and sold increment streak only once per day", async () => {
     // First consume action should set streak to 1
     await awardPoints(userId, "consumed", productId);
@@ -468,6 +569,72 @@ describe("getDetailedPointsStats", () => {
     expect(stats.breakdownByType.wasted.totalPoints).toBe(-3);
     // sold: 8 * 3 = 24 (scaled, above base)
     expect(stats.breakdownByType.sold.totalPoints).toBe(24);
+  });
+
+  test("stats scale correctly with kg-based quantities", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 2.5, type: "consumed" },  // 2.5 kg
+      { userId, productId, todayDate: today, quantity: 1.5, type: "sold" },      // 1.5 kg
+      { userId, productId, todayDate: today, quantity: 0.8, type: "wasted" },    // 0.8 kg
+    ]);
+
+    const stats = await getDetailedPointsStats(userId);
+
+    // consumed: 5 * 2.5 = 12.5 → rounds to 13, |13| >= |5| so 13
+    expect(stats.breakdownByType.consumed.totalPoints).toBe(13);
+    // sold: 8 * 1.5 = 12, |12| >= |8| so 12
+    expect(stats.breakdownByType.sold.totalPoints).toBe(12);
+    // wasted: -3 * 0.8 = -2.4 → rounds to -2, |-2| < |-3| so min base = -3
+    expect(stats.breakdownByType.wasted.totalPoints).toBe(-3);
+
+    // pointsToday = 13 + 12 + (-3) = 22
+    expect(stats.pointsToday).toBe(22);
+  });
+
+  test("stats scale with large kg quantities across multiple entries", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 5.0, type: "consumed" },  // 5 kg rice
+      { userId, productId, todayDate: today, quantity: 2.0, type: "consumed" },  // 2 L milk
+      { userId, productId, todayDate: today, quantity: 3.0, type: "wasted" },    // 3 kg veggies
+    ]);
+
+    const stats = await getDetailedPointsStats(userId);
+
+    // consumed entry 1: 5 * 5.0 = 25
+    // consumed entry 2: 5 * 2.0 = 10
+    // total consumed points: 35
+    expect(stats.breakdownByType.consumed.totalPoints).toBe(35);
+    expect(stats.breakdownByType.consumed.count).toBe(2);
+
+    // wasted: -3 * 3.0 = -9
+    expect(stats.breakdownByType.wasted.totalPoints).toBe(-9);
+
+    // pointsToday = 35 + (-9) = 26
+    expect(stats.pointsToday).toBe(26);
+  });
+
+  test("stats with mixed units: pcs (10), kg (0.5), L (2.0)", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 10, type: "consumed" },   // 10 pcs eggs
+      { userId, productId, todayDate: today, quantity: 0.5, type: "consumed" },  // 0.5 kg
+      { userId, productId, todayDate: today, quantity: 2.0, type: "shared" },    // 2 L milk
+    ]);
+
+    const stats = await getDetailedPointsStats(userId);
+
+    // consumed 10 pcs: 5 * 10 = 50
+    // consumed 0.5 kg: 5 * 0.5 = 2.5 → round to 3, |3| < |5| → min 5
+    // total consumed: 55
+    expect(stats.breakdownByType.consumed.totalPoints).toBe(55);
+
+    // shared 2.0 L: 10 * 2.0 = 20
+    expect(stats.breakdownByType.shared.totalPoints).toBe(20);
+
+    // pointsToday = 55 + 20 = 75
+    expect(stats.pointsToday).toBe(75);
   });
 });
 

@@ -456,7 +456,6 @@ export default function EcoBoardPage() {
                                     {config?.label || tx.action}
                                 </p>
                                 <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                    {tx.quantity} {tx.unit} &middot;{" "}
                                     {new Date(tx.createdAt).toLocaleDateString()}
                                 </p>
                             </div>

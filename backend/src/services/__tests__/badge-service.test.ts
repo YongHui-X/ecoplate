@@ -298,6 +298,148 @@ describe("checkAndAwardBadges", () => {
     expect(codes).toContain("first_sale");
     expect(awarded.length).toBeGreaterThanOrEqual(3);
   });
+
+  test("badge bonus adds on top of kg-scaled action points", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    // Simulate prior consume of 2kg = 5*2 = 10 action points already in totalPoints
+    await getOrCreateUserPoints(userId);
+    await testDb
+      .update(schema.userPoints)
+      .set({ totalPoints: 10 })
+      .where(eq(schema.userPoints.userId, userId));
+
+    // Record 1 consumed interaction → triggers first_action (25) + first_consume (25)
+    await testDb.insert(schema.productSustainabilityMetrics).values({
+      userId, productId, todayDate: today, quantity: 2, type: "consumed",
+    });
+
+    await checkAndAwardBadges(userId);
+
+    const up = await getOrCreateUserPoints(userId);
+    // 10 (prior action pts) + 25 (first_action) + 25 (first_consume) = 60
+    expect(up.totalPoints).toBe(60);
+  });
+
+  test("multiple kg-based interactions trigger correct badge bonuses", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await getOrCreateUserPoints(userId);
+
+    // Insert 10 consumed interactions (each 2.5kg) → triggers first_action (25) + first_consume (25) + eco_starter (50)
+    const rows = Array.from({ length: 10 }, () => ({
+      userId, productId, todayDate: today, quantity: 2.5, type: "consumed" as const,
+    }));
+    await testDb.insert(schema.productSustainabilityMetrics).values(rows);
+
+    const awarded = await checkAndAwardBadges(userId);
+    const codes = awarded.map((b) => b.code);
+    expect(codes).toContain("first_action");
+    expect(codes).toContain("first_consume");
+    expect(codes).toContain("eco_starter");
+
+    const totalBonus = awarded.reduce((sum, b) => sum + b.pointsAwarded, 0);
+    expect(totalBonus).toBe(100); // 25 + 25 + 50
+
+    const up = await getOrCreateUserPoints(userId);
+    expect(up.totalPoints).toBe(100);
+  });
+
+  test("wasted interactions don't count toward badge action totals", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await getOrCreateUserPoints(userId);
+
+    // 1 consumed + 5 wasted
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 1, type: "consumed" },
+      { userId, productId, todayDate: today, quantity: 2, type: "wasted" },
+      { userId, productId, todayDate: today, quantity: 3, type: "wasted" },
+      { userId, productId, todayDate: today, quantity: 1.5, type: "wasted" },
+      { userId, productId, todayDate: today, quantity: 0.5, type: "wasted" },
+      { userId, productId, todayDate: today, quantity: 4, type: "wasted" },
+    ]);
+
+    const metrics = await getUserBadgeMetrics(userId);
+    // totalActions counts only consumed+shared+sold, NOT wasted
+    expect(metrics.totalActions).toBe(1);
+    expect(metrics.totalWasted).toBe(5);
+
+    const awarded = await checkAndAwardBadges(userId);
+    const codes = awarded.map((b) => b.code);
+    // Only first_action + first_consume should be awarded (totalActions=1)
+    expect(codes).toContain("first_action");
+    expect(codes).toContain("first_consume");
+    // eco_starter requires 10 actions — should NOT be awarded
+    expect(codes).not.toContain("eco_starter");
+  });
+
+  test("badge metrics count interactions not kg quantities", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await getOrCreateUserPoints(userId);
+
+    // 1 interaction with quantity=50kg
+    await testDb.insert(schema.productSustainabilityMetrics).values({
+      userId, productId, todayDate: today, quantity: 50, type: "consumed",
+    });
+
+    const metrics = await getUserBadgeMetrics(userId);
+    // totalConsumed should be 1 (row count), not 50 (quantity)
+    expect(metrics.totalConsumed).toBe(1);
+    expect(metrics.totalActions).toBe(1);
+
+    const awarded = await checkAndAwardBadges(userId);
+    const codes = awarded.map((b) => b.code);
+    expect(codes).toContain("first_action");
+    expect(codes).toContain("first_consume");
+    // waste_watcher needs 25 consumed interactions — should NOT be awarded with just 1
+    expect(codes).not.toContain("waste_watcher");
+  });
+});
+
+// ── getUserBadgeMetrics ──────────────────────────────────────────────
+
+describe("getUserBadgeMetrics", () => {
+  test("metrics count rows not quantity values", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await getOrCreateUserPoints(userId);
+
+    // 3 consumed (qty: 10, 5, 0.5), 2 wasted (qty: 3, 1)
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 10, type: "consumed" },
+      { userId, productId, todayDate: today, quantity: 5, type: "consumed" },
+      { userId, productId, todayDate: today, quantity: 0.5, type: "consumed" },
+      { userId, productId, todayDate: today, quantity: 3, type: "wasted" },
+      { userId, productId, todayDate: today, quantity: 1, type: "wasted" },
+    ]);
+
+    const metrics = await getUserBadgeMetrics(userId);
+    expect(metrics.totalConsumed).toBe(3);
+    expect(metrics.totalWasted).toBe(2);
+    expect(metrics.totalActions).toBe(3); // consumed + shared + sold
+    expect(metrics.totalItems).toBe(5);   // totalActions + totalWasted
+    expect(metrics.wasteReductionRate).toBe((3 / 5) * 100); // 60%
+  });
+
+  test("mixed action types with various kg quantities", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await getOrCreateUserPoints(userId);
+
+    // 2 consumed, 1 shared, 1 sold, 1 wasted — all with kg-based quantities
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 3.5, type: "consumed" },
+      { userId, productId, todayDate: today, quantity: 12, type: "consumed" },
+      { userId, productId, todayDate: today, quantity: 0.75, type: "shared" },
+      { userId, productId, todayDate: today, quantity: 8, type: "sold" },
+      { userId, productId, todayDate: today, quantity: 25, type: "wasted" },
+    ]);
+
+    const metrics = await getUserBadgeMetrics(userId);
+    // All counts are per-interaction, not per-kg
+    expect(metrics.totalConsumed).toBe(2);
+    expect(metrics.totalShared).toBe(1);
+    expect(metrics.totalSold).toBe(1);
+    expect(metrics.totalWasted).toBe(1);
+    expect(metrics.totalActions).toBe(4); // 2+1+1
+    expect(metrics.totalItems).toBe(5);   // 4+1
+  });
 });
 
 // ── getBadgeProgress ─────────────────────────────────────────────────
