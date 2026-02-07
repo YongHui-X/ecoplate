@@ -151,7 +151,7 @@ jobs:
           search_artifacts: true
         continue-on-error: true
 
-      - name: Download ZAP Baseline report
+      - name: Download ZAP Baseline report (staging)
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: cd.yml
@@ -162,12 +162,34 @@ jobs:
           search_artifacts: true
         continue-on-error: true
 
-      - name: Download ZAP API report
+      - name: Download ZAP Baseline report (production)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: cd.yml
+          run_id: ${{ github.event.workflow_run.id }}
+          name: zap-baseline-report-prod
+          path: reports/zap-baseline
+          if_no_artifact_found: warn
+          search_artifacts: true
+        continue-on-error: true
+
+      - name: Download ZAP API report (staging)
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: cd.yml
           run_id: ${{ github.event.workflow_run.id }}
           name: zap-api-report
+          path: reports/zap-api
+          if_no_artifact_found: warn
+          search_artifacts: true
+        continue-on-error: true
+
+      - name: Download ZAP API report (production)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: cd.yml
+          run_id: ${{ github.event.workflow_run.id }}
+          name: zap-api-report-prod
           path: reports/zap-api
           if_no_artifact_found: warn
           search_artifacts: true

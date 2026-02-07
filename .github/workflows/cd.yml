@@ -365,11 +365,89 @@ jobs:
             bash deploy/deploy.sh
 
   # ===========================================================================
-  # Dynamic Application Security Testing (DAST) - Production only
+  # Dynamic Application Security Testing (DAST) - Staging
   # ===========================================================================
 
-  dast-zap:
-    name: DAST - OWASP ZAP Baseline
+  dast-zap-staging:
+    name: DAST - ZAP Baseline (Staging)
+    needs: deploy-staging
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for deployment to stabilize
+        run: |
+          echo "Waiting 30 seconds for deployment to stabilize..."
+          sleep 30
+          for i in $(seq 1 10); do
+            if curl -sf http://${{ secrets.EC2_DEV_HOST }}/api/v1/health > /dev/null 2>&1; then
+              echo "Application is healthy"
+              break
+            fi
+            echo "Attempt $i/10 - waiting..."
+            sleep 10
+          done
+
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: "http://${{ secrets.EC2_DEV_HOST }}"
+          cmd_options: "-a"
+          allow_issue_writing: false
+        continue-on-error: true
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          retention-days: 30
+
+  dast-api-staging:
+    name: DAST - API Scan (Staging)
+    needs: deploy-staging
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for deployment
+        run: |
+          sleep 45
+          curl -sf http://${{ secrets.EC2_DEV_HOST }}/api/v1/health || true
+
+      - name: Run ZAP API Scan
+        uses: zaproxy/action-api-scan@v0.9.0
+        with:
+          target: "http://${{ secrets.EC2_DEV_HOST }}/api/v1/"
+          format: openapi
+          cmd_options: "-a"
+          allow_issue_writing: false
+        continue-on-error: true
+
+      - name: Upload API scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-api-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ===========================================================================
+  # Dynamic Application Security Testing (DAST) - Production
+  # ===========================================================================
+
+  dast-zap-production:
+    name: DAST - ZAP Baseline (Production)
     needs: deploy-production
     if: success()
     runs-on: ubuntu-latest
@@ -401,15 +479,15 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-baseline-report
+          name: zap-baseline-report-prod
           path: |
             report_html.html
             report_json.json
             report_md.md
           retention-days: 30
 
-  dast-api:
-    name: DAST - API Security Scan
+  dast-api-production:
+    name: DAST - API Scan (Production)
     needs: deploy-production
     if: success()
     runs-on: ubuntu-latest
@@ -434,7 +512,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-api-report
+          name: zap-api-report-prod
           path: |
             report_html.html
             report_json.json
@@ -449,15 +527,20 @@ jobs:
   security-summary:
     name: Security Summary
     needs:
-      - dast-zap
-      - dast-api
+      - dast-zap-staging
+      - dast-api-staging
+      - dast-zap-production
+      - dast-api-production
       - container-sbom
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Generate security summary
         run: |
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
           echo "# DevSecOps Pipeline Security Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${BRANCH}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Container Security" >> $GITHUB_STEP_SUMMARY
           echo "- App Image Scan: Completed (see artifacts)" >> $GITHUB_STEP_SUMMARY
@@ -465,8 +548,13 @@ jobs:
           echo "- Container SBOM: Generated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Dynamic Testing" >> $GITHUB_STEP_SUMMARY
-          echo "- ZAP Baseline: ${{ needs.dast-zap.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ZAP API Scan: ${{ needs.dast-api.result }}" >> $GITHUB_STEP_SUMMARY
+          if [ "$BRANCH" == "dev" ]; then
+            echo "- ZAP Baseline (Staging): ${{ needs.dast-zap-staging.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "- ZAP API Scan (Staging): ${{ needs.dast-api-staging.result }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ZAP Baseline (Production): ${{ needs.dast-zap-production.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "- ZAP API Scan (Production): ${{ needs.dast-api-production.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Artifacts" >> $GITHUB_STEP_SUMMARY
           echo "Download security reports from the Artifacts section below." >> $GITHUB_STEP_SUMMARY
