@@ -100,6 +100,7 @@ export const productSustainabilityMetrics = sqliteTable("product_sustainability_
     .references(() => users.id, { onDelete: "cascade" }),
   todayDate: text("today_date").notNull(), // YYYY-MM-DD format
   quantity: real("quantity"),
+  unit: text("unit"), // e.g., "kg", "L", "pcs", "bottles"
   type: text("type"), // e.g., "consumed", "wasted", "shared", "sold"
 });
 
