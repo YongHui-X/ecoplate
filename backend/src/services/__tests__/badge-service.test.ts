@@ -48,6 +48,7 @@ sqlite.exec(`
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     today_date TEXT NOT NULL,
     quantity REAL,
+    unit TEXT,
     type TEXT
   );
 
