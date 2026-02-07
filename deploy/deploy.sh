@@ -82,6 +82,8 @@ deploy() {
     # Step 2: Stop current environment
     log "Stopping current environment..."
     docker compose -f "$COMPOSE_FILE" --env-file "${DEPLOY_DIR}/.env" down --remove-orphans || true
+    # Force-remove named containers in case they're orphaned from a previous project
+    docker rm -f ecoplate-app ecoplate-recommendation 2>/dev/null || true
 
     # Step 3: Start with new images
     log "Starting environment with new images..."
