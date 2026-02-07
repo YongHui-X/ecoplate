@@ -369,6 +369,108 @@ const sampleListings = [
   },
 ];
 
+// Sample rewards for the EcoPoints store
+const sampleRewards = [
+  // Physical rewards
+  {
+    name: "Reusable Tote Bag",
+    description: "Eco-friendly cotton tote bag with EcoPlate logo. Perfect for grocery shopping!",
+    imageUrl: null,
+    category: "physical",
+    pointsCost: 100,
+    stock: 50,
+  },
+  {
+    name: "Bamboo Cutlery Set",
+    description: "Portable bamboo fork, knife, spoon & chopsticks set with carrying case.",
+    imageUrl: null,
+    category: "physical",
+    pointsCost: 200,
+    stock: 30,
+  },
+  {
+    name: "Stainless Steel Water Bottle",
+    description: "500ml insulated water bottle. Keeps drinks cold for 24h or hot for 12h.",
+    imageUrl: null,
+    category: "physical",
+    pointsCost: 350,
+    stock: 20,
+  },
+  {
+    name: "Beeswax Food Wraps (3-pack)",
+    description: "Reusable beeswax wraps to replace cling film. Assorted sizes.",
+    imageUrl: null,
+    category: "physical",
+    pointsCost: 250,
+    stock: 25,
+  },
+  {
+    name: "Compost Starter Kit",
+    description: "Everything you need to start composting at home: bin, activator & guide.",
+    imageUrl: null,
+    category: "physical",
+    pointsCost: 500,
+    stock: 15,
+  },
+  {
+    name: "Herb Garden Kit",
+    description: "Grow your own basil, mint & parsley. Includes pots, soil & seeds.",
+    imageUrl: null,
+    category: "physical",
+    pointsCost: 400,
+    stock: 20,
+  },
+  // Voucher rewards
+  {
+    name: "$5 FairPrice Voucher",
+    description: "Digital voucher redeemable at any FairPrice outlet in Singapore.",
+    imageUrl: null,
+    category: "voucher",
+    pointsCost: 150,
+    stock: 100,
+  },
+  {
+    name: "$10 Cold Storage Voucher",
+    description: "Digital voucher for Cold Storage supermarkets.",
+    imageUrl: null,
+    category: "voucher",
+    pointsCost: 300,
+    stock: 50,
+  },
+  {
+    name: "$5 GrabFood Credit",
+    description: "Credit applied directly to your GrabFood account.",
+    imageUrl: null,
+    category: "voucher",
+    pointsCost: 200,
+    stock: 80,
+  },
+  {
+    name: "Free Coffee at Starbucks",
+    description: "Redeem any tall-sized handcrafted beverage at Starbucks Singapore.",
+    imageUrl: null,
+    category: "voucher",
+    pointsCost: 250,
+    stock: 40,
+  },
+  {
+    name: "$20 Organic Grocery Bundle",
+    description: "Curated bundle of organic produce delivered to your doorstep.",
+    imageUrl: null,
+    category: "voucher",
+    pointsCost: 600,
+    stock: 10,
+  },
+  {
+    name: "1-Month Premium Membership",
+    description: "Unlock premium features: advanced analytics, priority listings & more.",
+    imageUrl: null,
+    category: "voucher",
+    pointsCost: 800,
+    stock: 999,
+  },
+];
+
 // Sample conversation messages
 const sampleConversationMessages = [
   { text: "Hi! Is this still available?", fromBuyer: true },
@@ -405,6 +507,8 @@ async function seed() {
   try {
     // Clear existing data in correct order (respecting foreign keys)
     console.log("Clearing existing data...");
+    sqlite.exec("DELETE FROM user_redemptions");
+    sqlite.exec("DELETE FROM rewards");
     sqlite.exec("DELETE FROM messages");
     sqlite.exec("DELETE FROM conversations");
     sqlite.exec("DELETE FROM product_sustainability_metrics");
@@ -815,6 +919,15 @@ async function seed() {
       }
       console.log(`  ✓ ${user.name}: ${badgesAwarded} badges awarded`);
     }
+
+    // ==================== Rewards (EcoPoints Store) ====================
+    console.log("\nCreating rewards...");
+
+    for (const reward of sampleRewards) {
+      await db.insert(schema.rewards).values(reward);
+      console.log(`  ✓ ${reward.name} (${reward.pointsCost} pts, ${reward.category})`);
+    }
+    console.log(`  ✓ Created ${sampleRewards.length} rewards`);
 
     console.log("\n========================================");
     console.log("Done! Demo accounts (password: demo123):");
