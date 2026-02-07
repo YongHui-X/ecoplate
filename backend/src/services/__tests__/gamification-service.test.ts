@@ -73,10 +73,11 @@ sqlite.exec(`
 
 const testDb = drizzle(sqlite, { schema });
 
-// Mock the db connection module (NOT index.ts which has server side effects)
-mock.module("../../db/connection", () => ({ db: testDb }));
+// Override the db instance directly — avoids mock.module which is unreliable on Linux CI.
+import { __setTestDb } from "../../db/connection";
+__setTestDb(testDb);
 
-// Mock notification service to avoid DB calls to notifications table
+// Mock notification service to avoid side effects.
 mock.module("../notification-service", () => ({
   notifyStreakMilestone: async () => {},
   notifyBadgeUnlocked: async () => {},
@@ -90,16 +91,15 @@ mock.module("../badge-service", () => ({
   getBadgeProgress: async () => ({}),
 }));
 
-// Use dynamic imports to guarantee mocks are applied before module resolution.
-// Static imports can be hoisted before mock.module on some platforms (Linux CI).
-const {
+// Import after db override and mocks are set up.
+import {
   POINT_VALUES,
   awardPoints,
   updateStreak,
   getDetailedPointsStats,
   getUserMetrics,
   getOrCreateUserPoints,
-} = await import("../gamification-service");
+} from "../gamification-service";
 
 // ── Seed data ────────────────────────────────────────────────────────
 
