@@ -96,24 +96,20 @@ sqlite.exec(`
 
 const testDb = drizzle(sqlite, { schema });
 
-// Mock the db export used by badge-service and gamification-service
+// Mock the db export and notification service BEFORE importing services.
+// Using mock.module to intercept the db used by badge-service and gamification-service.
 mock.module("../../index", () => ({ db: testDb }));
-mock.module("../../index.ts", () => ({ db: testDb }));
 
-// Mock notification service to avoid loading index → auth.ts (which needs JWT_SECRET)
 mock.module("../notification-service", () => ({
   notifyStreakMilestone: async () => {},
   notifyBadgeUnlocked: async () => {},
 }));
 
-// Import AFTER mocking
-import {
-  BADGE_DEFINITIONS,
-  checkAndAwardBadges,
-  getBadgeProgress,
-  getUserBadgeMetrics,
-} from "../badge-service";
-import { getOrCreateUserPoints } from "../gamification-service";
+// Use dynamic imports to guarantee mocks are applied before module resolution.
+// Static imports can be hoisted before mock.module on some platforms (Linux CI).
+const { BADGE_DEFINITIONS, checkAndAwardBadges, getBadgeProgress, getUserBadgeMetrics } =
+  await import("../badge-service");
+const { getOrCreateUserPoints } = await import("../gamification-service");
 
 // ── Seed data ────────────────────────────────────────────────────────
 
@@ -149,12 +145,15 @@ beforeEach(() => {
   sqlite.exec("DELETE FROM user_badges");
   sqlite.exec("DELETE FROM product_sustainability_metrics");
   sqlite.exec("DELETE FROM user_points");
+  sqlite.exec("DELETE FROM notifications");
+  sqlite.exec("DELETE FROM notification_preferences");
 });
 
 // ── BADGE_DEFINITIONS ────────────────────────────────────────────────
 
 describe("BADGE_DEFINITIONS", () => {
   test("all definitions have required fields", () => {
+    expect(BADGE_DEFINITIONS.length).toBeGreaterThan(0);
     for (const def of BADGE_DEFINITIONS) {
       expect(def.code).toBeDefined();
       expect(typeof def.code).toBe("string");

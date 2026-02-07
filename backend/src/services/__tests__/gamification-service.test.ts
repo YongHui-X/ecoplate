@@ -90,15 +90,16 @@ mock.module("../badge-service", () => ({
   getBadgeProgress: async () => ({}),
 }));
 
-// Import AFTER mocking so the services pick up our in-memory db
-import {
+// Use dynamic imports to guarantee mocks are applied before module resolution.
+// Static imports can be hoisted before mock.module on some platforms (Linux CI).
+const {
   POINT_VALUES,
   awardPoints,
   updateStreak,
   getDetailedPointsStats,
   getUserMetrics,
   getOrCreateUserPoints,
-} from "../gamification-service";
+} = await import("../gamification-service");
 
 // ── Seed data ────────────────────────────────────────────────────────
 
