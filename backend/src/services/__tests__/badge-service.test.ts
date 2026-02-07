@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeAll, beforeEach, mock } from "bun:test";
+import { describe, expect, test, beforeAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "../../db/schema";
@@ -100,13 +100,7 @@ const testDb = drizzle(sqlite, { schema });
 import { __setTestDb } from "../../db/connection";
 __setTestDb(testDb);
 
-// Mock notification service to avoid side effects.
-mock.module("../notification-service", () => ({
-  notifyStreakMilestone: async () => {},
-  notifyBadgeUnlocked: async () => {},
-}));
-
-// Import after db override and mocks are set up.
+// Import after db override is set up.
 import {
   BADGE_DEFINITIONS,
   checkAndAwardBadges,
@@ -494,6 +488,37 @@ describe("getBadgeProgress", () => {
 
     // eco_starter needs 10 actions
     expect(progress["eco_starter"].percentage).toBe(0);
+  });
+
+  test("streak badge progress current/percentage are consistent (uses longestStreak)", () => {
+    // Simulates a user whose current streak broke (0) but had a longest streak of 6
+    const metrics = {
+      totalPoints: 0,
+      currentStreak: 0,
+      longestStreak: 6,
+      totalConsumed: 0,
+      totalWasted: 0,
+      totalShared: 0,
+      totalSold: 0,
+      totalActions: 0,
+      totalItems: 0,
+      wasteReductionRate: 0,
+    };
+
+    const streakBadges = BADGE_DEFINITIONS.filter((d) => d.category === "streaks");
+    for (const def of streakBadges) {
+      const p = def.progress(metrics);
+      // current/target ratio should match percentage
+      const expectedPercentage = Math.min(100, (p.current / p.target) * 100);
+      expect(p.percentage).toBe(expectedPercentage);
+    }
+
+    // Specifically check streak_7: longestStreak=6 should give current=6, percentage≈85.7
+    const streak7 = BADGE_DEFINITIONS.find((d) => d.code === "streak_7")!;
+    const p = streak7.progress(metrics);
+    expect(p.current).toBe(6);
+    expect(p.target).toBe(7);
+    expect(p.percentage).toBeCloseTo((6 / 7) * 100, 1);
   });
 
   test("percentage is 100 when condition is met", async () => {
