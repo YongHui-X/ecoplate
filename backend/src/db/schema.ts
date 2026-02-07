@@ -364,7 +364,7 @@ export const lockerOrders = sqliteTable("locker_orders", {
   paymentDeadline: integer("payment_deadline", { mode: "timestamp" }),
   paidAt: integer("paid_at", { mode: "timestamp" }),
   pickupScheduledAt: integer("pickup_scheduled_at", { mode: "timestamp" }),
-  droppedOffAt: integer("dropped_off_at", { mode: "timestamp" }),
+  riderPickedUpAt: integer("rider_picked_up_at", { mode: "timestamp" }),
   deliveredAt: integer("delivered_at", { mode: "timestamp" }),
   pickedUpAt: integer("picked_up_at", { mode: "timestamp" }),
   expiresAt: integer("expires_at", { mode: "timestamp" }),
@@ -383,7 +383,7 @@ export const lockerNotifications = sqliteTable("locker_notifications", {
   orderId: integer("order_id")
     .notNull()
     .references(() => lockerOrders.id),
-  type: text("type").notNull(), // payment_reminder, dropoff_scheduled, item_delivered, pickup_reminder, order_cancelled, order_expired
+  type: text("type").notNull(), // payment_reminder, pickup_scheduled, item_delivered, pickup_reminder, order_cancelled, order_expired
   title: text("title").notNull(),
   message: text("message").notNull(),
   isRead: integer("is_read", { mode: "boolean" }).notNull().default(false),

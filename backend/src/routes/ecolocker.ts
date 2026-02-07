@@ -202,22 +202,22 @@ export function registerEcoLockerRoutes(router: Router) {
     }
   });
 
-  // Confirm dropoff (seller)
-  router.post("/api/v1/ecolocker/orders/:id/dropoff", async (req, params) => {
+  // Confirm rider pickup (seller)
+  router.post("/api/v1/ecolocker/orders/:id/confirm-pickup", async (req, params) => {
     try {
       const user = getUser(req);
       const orderId = parseInt(params.id, 10);
 
-      const result = await lockerService.confirmDropoff(orderId, user.id);
+      const result = await lockerService.confirmRiderPickup(orderId, user.id);
 
       if (!result.success) {
-        return error(result.error || "Failed to confirm dropoff", 400);
+        return error(result.error || "Failed to confirm pickup", 400);
       }
 
       return json(result.order);
     } catch (e) {
-      console.error("Confirm dropoff error:", e);
-      return error("Failed to confirm dropoff", 500);
+      console.error("Confirm pickup error:", e);
+      return error("Failed to confirm pickup", 500);
     }
   });
 

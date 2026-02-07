@@ -103,7 +103,12 @@ export async function createOrder(
     return { success: false, error: "Listing not found" };
   }
 
-  if (listing.status !== "active") {
+  if (listing.status === "reserved") {
+    // Only the reserved buyer can create an EcoLocker order
+    if (listing.buyerId !== buyerId) {
+      return { success: false, error: "This listing is reserved for another buyer" };
+    }
+  } else if (listing.status !== "active") {
     return { success: false, error: "Listing is not available" };
   }
 
@@ -268,18 +273,18 @@ export async function setPickupTime(
   await createNotification(
     order.buyerId,
     orderId,
-    "dropoff_scheduled",
+    "pickup_scheduled",
     "Pickup Scheduled",
-    `Seller will drop off your item at the locker on ${pickupTime.toLocaleDateString()}.`
+    `The delivery rider will pick up your item from the seller on ${pickupTime.toLocaleDateString()}.`
   );
 
   return { success: true, order: updatedOrder };
 }
 
 /**
- * Confirm dropoff by seller (starts delivery simulation)
+ * Confirm rider pickup from seller (starts delivery simulation)
  */
-export async function confirmDropoff(
+export async function confirmRiderPickup(
   orderId: number,
   sellerId: number
 ): Promise<{ success: boolean; order?: typeof schema.lockerOrders.$inferSelect; error?: string }> {
@@ -298,7 +303,7 @@ export async function confirmDropoff(
   }
 
   if (order.status !== "paid" && order.status !== "pickup_scheduled") {
-    return { success: false, error: `Cannot confirm dropoff for order with status: ${order.status}` };
+    return { success: false, error: `Cannot confirm pickup for order with status: ${order.status}` };
   }
 
   // Assign a compartment number
@@ -308,7 +313,7 @@ export async function confirmDropoff(
     .update(schema.lockerOrders)
     .set({
       status: "in_transit",
-      droppedOffAt: new Date(),
+      riderPickedUpAt: new Date(),
       compartmentNumber,
     })
     .where(eq(schema.lockerOrders.id, orderId))
@@ -320,7 +325,7 @@ export async function confirmDropoff(
     orderId,
     "item_in_transit",
     "Item In Transit",
-    `Your item has been dropped off and is being processed. You'll receive a PIN when it's ready for pickup.`
+    `Your item has been picked up by the delivery rider and is on its way to the locker. You'll receive a PIN when it's ready for pickup.`
   );
 
   // Start delivery simulation
@@ -334,15 +339,8 @@ export async function confirmDropoff(
  * After 1-3 hours, generates PIN and marks as ready
  */
 export async function simulateDelivery(orderId: number) {
-  // Random delay between 1-3 hours (in milliseconds)
-  // For testing, use shorter times: 10-30 seconds
-  const minDelay = DELIVERY_MIN_HOURS * 60 * 60 * 1000; // 1 hour
-  const maxDelay = DELIVERY_MAX_HOURS * 60 * 60 * 1000; // 3 hours
-  const delay = Math.floor(Math.random() * (maxDelay - minDelay)) + minDelay;
-
-  // For development/testing, use a much shorter delay (30 seconds)
-  const testDelay = 30 * 1000;
-  const actualDelay = process.env.NODE_ENV === "development" ? testDelay : delay;
+  // Fixed 20-second delay to simulate delivery
+  const actualDelay = 20 * 1000;
 
   // Clear any existing timer for this order
   const existingTimer = deliveryTimers.get(orderId);

@@ -13,6 +13,7 @@ Enable seamless, location-flexible product transfers that work regardless of sel
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-02-04 | - | Initial PRD |
+| 1.1 | 2026-02-07 | - | Updated reserve flow: seller reserves for buyer |
 
 ---
 
@@ -78,43 +79,85 @@ EcoLocker introduces a **smart locker network** simulation that enables:
 
 | Role | Description |
 |------|-------------|
-| **Buyer** | EcoPlate user who reserved/purchased a marketplace product |
-| **Seller** | EcoPlate user who listed the product on marketplace |
+| **Buyer** | EcoPlate user who purchases a marketplace product (after seller reserves it for them) |
+| **Seller** | EcoPlate user who listed the product and reserves it for a specific buyer |
 | **System** | Simulated delivery driver and locker management |
+
+**Important:** The seller initiates the reservation for a buyer. The buyer then completes the purchase via "Buy" (direct) or "Use EcoLocker Delivery".
 
 ---
 
 ## Core User Flows
 
-### Flow 1: Buyer Reserves Product & Selects Locker
+### Flow 0: Seller Reserves Listing for Buyer
+
+```
+EcoPlate Marketplace (Seller View)
+       │
+       │  1. Buyer expresses interest (e.g., via message)
+       │
+       ▼
+Seller views their listing
+       │
+       ▼
+Seller clicks "Reserve for Buyer"
+       │
+       ▼
+Seller selects buyer from list
+(users who messaged about this listing)
+       │
+       ▼
+Listing status → "reserved"
+Listing buyerId → selected buyer
+       │
+       ▼
+Buyer notified: "Seller has reserved [item] for you"
+       │
+       ▼
+Listing shows as "Reserved" to all other users
+Only the selected buyer can purchase
+```
+
+**Key Points:**
+- The **seller** initiates the reservation, not the buyer
+- Buyer can complete purchase via "Buy" (direct) OR "Use EcoLocker Delivery"
+- Other users see the listing as "Reserved" and cannot purchase
+
+### Flow 1: Buyer Completes Purchase via EcoLocker
 
 ```
 EcoPlate Marketplace                    EcoLocker
        │                                    │
-       │  1. Buyer clicks "Reserve"         │
+       │  1. Buyer sees listing reserved    │
+       │     for them                       │
+       │                                    │
+       │  2. Buyer clicks "Use EcoLocker    │
+       │     Delivery"                      │
        │────────────────────────────────────>
        │                                    │
-       │  2. Redirect to EcoLocker          │
+       │  3. Redirect to EcoLocker          │
        │     (JWT token passed)             │
        │                                    │
-       │                           3. Display map with
+       │                           4. Display map with
        │                              locker locations
        │                                    │
-       │                           4. Buyer selects locker
+       │                           5. Buyer selects locker
        │                                    │
-       │                           5. Show payment summary:
+       │                           6. Show payment summary:
        │                              - Product price
        │                              - Delivery fee
        │                              - Total
        │                                    │
-       │                           6. Buyer confirms payment
+       │                           7. Buyer confirms payment
        │                              (simulated)
        │                                    │
-       │  7. Reservation confirmed          │
+       │  8. Order created                  │
        │<────────────────────────────────────
        │                                    │
-       │  8. Seller notified                │
+       │  9. Seller notified                │
 ```
+
+**Alternative:** Buyer can also click "Buy" on EcoPlate to complete a direct purchase without EcoLocker delivery.
 
 ### Flow 2: Seller Schedules Pickup
 
@@ -175,6 +218,18 @@ Transaction complete
 ---
 
 ## Features & Requirements
+
+### F0: Seller Reserve for Buyer (EcoPlate Marketplace)
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F0.1 | Seller can reserve their listing for a specific buyer | Must Have |
+| F0.2 | Show list of users who messaged about the listing as candidates | Must Have |
+| F0.3 | Update listing status to "reserved" with buyerId | Must Have |
+| F0.4 | Notify buyer when listing is reserved for them | Must Have |
+| F0.5 | Display "Reserved" badge to other marketplace users | Must Have |
+| F0.6 | Only the reserved buyer can purchase (Buy or EcoLocker) | Must Have |
+| F0.7 | Seller can unreserve if buyer doesn't complete purchase | Should Have |
 
 ### F1: Authentication (SSO with EcoPlate)
 
@@ -554,7 +609,29 @@ Example:
 ### C. Related EcoPlate Endpoints
 
 ```
-GET  /api/v1/marketplace/listings/:id    # Get listing details
-PATCH /api/v1/marketplace/listings/:id   # Update listing status
-POST /api/v1/gamification/points         # Award EcoPoints
+GET  /api/v1/marketplace/listings/:id              # Get listing details
+PATCH /api/v1/marketplace/listings/:id             # Update listing status
+POST /api/v1/marketplace/listings/:id/reserve      # Seller reserves for buyer (requires buyerId)
+POST /api/v1/marketplace/listings/:id/unreserve    # Seller unreserves listing
+POST /api/v1/gamification/points                   # Award EcoPoints
+```
+
+### D. Reserve Flow API Changes
+
+The reserve endpoint behavior:
+
+**Current (incorrect):**
+```
+POST /api/v1/marketplace/listings/:id/reserve
+Called by: Buyer
+Body: (none)
+Effect: Reserves listing for the calling buyer
+```
+
+**Intended (correct):**
+```
+POST /api/v1/marketplace/listings/:id/reserve
+Called by: Seller (owner of listing)
+Body: { "buyerId": number }
+Effect: Reserves listing for the specified buyer
 ```

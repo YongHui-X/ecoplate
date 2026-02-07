@@ -237,7 +237,7 @@ beforeAll(async () => {
       payment_deadline INTEGER,
       paid_at INTEGER,
       pickup_scheduled_at INTEGER,
-      dropped_off_at INTEGER,
+      rider_picked_up_at INTEGER,
       delivered_at INTEGER,
       picked_up_at INTEGER,
       expires_at INTEGER,

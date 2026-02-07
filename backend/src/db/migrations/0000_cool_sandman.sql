@@ -66,7 +66,7 @@ CREATE TABLE `locker_orders` (
 	`payment_deadline` integer,
 	`paid_at` integer,
 	`pickup_scheduled_at` integer,
-	`dropped_off_at` integer,
+	`rider_picked_up_at` integer,
 	`delivered_at` integer,
 	`picked_up_at` integer,
 	`expires_at` integer,

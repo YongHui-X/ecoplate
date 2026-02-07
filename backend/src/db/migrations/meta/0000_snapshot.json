@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "sqlite",
-  "id": "89219fd1-e961-49be-84dd-4da1cfeea6a7",
+  "id": "27b08a78-b6c8-4f04-ad5d-a0644f8bea04",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "product_sustainability_metrics": {
@@ -481,8 +481,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "dropped_off_at": {
-          "name": "dropped_off_at",
+        "rider_picked_up_at": {
+          "name": "rider_picked_up_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,

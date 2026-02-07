@@ -96,15 +96,15 @@ export function OrderDetailPage() {
     }
   }
 
-  async function handleConfirmDropoff() {
+  async function handleConfirmRiderPickup() {
     if (!order) return;
 
     setActionLoading(true);
 
     try {
-      const updatedOrder = await orderApi.confirmDropoff(order.id);
+      const updatedOrder = await orderApi.confirmRiderPickup(order.id);
       setOrder(updatedOrder);
-      addToast("Dropoff confirmed! Buyer has been notified.", "success");
+      addToast("Pickup confirmed! Rider is on the way.", "success");
     } catch (err) {
       addToast(getErrorMessage(err), "error");
     } finally {
@@ -190,7 +190,7 @@ export function OrderDetailPage() {
           <div>
             <p className="font-medium">Payment Successful!</p>
             <p className="text-sm">
-              The seller has been notified and will schedule a dropoff time.
+              The seller has been notified and will schedule a pickup time for the delivery rider.
             </p>
           </div>
         </div>
@@ -282,8 +282,8 @@ export function OrderDetailPage() {
             {order.pickupScheduledAt && (
               <p>Scheduled: {formatDateTime(order.pickupScheduledAt)}</p>
             )}
-            {order.droppedOffAt && (
-              <p>Dropped off: {formatDateTime(order.droppedOffAt)}</p>
+            {order.riderPickedUpAt && (
+              <p>Rider picked up: {formatDateTime(order.riderPickedUpAt)}</p>
             )}
             {order.deliveredAt && (
               <p>Ready: {formatDateTime(order.deliveredAt)}</p>
@@ -301,11 +301,11 @@ export function OrderDetailPage() {
       {isSeller && order.status === "paid" && (
         <Card className="mb-4">
           <CardHeader>
-            <CardTitle className="text-lg">Schedule Dropoff</CardTitle>
+            <CardTitle className="text-lg">Schedule Pickup</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              When will you drop off the item at the locker?
+              When should the delivery rider pick up the item from you?
             </p>
             <Input
               type="datetime-local"
@@ -323,7 +323,7 @@ export function OrderDetailPage() {
               ) : (
                 <>
                   <Calendar className="h-4 w-4" />
-                  Schedule Dropoff
+                  Schedule Pickup
                 </>
               )}
             </Button>
@@ -331,19 +331,19 @@ export function OrderDetailPage() {
         </Card>
       )}
 
-      {/* Seller: Confirm dropoff */}
+      {/* Seller: Confirm rider pickup */}
       {isSeller && (order.status === "paid" || order.status === "pickup_scheduled") && (
         <Card className="mb-4">
           <CardHeader>
-            <CardTitle className="text-lg">Confirm Dropoff</CardTitle>
+            <CardTitle className="text-lg">Confirm Rider Pickup</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              Click below after you've placed the item in the locker.
+              Click below after the delivery rider has collected the item from you.
             </p>
             <Button
               className="w-full"
-              onClick={handleConfirmDropoff}
+              onClick={handleConfirmRiderPickup}
               disabled={actionLoading}
             >
               {actionLoading ? (
@@ -351,7 +351,7 @@ export function OrderDetailPage() {
               ) : (
                 <>
                   <Package className="h-4 w-4" />
-                  I've Dropped Off the Item
+                  Rider Has Picked Up
                 </>
               )}
             </Button>
@@ -359,46 +359,32 @@ export function OrderDetailPage() {
         </Card>
       )}
 
-      {/* Buyer: Enter PIN when ready */}
+      {/* Buyer: Show PIN when ready for pickup */}
       {isBuyer && order.status === "ready_for_pickup" && (
         <Card className="mb-4 border-success">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Key className="h-5 w-5 text-success" />
-              Enter Pickup PIN
+              Your Pickup PIN
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Enter the 6-digit PIN from your notification to unlock the compartment.
+              Show this PIN at the locker to unlock your compartment.
             </p>
-            {pinError && (
-              <p className="text-sm text-destructive">{pinError}</p>
+            <div className="text-center text-4xl font-mono font-bold tracking-[0.5em] py-4">
+              {order.pickupPin}
+            </div>
+            {order.compartmentNumber && (
+              <p className="text-center text-sm text-muted-foreground">
+                Compartment #{order.compartmentNumber} at {order.locker?.name}
+              </p>
             )}
-            <Input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              placeholder="Enter PIN"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-              className="text-center text-2xl tracking-widest"
-            />
-            <Button
-              className="w-full"
-              onClick={handleVerifyPin}
-              disabled={actionLoading || pin.length !== 6}
-            >
-              {actionLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4" />
-                  Verify & Unlock
-                </>
-              )}
-            </Button>
+            {order.expiresAt && (
+              <p className="text-center text-xs text-muted-foreground">
+                PIN expires: {formatDateTime(order.expiresAt)}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

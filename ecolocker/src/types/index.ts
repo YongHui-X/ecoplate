@@ -61,7 +61,7 @@ export interface LockerOrder {
   paymentDeadline?: string | null;
   paidAt?: string | null;
   pickupScheduledAt?: string | null;
-  droppedOffAt?: string | null;
+  riderPickedUpAt?: string | null;
   deliveredAt?: string | null;
   pickedUpAt?: string | null;
   expiresAt?: string | null;

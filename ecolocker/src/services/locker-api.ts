@@ -47,8 +47,8 @@ export const orderApi = {
     return api.post(`/ecolocker/orders/${orderId}/schedule`, { pickupTime });
   },
 
-  confirmDropoff(orderId: number): Promise<LockerOrder> {
-    return api.post(`/ecolocker/orders/${orderId}/dropoff`);
+  confirmRiderPickup(orderId: number): Promise<LockerOrder> {
+    return api.post(`/ecolocker/orders/${orderId}/confirm-pickup`);
   },
 
   verifyPin(
