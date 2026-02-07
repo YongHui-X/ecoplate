@@ -83,7 +83,7 @@ function addSecurityHeaders(response: Response, isApi: boolean = false): Respons
     headers.set("Pragma", "no-cache");
   } else {
     // SPA headers - allow inline scripts for Vite
-    headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; font-src 'self' data:; frame-ancestors 'none'");
+    headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://maps.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; font-src 'self' data:; frame-ancestors 'none'");
   }
 
   return new Response(response.body, {
