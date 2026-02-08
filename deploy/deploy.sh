@@ -85,6 +85,10 @@ deploy() {
     # Force-remove named containers in case they're orphaned from a previous project
     docker rm -f ecoplate-app ecoplate-recommendation 2>/dev/null || true
 
+    # Step 2.5: Prune unused images to free disk space
+    log "Pruning unused Docker images..."
+    docker image prune -af --filter "until=24h" || true
+
     # Step 3: Start with new images
     log "Starting environment with new images..."
     docker compose -f "$COMPOSE_FILE" --env-file "${DEPLOY_DIR}/.env" up -d --pull never --remove-orphans
