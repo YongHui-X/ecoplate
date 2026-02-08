@@ -4,7 +4,7 @@
 # =============================================================================
 # Stage 1: Build Frontend
 # =============================================================================
-FROM oven/bun:1-alpine AS frontend-builder
+FROM oven/bun:1.2-alpine AS frontend-builder
 
 # Build args for frontend environment variables
 ARG VITE_GOOGLE_MAPS_API_KEY
@@ -27,7 +27,7 @@ RUN bun run build
 # =============================================================================
 # Stage 2: Build EcoLocker Frontend
 # =============================================================================
-FROM oven/bun:1-alpine AS ecolocker-builder
+FROM oven/bun:1.2-alpine AS ecolocker-builder
 
 WORKDIR /app/ecolocker
 
@@ -46,7 +46,7 @@ RUN bun run build
 # =============================================================================
 # Stage 3: Build Backend
 # =============================================================================
-FROM oven/bun:1-alpine AS backend-builder
+FROM oven/bun:1.2-alpine AS backend-builder
 
 WORKDIR /app/backend
 
@@ -62,7 +62,7 @@ COPY backend/ .
 # =============================================================================
 # Stage 4: Production Runtime
 # =============================================================================
-FROM oven/bun:1-alpine AS production
+FROM oven/bun:1.2-alpine AS production
 
 WORKDIR /app
 
