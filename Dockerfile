@@ -73,12 +73,15 @@ RUN apk update && apk upgrade --no-cache
 RUN addgroup -g 1001 -S ecoplate && \
     adduser -S ecoplate -u 1001
 
-# Copy backend with dependencies
-COPY --from=backend-builder /app/backend/node_modules ./node_modules
+# Copy backend source and config
 COPY --from=backend-builder /app/backend/src ./src
 COPY --from=backend-builder /app/backend/package.json ./
 COPY --from=backend-builder /app/backend/tsconfig.json ./
 COPY --from=backend-builder /app/backend/drizzle.config.ts ./
+COPY --from=backend-builder /app/backend/bun.lockb* ./
+
+# Install production-only dependencies (excludes devDependencies like drizzle-kit/esbuild)
+RUN bun install --frozen-lockfile --production
 
 # Copy frontend build output to be served by backend
 COPY --from=frontend-builder /app/frontend/dist ./public
