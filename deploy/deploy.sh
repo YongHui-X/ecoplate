@@ -100,6 +100,10 @@ deploy() {
     sudo cp "${DEPLOY_DIR}/nginx-upstream.conf" /etc/nginx/ecoplate-upstream.conf
     sudo nginx -t && sudo nginx -s reload
 
+    # Step 6: Clean up old Docker images to free disk space
+    log "Cleaning up old Docker images..."
+    docker image prune -af --filter "until=1h" 2>/dev/null || true
+
     log "============================================"
     log "  Deployment SUCCESSFUL!"
     log "============================================"
