@@ -23,6 +23,7 @@
     "@capacitor/android": "^6.2.1",
     "@capacitor/core": "^6.2.1",
     "@capacitor/geolocation": "^6.0.0",
+    "compressorjs": "^1.2.1",
     "debug": "^4.4.3",
     "drizzle-kit": "^0.12.8",
     "leaflet": "^1.9.4",
