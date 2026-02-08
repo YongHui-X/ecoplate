@@ -28,12 +28,40 @@ jobs:
         with:
           python-version: "3.12"
 
-      # ---- Download CI Artifacts ----
+      # ---- Resolve Original Branch (workflow_run chain loses head_branch) ----
+      - name: Download pipeline metadata
+        id: dl-meta
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: cd.yml
+          run_id: ${{ github.event.workflow_run.id }}
+          name: pipeline-metadata
+          path: reports/metadata
+          if_no_artifact_found: warn
+          search_artifacts: true
+        continue-on-error: true
+
+      - name: Resolve original branch and commit
+        id: meta
+        run: |
+          if [ -f reports/metadata/pipeline-metadata.json ]; then
+            BRANCH=$(python3 -c "import json; print(json.load(open('reports/metadata/pipeline-metadata.json'))['branch'])")
+            COMMIT=$(python3 -c "import json; print(json.load(open('reports/metadata/pipeline-metadata.json'))['commit'])")
+            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+            echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+            echo "Resolved from pipeline metadata: branch=$BRANCH commit=$COMMIT"
+          else
+            echo "branch=${{ github.event.workflow_run.head_branch || github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "commit=${{ github.event.workflow_run.head_sha || github.sha }}" >> $GITHUB_OUTPUT
+            echo "Fallback to workflow_run event data"
+          fi
+
+      # ---- Download CI Artifacts (using resolved branch) ----
       - name: Download Semgrep report
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: ci.yml
-          branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          branch: ${{ steps.meta.outputs.branch }}
           name: semgrep-report
           path: reports/semgrep
           if_no_artifact_found: warn
@@ -44,7 +72,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: ci.yml
-          branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          branch: ${{ steps.meta.outputs.branch }}
           name: bandit-report
           path: reports/bandit
           if_no_artifact_found: warn
@@ -55,7 +83,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: ci.yml
-          branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          branch: ${{ steps.meta.outputs.branch }}
           name: trufflehog-report
           path: reports/trufflehog
           if_no_artifact_found: warn
@@ -66,7 +94,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: ci.yml
-          branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          branch: ${{ steps.meta.outputs.branch }}
           name: pip-audit-report
           path: reports/pip-audit
           if_no_artifact_found: warn
@@ -77,7 +105,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: ci.yml
-          branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          branch: ${{ steps.meta.outputs.branch }}
           name: js-audit-reports
           path: reports/js-audit
           if_no_artifact_found: warn
@@ -88,7 +116,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: ci.yml
-          branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          branch: ${{ steps.meta.outputs.branch }}
           name: checkov-report
           path: reports/checkov
           if_no_artifact_found: warn
@@ -99,7 +127,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: ci.yml
-          branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          branch: ${{ steps.meta.outputs.branch }}
           name: license-report
           path: reports/license
           if_no_artifact_found: warn
@@ -110,7 +138,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: ci.yml
-          branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          branch: ${{ steps.meta.outputs.branch }}
           name: sbom
           path: reports/sbom
           if_no_artifact_found: warn
@@ -183,8 +211,8 @@ jobs:
             --reports-dir reports \
             --output-html security-report.html \
             --output-md security-summary.md \
-            --branch "${{ github.event.workflow_run.head_branch || github.ref_name }}" \
-            --commit "${{ github.event.workflow_run.head_sha || github.sha }}" \
+            --branch "${{ steps.meta.outputs.branch }}" \
+            --commit "${{ steps.meta.outputs.commit }}" \
             --repo "${{ github.repository }}"
 
       - name: Post summary to GitHub

@@ -47,11 +47,11 @@ wait_for_health() {
         sleep "$HEALTH_INTERVAL"
     done
 
-    # Check main app
+    # Check main app via nginx (port 80)
     i=0
     while (( i < HEALTH_RETRIES )); do
-        if curl -sf "http://127.0.0.1:3000/api/v1/health" > /dev/null 2>&1; then
-            log "App is healthy"
+        if curl -sf "http://127.0.0.1:80/api/v1/health" > /dev/null 2>&1; then
+            log "App (via nginx) is healthy"
             return 0
         fi
         (( i++ ))
@@ -79,38 +79,28 @@ deploy() {
     # Step 1: Pull new images
     pull_images
 
-    # Step 2: Stop current environment
+    # Step 2: Stop host nginx if running (replaced by containerized nginx)
+    if systemctl is-active --quiet nginx 2>/dev/null; then
+        log "Stopping host nginx (replaced by containerized nginx)..."
+        sudo systemctl stop nginx 2>/dev/null || true
+        sudo systemctl disable nginx 2>/dev/null || true
+    fi
+
+    # Step 3: Stop current environment
     log "Stopping current environment..."
     docker compose -f "$COMPOSE_FILE" --env-file "${DEPLOY_DIR}/.env" down --remove-orphans || true
     # Force-remove named containers in case they're orphaned from a previous project
-    docker rm -f ecoplate-app ecoplate-recommendation 2>/dev/null || true
+    docker rm -f ecoplate-app ecoplate-recommendation ecoplate-nginx 2>/dev/null || true
 
-    # Step 2.5: Prune unused images to free disk space
-    log "Pruning unused Docker images..."
-    docker image prune -af --filter "until=24h" || true
-
-    # Step 3: Start with new images
+    # Step 4: Start with new images (includes containerized nginx with headers-more module)
     log "Starting environment with new images..."
-    docker compose -f "$COMPOSE_FILE" --env-file "${DEPLOY_DIR}/.env" up -d --pull never --remove-orphans
+    docker compose -f "$COMPOSE_FILE" --env-file "${DEPLOY_DIR}/.env" up -d --build --pull never --remove-orphans
 
-    # Step 4: Wait for health checks
+    # Step 5: Wait for health checks
     if ! wait_for_health; then
         err "Health checks failed. Deployment FAILED."
         exit 1
     fi
-
-    # Step 5: Ensure Nginx headers-more module is installed (to hide Server header)
-    if ! nginx -V 2>&1 | grep -q "headers-more"; then
-        log "Installing nginx headers-more module..."
-        sudo apt-get install -y -qq libnginx-mod-http-headers-more-filter 2>/dev/null || \
-            warn "Could not install headers-more module, Server header will not be fully hidden"
-    fi
-
-    # Step 6: Update Nginx configuration and reload
-    log "Updating Nginx configuration..."
-    sudo cp "${DEPLOY_DIR}/nginx.conf" /etc/nginx/conf.d/default.conf
-    sudo cp "${DEPLOY_DIR}/nginx-upstream.conf" /etc/nginx/ecoplate-upstream.conf
-    sudo nginx -t && sudo nginx -s reload
 
     # Step 6: Clean up old Docker images to free disk space
     log "Cleaning up old Docker images..."

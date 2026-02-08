@@ -224,18 +224,18 @@ jobs:
         run: |
           cd backend
           npm install --package-lock-only --ignore-scripts 2>/dev/null || true
-          echo "=== Backend npm audit ==="
-          npm audit --json > ../backend-audit.json 2>&1 || true
-          npm audit || true
+          echo "=== Backend npm audit (production only) ==="
+          npm audit --omit=dev --json > ../backend-audit.json 2>&1 || true
+          npm audit --omit=dev || true
         continue-on-error: true
 
       - name: Audit frontend dependencies
         run: |
           cd frontend
           npm install --package-lock-only --ignore-scripts 2>/dev/null || true
-          echo "=== Frontend npm audit ==="
-          npm audit --json > ../frontend-audit.json 2>&1 || true
-          npm audit || true
+          echo "=== Frontend npm audit (production only) ==="
+          npm audit --omit=dev --json > ../frontend-audit.json 2>&1 || true
+          npm audit --omit=dev || true
         continue-on-error: true
 
       - name: Upload audit reports

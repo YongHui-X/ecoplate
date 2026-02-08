@@ -39,6 +39,19 @@ jobs:
           fi
           echo "Branch: $BRANCH"
 
+      # Save original branch/commit info for downstream Security Report
+      # (workflow_run chain loses head_branch — CD always runs on default branch)
+      - name: Write pipeline metadata
+        run: |
+          echo '{"branch":"${{ github.event.workflow_run.head_branch }}","commit":"${{ github.event.workflow_run.head_sha }}"}' > pipeline-metadata.json
+
+      - name: Upload pipeline metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-metadata
+          path: pipeline-metadata.json
+          retention-days: 30
+
   # ===========================================================================
   # Build & Push Container Images
   # ===========================================================================
@@ -404,7 +417,7 @@ jobs:
           done
 
       - name: Run ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: "http://${{ steps.target.outputs.host }}"
           cmd_options: "-a"
