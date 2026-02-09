@@ -38,8 +38,6 @@ import { ACTION_CONFIG, INITIAL_TX_COUNT } from "../constants/gamification";
 interface PointsData {
   points: {
     total: number;
-    available: number;
-    lifetime: number;
     currentStreak: number;
     longestStreak: number;
   };
@@ -179,14 +177,14 @@ export default function EcoBoardPage() {
         {/* 2x2 Dashboard Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Panel 1: Points & Streak */}
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden flex flex-col">
             <CardHeader className="p-3 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                 <Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-warning" />
                 Eco Points
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 sm:space-y-6 p-3 sm:p-6 pt-0 sm:pt-0">
+            <CardContent className="space-y-4 sm:space-y-6 p-3 sm:p-6 pt-0 sm:pt-0 flex flex-col justify-center flex-1">
               <div className="text-center">
                 <div className="text-3xl sm:text-5xl font-bold text-primary">
                   {pointsData?.points.total || 0}
@@ -212,20 +210,6 @@ export default function EcoBoardPage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5 sm:space-y-2">
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span>Lifetime Points</span>
-                  <span className="font-medium">
-                    {pointsData?.points.lifetime || 0}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span>Available Points</span>
-                  <span className="font-medium">
-                    {pointsData?.points.available || 0}
-                  </span>
-                </div>
-              </div>
             </CardContent>
           </Card>
 

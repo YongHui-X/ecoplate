@@ -54,14 +54,28 @@ jobs:
           bun-version: "1.3"
       - run: bun install --ignore-scripts
       - name: Run backend tests with coverage
-        run: cd backend && bun test --coverage 2>&1 | tee test-output.txt
+        run: cd backend && bun test --coverage --coverage-reporter=lcov --coverage-dir=coverage 2>&1 | tee test-output.txt
       - name: Write test summary
         if: always()
         run: |
           echo "## Backend Test Results" >> $GITHUB_STEP_SUMMARY
+          # Extract Bun test summary (format: "323 pass")
+          PASS=$(grep -E "^[[:space:]]*[0-9]+ pass" backend/test-output.txt | tail -1 || echo "")
+          FAIL=$(grep -E "^[[:space:]]*[0-9]+ fail" backend/test-output.txt | tail -1 || echo "")
+          echo "✅ **$PASS** $FAIL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          # Extract coverage table (Bun format: File | % Funcs | % Lines | Uncovered)
+          echo "### Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cat backend/test-output.txt >> $GITHUB_STEP_SUMMARY
+          grep -E "^(All files|File|---)" backend/test-output.txt | head -5 >> $GITHUB_STEP_SUMMARY || echo "See job logs for details"
           echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: Upload backend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage/
+          retention-days: 5
 
   test-frontend:
     name: Test Frontend
@@ -78,8 +92,15 @@ jobs:
         if: always()
         run: |
           echo "## Frontend Test Results" >> $GITHUB_STEP_SUMMARY
+          # Extract Vitest summary line (format: "Tests  547 passed | 30 skipped")
+          SUMMARY=$(grep -E "Tests.*passed" frontend/test-output.txt | tail -1 | sed 's/\x1b\[[0-9;]*m//g' || echo "No results")
+          echo "✅ **$SUMMARY**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          # Extract coverage summary
+          echo "### Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cat frontend/test-output.txt >> $GITHUB_STEP_SUMMARY
+          # Get coverage summary section (last few lines with percentages)
+          grep -E "^(Statements|Branches|Functions|Lines)\s*:" frontend/test-output.txt >> $GITHUB_STEP_SUMMARY || echo "See job logs for details"
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload frontend coverage
         if: always()
@@ -108,13 +129,20 @@ jobs:
           pytest test_app.py test_ml.py -v \
             --cov=. --cov-report=term-missing \
             --cov-report=html:coverage-html \
+            --cov-report=lcov:coverage.lcov \
             --junitxml=test-results.xml 2>&1 | tee test-output.txt
       - name: Write test summary
         if: always()
         run: |
           echo "## Recommendation Engine Test Results" >> $GITHUB_STEP_SUMMARY
+          # Extract pytest summary (e.g., "X passed in Y seconds")
+          SUMMARY=$(grep -E "passed|failed" recommendation-engine/test-output.txt | grep -E "^=.*=$" | tail -1 || echo "No results")
+          echo "✅ **$SUMMARY**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          # Extract coverage summary
+          echo "### Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cat recommendation-engine/test-output.txt >> $GITHUB_STEP_SUMMARY
+          grep -E "^(TOTAL|Name|--)" recommendation-engine/test-output.txt | head -10 >> $GITHUB_STEP_SUMMARY || echo "See job logs for details"
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload recommendation coverage
         if: always()
@@ -124,6 +152,133 @@ jobs:
           path: |
             recommendation-engine/coverage-html/
             recommendation-engine/test-results.xml
+            recommendation-engine/coverage.lcov
+          retention-days: 14
+
+  test-coverage-summary:
+    name: Test Coverage Summary
+    needs: [test-backend, test-frontend, test-recommendation]
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Install lcov
+        run: sudo apt-get update && sudo apt-get install -y lcov
+
+      - name: Download backend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend-cov/
+        continue-on-error: true
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend-cov/
+        continue-on-error: true
+
+      - name: Download recommendation coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: recommendation-coverage
+          path: recommendation-cov/
+        continue-on-error: true
+
+      - name: Merge coverage and generate report
+        run: |
+          mkdir -p merged-coverage
+
+          # Collect available lcov files
+          LCOV_ARGS=""
+          if [ -f backend-cov/lcov.info ]; then
+            LCOV_ARGS="$LCOV_ARGS -a backend-cov/lcov.info"
+          fi
+          if [ -f frontend-cov/lcov.info ]; then
+            LCOV_ARGS="$LCOV_ARGS -a frontend-cov/lcov.info"
+          fi
+          if [ -f recommendation-cov/coverage.lcov ]; then
+            LCOV_ARGS="$LCOV_ARGS -a recommendation-cov/coverage.lcov"
+          fi
+
+          if [ -n "$LCOV_ARGS" ]; then
+            lcov $LCOV_ARGS -o merged-coverage/lcov.info
+            genhtml merged-coverage/lcov.info -o merged-coverage/html --title "EcoPlate Combined Coverage" --ignore-errors source,unmapped --synthesize-missing
+          else
+            mkdir -p merged-coverage/html
+            echo "<html><body><h1>No coverage data available</h1></body></html>" > merged-coverage/html/index.html
+          fi
+
+      - name: Extract per-component coverage
+        id: coverage
+        run: |
+          extract_lcov_metric() {
+            local file="$1" metric="$2"
+            if [ -f "$file" ]; then
+              local result
+              result=$(lcov --summary "$file" 2>&1 | grep "$metric" | awk '{print $2}' | tr -d '%')
+              # Check for empty, "no", "no data", or non-numeric values
+              if [ -z "$result" ] || echo "$result" | grep -qiE "^(no|n/a|nan)"; then
+                echo "N/A"
+              elif echo "$result" | grep -qE '^[0-9.]+$'; then
+                echo "$result"
+              else
+                echo "N/A"
+              fi
+            else
+              echo "N/A"
+            fi
+          }
+
+          # Backend: extract from lcov summary
+          BE_LINES=$(extract_lcov_metric backend-cov/lcov.info "lines")
+          BE_FUNCS=$(extract_lcov_metric backend-cov/lcov.info "functions")
+          BE_BRANCH=$(extract_lcov_metric backend-cov/lcov.info "branches")
+
+          # Frontend: extract from coverage-summary.json
+          if [ -f frontend-cov/coverage-summary.json ]; then
+            FE_LINES=$(python3 -c "import json; d=json.load(open('frontend-cov/coverage-summary.json')); print(d['total']['lines']['pct'])")
+            FE_FUNCS=$(python3 -c "import json; d=json.load(open('frontend-cov/coverage-summary.json')); print(d['total']['functions']['pct'])")
+            FE_BRANCH=$(python3 -c "import json; d=json.load(open('frontend-cov/coverage-summary.json')); print(d['total']['branches']['pct'])")
+          else
+            FE_LINES=0; FE_FUNCS=0; FE_BRANCH=0
+          fi
+
+          # Recommendation: extract from lcov summary
+          RE_LINES=$(extract_lcov_metric recommendation-cov/coverage.lcov "lines")
+          RE_FUNCS=$(extract_lcov_metric recommendation-cov/coverage.lcov "functions")
+          RE_BRANCH=$(extract_lcov_metric recommendation-cov/coverage.lcov "branches")
+
+          # Calculate averages, filtering out non-numeric values (safe_float handles N/A, "no", empty, etc.)
+          AVG_LINES=$(python3 -c "vals=[float(v) for v in '${BE_LINES},${FE_LINES},${RE_LINES}'.split(',') if v.replace('.','',1).isdigit()]; print(f'{sum(vals)/len(vals):.1f}' if vals else 'N/A')")
+          AVG_FUNCS=$(python3 -c "vals=[float(v) for v in '${BE_FUNCS},${FE_FUNCS},${RE_FUNCS}'.split(',') if v.replace('.','',1).isdigit()]; print(f'{sum(vals)/len(vals):.1f}' if vals else 'N/A')")
+          AVG_BRANCH=$(python3 -c "vals=[float(v) for v in '${BE_BRANCH},${FE_BRANCH},${RE_BRANCH}'.split(',') if v.replace('.','',1).isdigit()]; print(f'{sum(vals)/len(vals):.1f}' if vals else 'N/A')")
+
+          echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Lines | Functions | Branches |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|-----------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | ${BE_LINES}% | ${BE_FUNCS}% | ${BE_BRANCH}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${FE_LINES}% | ${FE_FUNCS}% | ${FE_BRANCH}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Recommendation Engine | ${RE_LINES}% | ${RE_FUNCS}% | ${RE_BRANCH}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Average** | **${AVG_LINES}%** | **${AVG_FUNCS}%** | **${AVG_BRANCH}%** |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Annotate PR with coverage
+        if: github.event_name == 'pull_request' && hashFiles('merged-coverage/lcov.info') != ''
+        uses: zgosalvez/github-actions-report-lcov@v4
+        with:
+          coverage-files: merged-coverage/lcov.info
+          minimum-coverage: 60
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload merged coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-coverage-report
+          path: merged-coverage/html/
           retention-days: 14
 
   build-check:
@@ -558,7 +713,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-app.sarif
         continue-on-error: true
@@ -612,7 +767,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-rec.sarif
         continue-on-error: true
@@ -787,19 +942,8 @@ jobs:
           target: "http://${{ steps.target.outputs.host }}"
           cmd_options: "-a"
           allow_issue_writing: false
+          artifact_name: zap-baseline-report
         continue-on-error: true
-
-      - name: Upload ZAP report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-baseline-report
-          path: |
-            report_html.html
-            report_json.json
-            report_md.md
-          retention-days: 30
-          overwrite: true
 
   dast-api:
     name: DAST - API Security Scan
@@ -832,20 +976,8 @@ jobs:
           format: openapi
           cmd_options: "-a"
           allow_issue_writing: false
+          artifact_name: zap-api-report
         continue-on-error: true
-
-      - name: Upload API scan report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-api-report
-          path: |
-            report_html.html
-            report_json.json
-            report_md.md
-          retention-days: 30
-          if-no-files-found: ignore
-          overwrite: true
 
   # ===========================================================================
   # LAYER 6.5 — E2E Functional Tests (push only)
@@ -937,13 +1069,14 @@ jobs:
         if: always()
         run: |
           echo "## E2E Selenium Test Results" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
           if [ -f e2e/test-output.log ]; then
-            cat e2e/test-output.log >> $GITHUB_STEP_SUMMARY
+            # Extract pass/fail counts
+            PASSED=$(grep -c "✓\|PASSED\|passed" e2e/test-output.log 2>/dev/null || echo "0")
+            FAILED=$(grep -c "✗\|FAILED\|failed" e2e/test-output.log 2>/dev/null || echo "0")
+            echo "✅ **$PASSED passed, $FAILED failed**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "No test output available" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ No test output available" >> $GITHUB_STEP_SUMMARY
           fi
-          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload test screenshots
         if: always()

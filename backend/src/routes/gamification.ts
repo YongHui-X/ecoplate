@@ -1,7 +1,7 @@
 import { Router, json } from "../utils/router";
 import { db } from "../db/connection";
 import * as schema from "../db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { getUser } from "../middleware/auth";
 import { getOrCreateUserPoints, getUserMetrics, getDetailedPointsStats, awardPoints } from "../services/gamification-service";
 import { POINT_VALUES } from "../services/gamification-service";
@@ -60,8 +60,6 @@ export function registerGamificationRoutes(router: Router) {
       return json({
         points: {
           total: points.totalPoints,
-          available: points.totalPoints,
-          lifetime: points.totalPoints,
           currentStreak: points.currentStreak,
           longestStreak: detailedStats.longestStreak,
         },
@@ -100,23 +98,30 @@ export function registerGamificationRoutes(router: Router) {
   // GET /api/v1/gamification/leaderboard
   // ================================
   router.get("/api/v1/gamification/leaderboard", async (req) => {
-    // Get all users with their points
-    const allUserPoints = await db.query.userPoints.findMany({
-      with: {
-        user: {
-          columns: { id: true, name: true },
-        },
-      },
-      orderBy: [desc(schema.userPoints.totalPoints)],
-      limit: 10,
-    });
+    // Compute lifetime points = totalPoints + SUM(pointsSpent from redemptions)
+    // This ensures leaderboard ranking is not affected by reward redemptions
+    const rows = await db
+      .select({
+        userId: schema.userPoints.userId,
+        totalPoints: schema.userPoints.totalPoints,
+        currentStreak: schema.userPoints.currentStreak,
+        spentPoints: sql<number>`COALESCE(SUM(${schema.userRedemptions.pointsSpent}), 0)`.as("spent_points"),
+        lifetimePoints: sql<number>`${schema.userPoints.totalPoints} + COALESCE(SUM(${schema.userRedemptions.pointsSpent}), 0)`.as("lifetime_points"),
+        userName: schema.users.name,
+      })
+      .from(schema.userPoints)
+      .innerJoin(schema.users, eq(schema.users.id, schema.userPoints.userId))
+      .leftJoin(schema.userRedemptions, eq(schema.userRedemptions.userId, schema.userPoints.userId))
+      .groupBy(schema.userPoints.userId)
+      .orderBy(sql`lifetime_points DESC`)
+      .limit(10);
 
-    const leaderboard = allUserPoints.map((up, index) => ({
+    const leaderboard = rows.map((row, index) => ({
       rank: index + 1,
-      userId: up.userId,
-      name: up.user?.name || "Unknown",
-      points: up.totalPoints,
-      streak: up.currentStreak,
+      userId: row.userId,
+      name: row.userName || "Unknown",
+      points: row.lifetimePoints,
+      streak: row.currentStreak,
     }));
 
     return json(leaderboard);

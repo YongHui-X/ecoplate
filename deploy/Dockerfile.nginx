@@ -3,5 +3,16 @@ FROM nginx:alpine
 # No third-party modules needed — using only built-in nginx directives
 # server_tokens off + proxy_hide_header handle Server header
 
+# Configure nginx to run as non-root user (CKV_DOCKER_3)
+# nginx:alpine already has nginx user (uid 101), just need to fix permissions
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d && \
+    touch /var/run/nginx.pid && chown nginx:nginx /var/run/nginx.pid
+
+# Switch to non-root user
+USER nginx
+
+# Expose non-privileged port (8080 instead of 80)
+EXPOSE 8080
+
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1

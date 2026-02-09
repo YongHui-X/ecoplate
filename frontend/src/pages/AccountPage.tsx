@@ -7,7 +7,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { cn } from "../lib/utils";
-import { User, MapPin, Mail, Bell, Clock, Award, Flame, AlertCircle, Trophy, LogOut, ChevronRight } from "lucide-react";
+import { User, MapPin, Mail, Bell, Clock, Award, Flame, AlertCircle, Trophy, LogOut, ChevronRight, Gift } from "lucide-react";
 import { notificationService, NotificationPreferences } from "../services/notifications";
 
 // Predefined avatar options (same as RegisterPage)
@@ -123,6 +123,7 @@ export default function AccountPage() {
   const mobileNavItems = [
     { to: "/ecopoints", icon: Trophy, label: "EcoPoints", description: "View your eco impact", color: "bg-primary/10 text-primary" },
     { to: "/badges", icon: Award, label: "Badges", description: "Achievements & milestones", color: "bg-accent/10 text-accent" },
+    { to: "/rewards", icon: Gift, label: "Rewards", description: "Redeem your points", color: "bg-success/10 text-success" },
     { to: "/notifications", icon: Bell, label: "Notifications", description: "Alerts & updates", color: "bg-warning/10 text-warning" },
   ];
 

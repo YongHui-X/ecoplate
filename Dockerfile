@@ -7,7 +7,11 @@
 FROM oven/bun:1.2.5-alpine AS frontend-builder
 
 # Build args for frontend environment variables
+# Note: VITE_ prefixed keys are client-side and intentionally public (embedded in JS bundle)
+# Security is enforced via Google Cloud Console API key restrictions, not secrecy
+# hadolint ignore=DL3044
 ARG VITE_GOOGLE_MAPS_API_KEY
+# hadolint ignore=DL3044
 ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 
 WORKDIR /app/frontend

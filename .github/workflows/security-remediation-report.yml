@@ -42,12 +42,12 @@ jobs:
       - name: Scan Python dependencies
         id: scan
         run: |
-          echo "# Python Dependency Vulnerabilities (Pre-Fix)" > python-pre-scan.md
+          echo "# Python Dependencies — Before Fixes" > python-pre-scan.md
           echo "" >> python-pre-scan.md
-          echo "Scan Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> python-pre-scan.md
+          echo "Scanned on $(date -u '+%B %d, %Y at %H:%M UTC')" >> python-pre-scan.md
           echo "" >> python-pre-scan.md
 
-          echo "## Identified Issues" >> python-pre-scan.md
+          echo "## What We Found" >> python-pre-scan.md
           echo "" >> python-pre-scan.md
           echo '```' >> python-pre-scan.md
 
@@ -65,7 +65,9 @@ jobs:
       - name: Scan Python code (Bandit)
         run: |
           echo "" >> python-pre-scan.md
-          echo "## Code Security Issues (Bandit)" >> python-pre-scan.md
+          echo "## Code Security Issues" >> python-pre-scan.md
+          echo "" >> python-pre-scan.md
+          echo "We also scanned the Python code itself for security problems:" >> python-pre-scan.md
           echo "" >> python-pre-scan.md
           echo '```' >> python-pre-scan.md
           bandit -r recommendation-engine/ -x recommendation-engine/test_app.py --severity-level medium 2>&1 | tee -a python-pre-scan.md || true
@@ -95,14 +97,14 @@ jobs:
       - name: Scan JavaScript dependencies
         id: scan
         run: |
-          echo "# JavaScript Dependency Vulnerabilities (Pre-Fix)" > js-pre-scan.md
+          echo "# JavaScript Dependencies — Before Fixes" > js-pre-scan.md
           echo "" >> js-pre-scan.md
-          echo "Scan Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> js-pre-scan.md
+          echo "Scanned on $(date -u '+%B %d, %Y at %H:%M UTC')" >> js-pre-scan.md
           echo "" >> js-pre-scan.md
 
           HAS_VULNS=false
 
-          echo "## Backend Dependencies" >> js-pre-scan.md
+          echo "## Backend (Node.js API)" >> js-pre-scan.md
           echo "" >> js-pre-scan.md
           echo '```' >> js-pre-scan.md
           cd backend
@@ -115,7 +117,7 @@ jobs:
           cd ..
 
           echo "" >> js-pre-scan.md
-          echo "## Frontend Dependencies" >> js-pre-scan.md
+          echo "## Frontend (React App)" >> js-pre-scan.md
           echo "" >> js-pre-scan.md
           echo '```' >> js-pre-scan.md
           cd frontend
@@ -267,12 +269,14 @@ jobs:
 
       - name: Re-scan Python dependencies
         run: |
-          echo "# Python Dependency Vulnerabilities (Post-Fix)" > python-post-scan.md
+          echo "# Python Dependencies — After Fixes" > python-post-scan.md
           echo "" >> python-post-scan.md
-          echo "Scan Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> python-post-scan.md
+          echo "Scanned on $(date -u '+%B %d, %Y at %H:%M UTC')" >> python-post-scan.md
           echo "" >> python-post-scan.md
 
-          echo "## Remaining Issues" >> python-post-scan.md
+          echo "## What's Still There" >> python-post-scan.md
+          echo "" >> python-post-scan.md
+          echo "If there are still issues below, they couldn't be fixed automatically:" >> python-post-scan.md
           echo "" >> python-post-scan.md
           echo '```' >> python-post-scan.md
           pip-audit -r recommendation-engine/requirements.txt 2>&1 | tee -a python-post-scan.md || true
@@ -283,7 +287,9 @@ jobs:
       - name: Re-scan Python code
         run: |
           echo "" >> python-post-scan.md
-          echo "## Code Security Issues (Bandit)" >> python-post-scan.md
+          echo "## Code Security Issues" >> python-post-scan.md
+          echo "" >> python-post-scan.md
+          echo "Note: Code issues require manual fixes — they can't be auto-remediated." >> python-post-scan.md
           echo "" >> python-post-scan.md
           echo '```' >> python-post-scan.md
           bandit -r recommendation-engine/ -x recommendation-engine/test_app.py --severity-level medium 2>&1 | tee -a python-post-scan.md || true
@@ -317,12 +323,14 @@ jobs:
 
       - name: Re-scan JavaScript dependencies
         run: |
-          echo "# JavaScript Dependency Vulnerabilities (Post-Fix)" > js-post-scan.md
+          echo "# JavaScript Dependencies — After Fixes" > js-post-scan.md
           echo "" >> js-post-scan.md
-          echo "Scan Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> js-post-scan.md
+          echo "Scanned on $(date -u '+%B %d, %Y at %H:%M UTC')" >> js-post-scan.md
+          echo "" >> js-post-scan.md
+          echo "If there are still issues below, they couldn't be fixed automatically." >> js-post-scan.md
           echo "" >> js-post-scan.md
 
-          echo "## Backend Dependencies" >> js-post-scan.md
+          echo "## Backend (Node.js API)" >> js-post-scan.md
           echo "" >> js-post-scan.md
           echo '```' >> js-post-scan.md
           cd backend
@@ -333,7 +341,7 @@ jobs:
           cd ..
 
           echo "" >> js-post-scan.md
-          echo "## Frontend Dependencies" >> js-post-scan.md
+          echo "## Frontend (React App)" >> js-post-scan.md
           echo "" >> js-post-scan.md
           echo '```' >> js-post-scan.md
           cd frontend
@@ -373,39 +381,25 @@ jobs:
           cat > remediation-report.md << 'EOF'
           # Security Remediation Report
 
-          **Generated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          **When:** $(date -u '+%B %d, %Y at %H:%M UTC')
           **Repository:** ${{ github.repository }}
           **Branch:** ${{ github.ref_name }}
-          **Commit:** ${{ github.sha }}
 
           ---
 
-          ## Executive Summary
+          ## What This Report Covers
 
-          This report documents the security vulnerability remediation process including:
-          1. **Identified Issues** - Vulnerabilities found before fixes
-          2. **Fixes Applied** - Actions taken to remediate vulnerabilities
-          3. **Re-scanning Results** - Verification scan after fixes
+          We ran our weekly security scans and attempted to automatically fix any vulnerabilities found. Here's what happened:
 
-          ---
-
-          ## Table of Contents
-
-          1. [Python Security](#python-security)
-             - [Pre-Fix Scan](#python-pre-fix-scan)
-             - [Fixes Applied](#python-fixes-applied)
-             - [Post-Fix Scan](#python-post-fix-scan)
-          2. [JavaScript Security](#javascript-security)
-             - [Pre-Fix Scan](#javascript-pre-fix-scan)
-             - [Fixes Applied](#javascript-fixes-applied)
-             - [Post-Fix Scan](#javascript-post-fix-scan)
-          3. [Summary](#summary)
+          1. **Before** — What we found when we scanned the codebase
+          2. **What We Fixed** — The changes we made automatically
+          3. **After** — What's left after the fixes (if anything)
 
           ---
 
-          # Python Security
+          # Python Dependencies
 
-          ## Python Pre-Fix Scan
+          ## What We Found (Before Fixes)
 
           EOF
 
@@ -419,7 +413,7 @@ jobs:
 
           ---
 
-          ## Python Fixes Applied
+          ## What We Changed
 
           EOF
 
@@ -433,7 +427,7 @@ jobs:
 
           ---
 
-          ## Python Post-Fix Scan
+          ## What's Left (After Fixes)
 
           EOF
 
@@ -447,9 +441,9 @@ jobs:
 
           ---
 
-          # JavaScript Security
+          # JavaScript Dependencies
 
-          ## JavaScript Pre-Fix Scan
+          ## What We Found (Before Fixes)
 
           EOF
 
@@ -463,7 +457,7 @@ jobs:
 
           ---
 
-          ## JavaScript Fixes Applied
+          ## What We Changed
 
           EOF
 
@@ -477,7 +471,7 @@ jobs:
 
           ---
 
-          ## JavaScript Post-Fix Scan
+          ## What's Left (After Fixes)
 
           EOF
 
@@ -493,25 +487,32 @@ jobs:
 
           # Summary
 
-          ## Remediation Status
+          ## Progress at a Glance
 
-          | Category | Pre-Fix Issues | Fixes Applied | Post-Fix Issues | Status |
-          |----------|----------------|---------------|-----------------|--------|
-          | Python Dependencies | See above | Auto-fix | See above | Review |
-          | Python Code (SAST) | See above | Manual | See above | Review |
-          | JS Backend | See above | Auto-fix | See above | Review |
-          | JS Frontend | See above | Auto-fix | See above | Review |
+          | Area | Before | After | Status |
+          |------|--------|-------|--------|
+          | Python packages | Check pre-scan above | Check post-scan above | Review needed |
+          | Backend JS packages | Check pre-scan above | Check post-scan above | Review needed |
+          | Frontend JS packages | Check pre-scan above | Check post-scan above | Review needed |
 
-          ## Next Steps
+          ## What You Should Do Next
 
-          1. Review remaining vulnerabilities that could not be auto-fixed
-          2. Manually update packages with breaking changes
-          3. Address code-level security issues identified by Bandit
-          4. Re-run this workflow after manual fixes
+          If there are still issues after the automatic fixes:
+
+          1. **Check the "After" sections** — Some vulnerabilities can't be auto-fixed (breaking changes, no patch available)
+          2. **Manually update problematic packages** — Look for alternatives or pin to safe versions
+          3. **Re-run this workflow** — After your manual fixes, trigger this workflow again to verify
+
+          ## Why Some Issues Remain
+
+          Not everything can be fixed automatically:
+          - **Breaking changes** — The fix might break your code
+          - **No patch yet** — The vulnerability was just disclosed
+          - **Transitive dependencies** — The vulnerable package is buried deep in your dependency tree
 
           ---
 
-          *Report generated by Security Remediation Workflow*
+          *This report was generated automatically. If something looks wrong, check the workflow logs.*
           EOF
 
       - name: Upload comprehensive report
@@ -523,20 +524,22 @@ jobs:
 
       - name: Post summary to GitHub
         run: |
-          echo "# Security Remediation Report" >> $GITHUB_STEP_SUMMARY
+          echo "# Weekly Security Fix Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Artifacts Generated" >> $GITHUB_STEP_SUMMARY
+          echo "We scanned for vulnerabilities and tried to fix them automatically. Here's what happened:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Report | Description |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| \`python-pre-scan\` | Python vulnerabilities before fix |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`js-pre-scan\` | JavaScript vulnerabilities before fix |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`fixes-applied\` | Details of fixes applied |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`python-post-scan\` | Python vulnerabilities after fix |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`js-post-scan\` | JavaScript vulnerabilities after fix |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`remediation-report\` | **Complete consolidated report** |" >> $GITHUB_STEP_SUMMARY
+          echo "## What's in Each File" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Download the \`remediation-report\` artifact for the full report." >> $GITHUB_STEP_SUMMARY
+          echo "| File | What It Shows |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|---------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| \`python-pre-scan\` | Issues we found in Python packages |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`js-pre-scan\` | Issues we found in JavaScript packages |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`fixes-applied\` | What we changed to fix things |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`python-post-scan\` | What's left after Python fixes |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`js-post-scan\` | What's left after JavaScript fixes |" >> $GITHUB_STEP_SUMMARY
+          echo "| **\`remediation-report\`** | **Full before/after comparison** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📥 Download \`remediation-report\` for the complete picture." >> $GITHUB_STEP_SUMMARY
 
   # ===========================================================================
   # Phase 5: Create PR with Fixes (Optional)
@@ -568,36 +571,31 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "fix(security): auto-remediate vulnerabilities"
-          title: "Security: Automated Vulnerability Remediation"
+          title: "Weekly Security Fixes"
           body: |
-            ## Security Remediation Report
+            ## What's in This PR
 
-            This PR contains automated security fixes generated by the Security Remediation workflow.
+            Our weekly security scan found some vulnerable dependencies, and we've automatically updated them to safer versions.
 
-            ### What's Included
+            ### Changes Made
 
-            - ✅ Python dependency updates (pip-audit --fix)
-            - ✅ JavaScript dependency updates (npm audit fix)
+            - **Python packages** — Updated via `pip-audit --fix`
+            - **JavaScript packages** — Updated via `npm audit fix`
 
-            ### Reports
+            ### Before You Merge
 
-            Download the following artifacts from the workflow run:
-            - `python-pre-scan` - Issues before fix
-            - `js-pre-scan` - Issues before fix
-            - `fixes-applied` - What was changed
-            - `python-post-scan` - Remaining issues
-            - `js-post-scan` - Remaining issues
-            - `remediation-report` - **Complete report**
+            1. **Check the workflow run** — Download `remediation-report` to see exactly what changed
+            2. **Make sure tests pass** — The CI should run automatically
+            3. **Quick sanity check** — Does the app still work as expected?
 
-            ### Verification Checklist
+            ### If Something Broke
 
-            - [ ] Review the remediation report
-            - [ ] CI tests pass
-            - [ ] Application works correctly
-            - [ ] No breaking changes
+            Some updates might cause issues:
+            - Check `fixes-applied` to see what was updated
+            - You might need to pin a specific version or find an alternative package
 
             ---
-            *Generated by Security Remediation Workflow*
+            *This PR was created automatically by our weekly security scan.*
           branch: security/auto-remediation
           labels: |
             security

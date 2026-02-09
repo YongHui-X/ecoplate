@@ -17,7 +17,10 @@ describe('Login', () => {
   });
 
   beforeEach(async () => {
+    // Clear auth state before each test to ensure clean slate
     await loginPage.goto();
+    await loginPage.clearAllStorage();
+    await loginPage.goto(); // Navigate again after clearing storage
   });
 
   it('should display the login form', async () => {

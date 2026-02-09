@@ -67,4 +67,17 @@ export abstract class BasePage {
       return !url.includes(urlPattern);
     }, timeout);
   }
+
+  async clearLocalStorage(): Promise<void> {
+    await this.driver.executeScript('window.localStorage.clear();');
+  }
+
+  async clearSessionStorage(): Promise<void> {
+    await this.driver.executeScript('window.sessionStorage.clear();');
+  }
+
+  async clearAllStorage(): Promise<void> {
+    await this.clearLocalStorage();
+    await this.clearSessionStorage();
+  }
 }
