@@ -29,7 +29,6 @@ import {
   TrendingUp,
   Calendar,
   Receipt,
-  Trophy,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { formatCO2, getCO2ColorClass, calculateTotalCO2 } from "../utils/co2Utils";
@@ -84,7 +83,6 @@ export default function MyFridgePage() {
   const [selectedPendingRecord, setSelectedPendingRecord] = useState<PendingConsumptionRecord | null>(null);
   const { addToast } = useToast();
   const navigate = useNavigate();
-  const { points } = usePoints();
 
   useEffect(() => {
     loadProducts();
@@ -190,12 +188,6 @@ export default function MyFridgePage() {
             <h1 className="text-2xl lg:text-3xl font-bold text-foreground">MyFridge</h1>
             <p className="text-sm text-muted-foreground">Manage your food inventory</p>
           </div>
-          {points && (
-            <div className="flex items-center gap-2 bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200">
-              <Trophy className="h-5 w-5 text-yellow-600" />
-              <span className="font-semibold text-yellow-900">{points.totalPoints} pts</span>
-            </div>
-          )}
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
           <Button
@@ -2052,17 +2044,56 @@ function TrackConsumptionModal({
   }
 
   // --- Step Progress Bar ---
+  const steps = [
+    { icon: Camera, label: "Capture" },
+    { icon: UtensilsCrossed, label: "Review" },
+    { icon: Camera, label: "Waste" },
+    { icon: Leaf, label: "Review" },
+    { icon: Check, label: "Done" },
+  ];
+
   const StepIndicator = () => (
-    <div className="flex items-center gap-2 mt-2">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <div
-          key={s}
-          className={cn(
-            "h-2 flex-1 rounded-full",
-            stepNumber >= s ? "bg-primary" : "bg-border"
-          )}
-        />
-      ))}
+    <div className="flex items-center mt-3 mb-1">
+      {steps.map((s, i) => {
+        const num = i + 1;
+        const isCompleted = stepNumber > num;
+        const isActive = stepNumber === num;
+        const Icon = isCompleted ? Check : s.icon;
+        return (
+          <div key={num} className="flex items-center flex-1 last:flex-initial">
+            <div className="flex flex-col items-center">
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 border-2",
+                  isCompleted && "bg-green-500 border-green-500 text-white",
+                  isActive && "bg-primary border-primary text-primary-foreground shadow-md shadow-primary/30",
+                  !isCompleted && !isActive && "bg-muted border-border text-muted-foreground"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </div>
+              <span
+                className={cn(
+                  "text-[10px] mt-1 font-medium hidden sm:block",
+                  isCompleted && "text-green-600",
+                  isActive && "text-primary",
+                  !isCompleted && !isActive && "text-muted-foreground"
+                )}
+              >
+                {s.label}
+              </span>
+            </div>
+            {num < 5 && (
+              <div
+                className={cn(
+                  "flex-1 h-0.5 mx-1 transition-all duration-300 rounded-full",
+                  stepNumber > num ? "bg-green-500" : "bg-border"
+                )}
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -2073,54 +2104,40 @@ function TrackConsumptionModal({
     cameraLabel,
     onFileProcess,
     backButton,
+    infoMessage,
   }: {
     title: string;
     subtitle: string;
     cameraLabel: string;
     onFileProcess: (base64: string) => void;
     backButton?: React.ReactNode;
+    infoMessage?: React.ReactNode;
   }) => (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
-        <CardHeader>
+      <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] flex flex-col">
+        <CardHeader className="bg-gradient-to-br from-primary/5 to-transparent pb-3 shrink-0">
           <CardTitle className="flex items-center justify-between">
             {title}
-            <Button variant="ghost" size="icon" onClick={handleClose}>
+            <Button variant="ghost" size="icon" onClick={handleClose} className="hover:bg-destructive/10 hover:text-destructive">
               <X className="h-4 w-4" />
             </Button>
           </CardTitle>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
           <StepIndicator />
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Button
-              variant="outline"
-              className="w-full h-auto py-4 flex flex-col items-center gap-2"
-              onClick={handleOpenCamera}
-            >
-              <Camera className="h-8 w-8 text-primary" />
-              <span className="font-medium text-foreground">Take Photo</span>
-              <span className="text-xs text-muted-foreground">{cameraLabel}</span>
-            </Button>
+        <CardContent className="pt-4">
+          <div className="space-y-3">
+            {infoMessage}
 
-            <div className="flex items-center gap-3">
-              <div className="flex-1 border-t border-border" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <div className="flex-1 border-t border-border" />
-            </div>
-
+            {/* Combined action area — camera + upload in one box */}
             <div
               className={cn(
-                "border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer text-center",
+                "border-2 border-dashed rounded-xl p-5 transition-all duration-200 text-center",
                 isDragging
-                  ? "border-primary bg-primary/5"
-                  : "border-muted-foreground/30 hover:border-primary/50"
+                  ? "border-primary bg-primary/10 scale-[1.02]"
+                  : "border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5"
               )}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
-              }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={(e) => {
                 e.preventDefault();
@@ -2128,15 +2145,32 @@ function TrackConsumptionModal({
                 const file = e.dataTransfer.files[0];
                 if (file) processFile(file, onFileProcess);
               }}
-              onClick={() => fileInputRef.current?.click()}
             >
-              <Upload className="h-8 w-8 mx-auto text-primary mb-2" />
-              <p className="text-foreground font-medium text-sm">
-                {isDragging ? "Drop your photo here" : "Upload from files"}
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                <Camera className="h-6 w-6 text-primary" />
+              </div>
+              <p className="text-sm font-medium text-foreground mb-1">{cameraLabel}</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                {isDragging ? "Drop your photo here" : "Drag and drop, or use buttons below"}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Drag and drop, or click to browse
-              </p>
+              <div className="flex gap-2 justify-center">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); handleOpenCamera(); }}
+                >
+                  <Camera className="h-4 w-4 mr-1" />
+                  Take Photo
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  Upload
+                </Button>
+              </div>
             </div>
             <input
               ref={fileInputRef}
@@ -2148,10 +2182,13 @@ function TrackConsumptionModal({
               }}
               className="hidden"
             />
-
-            {backButton}
           </div>
         </CardContent>
+        {backButton && (
+          <div className="px-6 pb-6 pt-3 shrink-0 border-t">
+            {backButton}
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -2211,18 +2248,23 @@ function TrackConsumptionModal({
       // Create pending record first (if not exists)
       let recordId = pendingRecordId;
       if (!recordId && rawPhoto) {
+        console.log("[FE:confirm] Creating pending record...");
         const record = await api.post<{ id: number }>("/myfridge/consumption/pending", {
           rawPhoto,
           ingredients,
           status: "PENDING_WASTE_PHOTO",
         });
+        console.log("[FE:confirm] Pending record created, id:", record.id);
         recordId = record.id;
         setPendingRecordId(recordId);
       }
 
       // Confirm ingredients - only send those with valid productId (matched to DB)
       const matchedIngredients = ingredients.filter(ing => ing.productId > 0);
+      console.log("[FE:confirm] Total ingredients:", ingredients.length, "Matched:", matchedIngredients.length);
+      console.log("[FE:confirm] ProductIds:", ingredients.map(ing => ing.productId));
       if (matchedIngredients.length > 0) {
+        console.log("[FE:confirm] Calling confirm-ingredients...");
         const response = await api.post<{ interactionIds: number[] }>("/consumption/confirm-ingredients", {
           ingredients: matchedIngredients.map(ing => ({
             productId: ing.productId,
@@ -2252,12 +2294,13 @@ function TrackConsumptionModal({
       } catch (error) {
         console.error("Failed to refresh points:", error);
       }
+      console.log("[FE:confirm] Success! Moving to waste-input step");
       addToast("Ingredients confirmed! Eco points awarded.", "success");
 
       if (fileInputRef.current) fileInputRef.current.value = "";
       setStep("waste-input");
     } catch (error) {
-      console.error("Failed to confirm ingredients:", error);
+      console.error("[FE:confirm] FAILED:", error);
       addToast("Failed to confirm ingredients", "error");
     } finally {
       setConfirmingIngredients(false);
@@ -2268,58 +2311,86 @@ function TrackConsumptionModal({
   if (step === "raw-review") {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
-          <CardHeader>
+        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] flex flex-col">
+          <CardHeader className="bg-gradient-to-br from-primary/5 to-transparent pb-3 shrink-0">
             <CardTitle className="flex items-center justify-between">
               Review Ingredients
-              <Button variant="ghost" size="icon" onClick={handleClose}>
+              <Button variant="ghost" size="icon" onClick={handleClose} className="hover:bg-destructive/10 hover:text-destructive">
                 <X className="h-4 w-4" />
               </Button>
             </CardTitle>
             <p className="text-sm text-muted-foreground">Step 2 of 5 — Confirm your ingredients</p>
             <StepIndicator />
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="pt-4 flex flex-col min-h-0">
+            <div className="space-y-3 shrink-0">
               {rawPhoto && (
-                <img
-                  src={rawPhoto}
-                  alt="Raw ingredients"
-                  className="w-20 h-20 object-cover rounded-lg"
-                />
+                <div className="flex items-center gap-3">
+                  <img
+                    src={rawPhoto}
+                    alt="Raw ingredients"
+                    className="w-16 h-16 object-cover rounded-xl border-2 border-primary/20 shadow-sm"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Your ingredients photo</p>
+                    <p className="text-xs text-muted-foreground">AI identified {ingredients.length} item{ingredients.length !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
               )}
 
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""} added
-                </p>
-                <Button variant="outline" size="sm" onClick={addIngredient}>
+                <div className="flex items-center gap-2">
+                  <UtensilsCrossed className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-medium text-foreground">
+                    {ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={addIngredient} className="shadow-sm">
                   <Plus className="h-4 w-4 mr-1" />
                   Add
                 </Button>
               </div>
+            </div>
 
-              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+            <div className="space-y-3 overflow-y-auto pr-1 mt-3 flex-1 min-h-0">
                 {ingredients.map((ing) => (
-                  <div key={ing.id} className="p-3 bg-muted/50 rounded-lg space-y-2">
+                  <div
+                    key={ing.id}
+                    className={cn(
+                      "p-3 rounded-xl space-y-2 border-l-4 bg-card shadow-sm transition-all duration-200 hover:shadow-md",
+                      ing.confidence === "high" && "border-l-green-500",
+                      ing.confidence === "medium" && "border-l-yellow-500",
+                      ing.confidence === "low" && "border-l-red-400",
+                      !ing.confidence && "border-l-border"
+                    )}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <Input
                         value={ing.name}
                         onChange={(e) => updateIngredient(ing.id, "name", e.target.value)}
-                        className="h-11 font-medium"
+                        className="h-10 font-medium"
                         placeholder="Ingredient name"
                       />
+                      {ing.confidence && (
+                        <Badge
+                          variant={ing.confidence === "high" ? "success" : ing.confidence === "medium" ? "warning" : "destructive"}
+                          className="text-[10px] shrink-0"
+                        >
+                          {ing.confidence}
+                        </Badge>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => removeIngredient(ing.id)}
+                        className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <div>
-                        <label className="text-xs text-muted-foreground">Qty</label>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Qty</label>
                         <Input
                           type="number"
                           min="0.1"
@@ -2331,18 +2402,18 @@ function TrackConsumptionModal({
                             updateIngredient(ing.id, "estimatedQuantity", value);
                             validateIngredientQuantity(ing.id, value);
                           }}
-                          className={`h-11 ${ing.quantityError ? 'border-red-500' : ''}`}
+                          className={cn("h-10", ing.quantityError && "border-red-500 bg-red-50")}
                         />
                         {ing.quantityError && (
-                          <p className="text-xs text-red-500 mt-0.5">{ing.quantityError}</p>
+                          <p className="text-[10px] text-red-500 mt-0.5">{ing.quantityError}</p>
                         )}
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">Unit</label>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Unit</label>
                         <select
                           value={ing.unit || ""}
                           onChange={(e) => updateIngredient(ing.id, "unit", e.target.value || "")}
-                          className="w-full h-11 rounded-md border border-input bg-background px-3"
+                          className="w-full h-10 rounded-xl border border-input bg-background px-2 text-sm"
                         >
                           <option value="">Select...</option>
                           <option value="pcs">pcs</option>
@@ -2358,11 +2429,11 @@ function TrackConsumptionModal({
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">Category</label>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</label>
                         <select
                           value={ing.category}
                           onChange={(e) => updateIngredient(ing.id, "category", e.target.value)}
-                          className="w-full h-11 rounded-md border border-input bg-background px-3"
+                          className="w-full h-10 rounded-xl border border-input bg-background px-2 text-sm"
                         >
                           <option value="produce">Produce</option>
                           <option value="dairy">Dairy</option>
@@ -2375,44 +2446,46 @@ function TrackConsumptionModal({
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">CO₂ (kg)</label>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">CO₂</label>
                         <Input
                           type="number"
                           value={ing.co2Emission}
                           readOnly
                           disabled
-                          className="h-11 bg-muted"
+                          className="h-10 bg-muted/50"
                         />
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-
-              <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setRawPhoto(null);
-                    setIngredients([]);
-                    setStep("raw-input");
-                  }}
-                  className="w-full sm:flex-1"
-                  disabled={confirmingIngredients}
-                >
-                  Scan Again
-                </Button>
-                <Button
-                  onClick={handleConfirmIngredients}
-                  disabled={ingredients.length === 0 || confirmingIngredients}
-                  className="w-full sm:flex-1"
-                >
-                  {confirmingIngredients ? "Confirming..." : "Next"}
-                  {!confirmingIngredients && <ChevronRight className="h-4 w-4 ml-1" />}
-                </Button>
-              </div>
-            </div>
           </CardContent>
+          <div className="px-6 pb-6 pt-3 shrink-0 border-t">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRawPhoto(null);
+                  setIngredients([]);
+                  setStep("raw-input");
+                }}
+                className="flex-1"
+                disabled={confirmingIngredients}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Rescan
+              </Button>
+              <Button
+                variant="success"
+                onClick={handleConfirmIngredients}
+                disabled={ingredients.length === 0 || confirmingIngredients}
+                className="flex-[2]"
+              >
+                {confirmingIngredients ? "Confirming..." : "Confirm & Next"}
+                {!confirmingIngredients && <ChevronRight className="h-4 w-4 ml-1" />}
+              </Button>
+            </div>
+          </div>
         </Card>
       </div>
     );
@@ -2461,108 +2534,46 @@ function TrackConsumptionModal({
     }
 
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Capture Leftovers
-              <Button variant="ghost" size="icon" onClick={handleClose}>
-                <X className="h-4 w-4" />
-              </Button>
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Step 3 of 5 — Photo your plate after eating</p>
-            <StepIndicator />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Info message about optional waste photo */}
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
-                <p className="text-sm text-primary">
-                  You can add the waste photo later after you finish eating.
-                  Tap "Do Later" to save your progress and return anytime.
-                </p>
-              </div>
-
+      <PhotoInputView
+        title="Capture Leftovers"
+        subtitle="Step 3 of 5 — Photo your plate after eating"
+        cameraLabel="Capture your plate after eating"
+        onFileProcess={processWastePhoto}
+        infoMessage={
+          <div className="flex items-start gap-3 bg-primary/10 border border-primary/20 rounded-xl p-3">
+            <Leaf className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-primary">Almost done!</p>
+              <p className="text-xs text-primary/80 mt-0.5">
+                Take a photo of leftovers, or tap "Do Later" to save progress.
+              </p>
+            </div>
+          </div>
+        }
+        backButton={
+          <div className="space-y-2">
+            <Button
+              variant="secondary"
+              onClick={handleDoLater}
+              disabled={savingDraft}
+              className="w-full shadow-sm"
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              {savingDraft ? "Saving..." : "Do Later"}
+            </Button>
+            {!pendingRecordId && (
               <Button
-                variant="outline"
-                className="w-full h-auto py-4 flex flex-col items-center gap-2"
-                onClick={handleOpenCamera}
-              >
-                <Camera className="h-8 w-8 text-primary" />
-                <span className="font-medium text-foreground">Take Photo</span>
-                <span className="text-xs text-muted-foreground">Capture your plate after eating</span>
-              </Button>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 border-t border-border" />
-                <span className="text-xs text-muted-foreground">or</span>
-                <div className="flex-1 border-t border-border" />
-              </div>
-
-              <div
-                className={cn(
-                  "border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer text-center",
-                  isDragging
-                    ? "border-primary bg-primary/5"
-                    : "border-muted-foreground/30 hover:border-primary/50"
-                )}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  const file = e.dataTransfer.files[0];
-                  if (file) processFile(file, processWastePhoto);
-                }}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-8 w-8 mx-auto text-primary mb-2" />
-                <p className="text-foreground font-medium text-sm">
-                  {isDragging ? "Drop your photo here" : "Upload from files"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Drag and drop, or click to browse
-                </p>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/gif,image/webp"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) processFile(file, processWastePhoto);
-                }}
-                className="hidden"
-              />
-
-              {/* Do Later button */}
-              <Button
-                variant="secondary"
-                onClick={handleDoLater}
-                disabled={savingDraft}
+                variant="ghost"
+                onClick={() => setStep("raw-review")}
                 className="w-full"
               >
-                {savingDraft ? "Saving..." : "Do Later"}
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Back to ingredients
               </Button>
-
-              {/* Back button - only show if not resuming a pending record */}
-              {!pendingRecordId && (
-                <Button
-                  variant="ghost"
-                  onClick={() => setStep("raw-review")}
-                  className="w-full"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Back to ingredients
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            )}
+          </div>
+        }
+      />
     );
   }
 
@@ -2594,7 +2605,7 @@ function TrackConsumptionModal({
         };
         success: boolean;
       }>("/consumption/confirm-waste", {
-        ingredients: ingredients.map(ing => ({
+        ingredients: ingredients.filter(ing => ing.productId > 0).map(ing => ({
           productId: ing.productId,
           productName: ing.name,
           quantityUsed: ing.estimatedQuantity,
@@ -2604,8 +2615,8 @@ function TrackConsumptionModal({
           unitPrice: ing.unitPrice,
           co2Emission: ing.co2Emission,
         })),
-        wasteItems: editableWasteItems.map(item => ({
-          productId: item.productId || 0,
+        wasteItems: editableWasteItems.filter(item => item.productId && item.productId > 0).map(item => ({
+          productId: item.productId!,
           productName: item.productName,
           quantityWasted: item.quantity,
           unit: item.unit,
@@ -2635,59 +2646,71 @@ function TrackConsumptionModal({
   if (step === "waste-review") {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
-          <CardHeader>
+        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] flex flex-col">
+          <CardHeader className="bg-gradient-to-br from-orange-50 to-transparent dark:from-orange-950/20 pb-3 shrink-0">
             <CardTitle className="flex items-center justify-between">
               Review Waste Details
-              <Button variant="ghost" size="icon" onClick={handleClose}>
+              <Button variant="ghost" size="icon" onClick={handleClose} className="hover:bg-destructive/10 hover:text-destructive">
                 <X className="h-4 w-4" />
               </Button>
             </CardTitle>
             <p className="text-sm text-muted-foreground">Step 4 of 5 — Review and confirm waste</p>
             <StepIndicator />
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="pt-4 flex flex-col min-h-0">
+            <div className="space-y-3 shrink-0">
               {wastePhoto && (
-                <img
-                  src={wastePhoto}
-                  alt="Waste photo"
-                  className="w-20 h-20 object-cover rounded-lg"
-                />
+                <div className="flex items-center gap-3">
+                  <img
+                    src={wastePhoto}
+                    alt="Waste photo"
+                    className="w-16 h-16 object-cover rounded-xl border-2 border-orange-200 shadow-sm"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Your leftovers photo</p>
+                    <p className="text-xs text-muted-foreground">
+                      AI detected {editableWasteItems.length} waste item{editableWasteItems.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
               )}
 
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {editableWasteItems.length} waste item{editableWasteItems.length !== 1 ? "s" : ""} detected
-                </p>
-                <Button variant="outline" size="sm" onClick={addWasteItem}>
+                <div className="flex items-center gap-2">
+                  <Trash2 className="h-4 w-4 text-orange-500" />
+                  <p className="text-sm font-medium text-foreground">
+                    {editableWasteItems.length} waste item{editableWasteItems.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={addWasteItem} className="shadow-sm">
                   <Plus className="h-4 w-4 mr-1" />
                   Add
                 </Button>
               </div>
+            </div>
 
-              <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                {editableWasteItems.map((item) => (
-                  <div key={item.id} className="p-3 bg-muted/50 rounded-lg space-y-2">
+            <div className="space-y-3 overflow-y-auto pr-1 mt-3 flex-1 min-h-0">
+              {editableWasteItems.map((item) => (
+                  <div key={item.id} className="p-3 rounded-xl space-y-2 border-l-4 border-l-orange-400 bg-card shadow-sm transition-all duration-200 hover:shadow-md">
                     <div className="flex items-center justify-between gap-2">
                       <Input
                         value={item.productName}
                         onChange={(e) => updateWasteItem(item.id, "productName", e.target.value)}
-                        className="h-11 font-medium"
+                        className="h-10 font-medium"
                         placeholder="Product name"
                       />
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 shrink-0"
+                        className="h-8 w-8 shrink-0 hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => removeWasteItem(item.id)}
                       >
-                        <Trash2 className="h-4 w-4 text-muted hover:text-red-500" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <div>
-                        <label className="text-xs text-muted-foreground">Qty Wasted</label>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Qty Wasted</label>
                         <Input
                           type="number"
                           min="0.1"
@@ -2699,18 +2722,18 @@ function TrackConsumptionModal({
                             updateWasteItem(item.id, "quantity", value);
                             validateWasteQuantity(item.id, value);
                           }}
-                          className={`h-11 ${item.quantityError ? 'border-red-500' : ''}`}
+                          className={cn("h-10", item.quantityError && "border-red-500 bg-red-50")}
                         />
                         {item.quantityError && (
-                          <p className="text-xs text-red-500 mt-0.5">{item.quantityError}</p>
+                          <p className="text-[10px] text-red-500 mt-0.5">{item.quantityError}</p>
                         )}
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">Unit</label>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Unit</label>
                         <select
                           value={item.unit || ""}
                           onChange={(e) => updateWasteItem(item.id, "unit", e.target.value || "")}
-                          className="w-full h-11 rounded-md border border-input bg-background px-3"
+                          className="w-full h-10 rounded-xl border border-input bg-background px-2 text-sm"
                         >
                           <option value="">Select...</option>
                           <option value="pcs">pcs</option>
@@ -2726,11 +2749,11 @@ function TrackConsumptionModal({
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">Category</label>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</label>
                         <select
                           value={item.category}
                           onChange={(e) => updateWasteItem(item.id, "category", e.target.value)}
-                          className="w-full h-11 rounded-md border border-input bg-background px-3"
+                          className="w-full h-10 rounded-xl border border-input bg-background px-2 text-sm"
                         >
                           <option value="produce">Produce</option>
                           <option value="dairy">Dairy</option>
@@ -2743,13 +2766,13 @@ function TrackConsumptionModal({
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">CO₂ (kg)</label>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">CO₂</label>
                         <Input
                           type="number"
                           value={item.co2Emission}
                           readOnly
                           disabled
-                          className="h-11 bg-muted"
+                          className="h-10 bg-muted/50"
                         />
                       </div>
                     </div>
@@ -2758,36 +2781,42 @@ function TrackConsumptionModal({
               </div>
 
               {editableWasteItems.length === 0 && (
-                <div className="text-center py-4">
-                  <p className="text-sm text-primary font-medium">No waste detected - great job!</p>
-                  <p className="text-xs text-muted mt-1">You can still add waste items if needed.</p>
+                <div className="text-center py-6">
+                  <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-3">
+                    <Check className="h-7 w-7 text-green-600" />
+                  </div>
+                  <p className="text-sm text-green-700 dark:text-green-400 font-medium">Zero waste detected!</p>
+                  <p className="text-xs text-muted-foreground mt-1">You can still add waste items if needed.</p>
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setWastePhoto(null);
-                    setEditableWasteItems([]);
-                    setStep("waste-input");
-                  }}
-                  className="flex-1"
-                  disabled={confirmingWaste}
-                >
-                  Retake
-                </Button>
-                <Button
-                  onClick={handleConfirmWaste}
-                  disabled={confirmingWaste}
-                  className="flex-1"
-                >
-                  {confirmingWaste ? "Confirming..." : "Confirm"}
-                  {!confirmingWaste && <ChevronRight className="h-4 w-4 ml-1" />}
-                </Button>
-              </div>
-            </div>
           </CardContent>
+          <div className="px-6 pb-6 pt-3 shrink-0 border-t">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setWastePhoto(null);
+                  setEditableWasteItems([]);
+                  setStep("waste-input");
+                }}
+                className="flex-1"
+                disabled={confirmingWaste}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Retake
+              </Button>
+              <Button
+                variant="success"
+                onClick={handleConfirmWaste}
+                disabled={confirmingWaste}
+                className="flex-[2]"
+              >
+                {confirmingWaste ? "Confirming..." : "Confirm & Finish"}
+                {!confirmingWaste && <ChevronRight className="h-4 w-4 ml-1" />}
+              </Button>
+            </div>
+          </div>
         </Card>
       </div>
     );
@@ -2797,68 +2826,38 @@ function TrackConsumptionModal({
   if (step === "metrics") {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] overflow-y-auto">
-          <CardHeader>
+        <Card className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] flex flex-col">
+          <CardHeader className="bg-gradient-to-br from-green-50 to-transparent dark:from-green-950/20 pb-3 shrink-0">
             <CardTitle className="flex items-center justify-between">
               Consumption Tracked!
-              <Button variant="ghost" size="icon" onClick={handleClose}>
+              <Button variant="ghost" size="icon" onClick={handleClose} className="hover:bg-destructive/10 hover:text-destructive">
                 <X className="h-4 w-4" />
               </Button>
             </CardTitle>
             <p className="text-sm text-muted-foreground">Step 5 of 5 — Your sustainability results</p>
             <StepIndicator />
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="pt-4">
+            <div className="space-y-3">
               {/* Success Message */}
-              <div className="text-center py-4">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-                  <Check className="h-8 w-8 text-green-600" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 shrink-0 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <Check className="h-5 w-5 text-green-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-foreground">Great job tracking your meal!</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Your consumption and waste have been recorded.
-                </p>
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Great job tracking your meal!</h3>
+                  <p className="text-xs text-muted-foreground">Your consumption and waste have been recorded.</p>
+                </div>
               </div>
-
-              {/* Points Earned Card */}
-              {(() => {
-                const pointsEarned = ingredients.reduce((sum, ing) =>
-                  sum + Math.max(1, Math.round(ing.estimatedQuantity * 5)), 0
-                );
-                const pointsPenalty = editableWasteItems.reduce((sum, waste) =>
-                  sum + Math.max(1, Math.round(waste.quantity * 3)), 0
-                ) || 0;
-                const netPoints = pointsEarned - pointsPenalty;
-
-                return (
-                  <Card className="bg-yellow-50 border border-yellow-200">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Trophy className="h-5 w-5 text-yellow-600" />
-                          <div>
-                            <p className="text-sm text-yellow-900 font-medium">Eco Points Earned</p>
-                            <p className="text-xs text-yellow-700">+{pointsEarned} consumed {pointsPenalty > 0 ? `-${pointsPenalty} wasted` : ''}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-yellow-700">+{netPoints}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })()}
 
               {/* Waste Metrics Summary Card */}
               {wasteMetrics && (
-                <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-foreground">Sustainability Metrics</h3>
+                <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 overflow-hidden">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-foreground">Sustainability Metrics</h3>
                       <Badge className={cn(
-                        "text-white",
+                        "text-white px-2 py-0.5 text-xs",
                         wasteMetrics.sustainabilityRating === "Excellent" && "bg-green-500",
                         wasteMetrics.sustainabilityRating === "Good" && "bg-blue-500",
                         wasteMetrics.sustainabilityRating === "Moderate" && "bg-yellow-500",
@@ -2868,50 +2867,55 @@ function TrackConsumptionModal({
                         {wasteMetrics.sustainabilityRating}
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Leaf className="h-4 w-4 text-green-600" />
-                        <div>
-                          <p className="text-muted-foreground">CO2 Saved</p>
-                          <p className="font-medium text-green-600">{wasteMetrics.totalCO2Saved.toFixed(2)} kg</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-white/60 dark:bg-white/5 rounded-lg p-2">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <Leaf className="h-3 w-3 text-green-600" />
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CO2 Saved</p>
                         </div>
+                        <p className="font-semibold text-green-600">{wasteMetrics.totalCO2Saved.toFixed(2)} <span className="text-[10px] font-normal">kg</span></p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Leaf className="h-4 w-4 text-red-500" />
-                        <div>
-                          <p className="text-muted-foreground">CO2 Wasted</p>
-                          <p className="font-medium text-red-500">{wasteMetrics.totalCO2Wasted.toFixed(2)} kg</p>
+                      <div className="bg-white/60 dark:bg-white/5 rounded-lg p-2">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <Leaf className="h-3 w-3 text-red-500" />
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CO2 Wasted</p>
                         </div>
+                        <p className="font-semibold text-red-500">{wasteMetrics.totalCO2Wasted.toFixed(2)} <span className="text-[10px] font-normal">kg</span></p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-orange-500" />
-                        <div>
-                          <p className="text-muted-foreground">Economic Waste</p>
-                          <p className="font-medium text-orange-500">${wasteMetrics.totalEconomicWaste.toFixed(2)}</p>
+                      <div className="bg-white/60 dark:bg-white/5 rounded-lg p-2">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <DollarSign className="h-3 w-3 text-orange-500" />
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Econ. Waste</p>
                         </div>
+                        <p className="font-semibold text-orange-500">${wasteMetrics.totalEconomicWaste.toFixed(2)}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <UtensilsCrossed className="h-4 w-4 text-blue-500" />
-                        <div>
-                          <p className="text-muted-foreground">Waste %</p>
-                          <p className="font-medium text-blue-500">{wasteMetrics.wastePercentage.toFixed(1)}%</p>
+                      <div className="bg-white/60 dark:bg-white/5 rounded-lg p-2">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <UtensilsCrossed className="h-3 w-3 text-blue-500" />
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Waste %</p>
                         </div>
+                        <p className="font-semibold text-blue-500">{wasteMetrics.wastePercentage.toFixed(1)}%</p>
                       </div>
                     </div>
-                    <div className="mt-3 pt-3 border-t border-primary/20 flex justify-between items-center">
-                      <span className="text-muted-foreground">Sustainability Score</span>
-                      <span className="text-lg font-bold text-green-700">{wasteMetrics.sustainabilityScore}/100</span>
+                    <div className="mt-2 pt-2 border-t border-primary/20">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs text-muted-foreground">Sustainability Score</span>
+                        <span className="text-sm font-bold text-green-700 dark:text-green-400">{wasteMetrics.sustainabilityScore}/100</span>
+                      </div>
+                      <Progress value={wasteMetrics.sustainabilityScore} className="h-2" />
                     </div>
                   </CardContent>
                 </Card>
               )}
 
-              <Button onClick={handleDone} className="w-full">
-                <Check className="h-4 w-4 mr-2" />
-                Done
-              </Button>
             </div>
           </CardContent>
+          <div className="px-6 pb-6 pt-3 shrink-0 border-t">
+            <Button variant="success" onClick={handleDone} className="w-full py-3 shadow-md">
+              <Check className="h-4 w-4 mr-2" />
+              Done
+            </Button>
+          </div>
         </Card>
       </div>
     );
