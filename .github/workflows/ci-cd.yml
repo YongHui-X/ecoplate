@@ -869,6 +869,14 @@ jobs:
         with:
           chrome-version: stable
 
+      - name: Setup ChromeDriver
+        uses: nanasess/setup-chromedriver@v2
+
+      - name: Configure ChromeDriver
+        run: |
+          chromedriver --version
+          google-chrome --version
+
       - name: Determine target host
         id: target
         run: |
