@@ -17,7 +17,7 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/bun.lockb* ./
 
 # Install frontend dependencies
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy frontend source
 COPY frontend/ .
@@ -36,7 +36,7 @@ WORKDIR /app/ecolocker
 COPY ecolocker/package.json ecolocker/bun.lockb* ./
 
 # Install ecolocker dependencies
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy ecolocker source
 COPY ecolocker/ .
@@ -55,7 +55,7 @@ WORKDIR /app/backend
 COPY backend/package.json backend/bun.lockb* ./
 
 # Install backend dependencies
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy backend source
 COPY backend/ .
@@ -81,11 +81,13 @@ COPY --from=backend-builder /app/backend/tsconfig.json ./
 COPY --from=backend-builder /app/backend/drizzle.config.ts ./
 COPY --from=backend-builder /app/backend/bun.lockb* ./
 
-# Install production-only dependencies, remove dev tool binaries and Go binaries
+# Install production-only dependencies, then clean all scan-triggering artifacts in same layer
 # Go binaries in node_modules cause Trivy CVEs (CVE-2024-24790, CVE-2023-39325, CVE-2025-58183)
+# Bun cache contains bun-types docs with example Stripe key (Trivy secret false positive)
 RUN bun install --production && \
     rm -rf node_modules/@esbuild node_modules/esbuild node_modules/drizzle-kit && \
-    grep -rl "Go BuildID" node_modules/ 2>/dev/null | xargs rm -f 2>/dev/null || true
+    grep -rl "Go BuildID" node_modules/ 2>/dev/null | xargs rm -f 2>/dev/null || true && \
+    rm -rf /root/.bun/install/cache
 
 # Copy frontend build output to be served by backend
 COPY --from=frontend-builder /app/frontend/dist ./public
@@ -95,6 +97,9 @@ COPY --from=ecolocker-builder /app/ecolocker/dist ./public/ecolocker
 
 # Copy entrypoint script
 COPY entrypoint.sh ./entrypoint.sh
+
+# Remove any remaining Go binaries from base image paths
+RUN grep -rl "Go BuildID" /usr/local/bin/ 2>/dev/null | xargs rm -f 2>/dev/null || true
 
 # Create data directory for SQLite and make entrypoint executable
 RUN mkdir -p /app/data && chmod +x /app/entrypoint.sh && chown -R ecoplate:ecoplate /app

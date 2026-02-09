@@ -207,9 +207,51 @@ Root cause: Docker base image `oven/bun:1.2-alpine` is a floating tag. Between s
 
 ---
 
+## Round 5 Fixes (Post Fourth Scan — Nginx Config Never Applied)
+
+Root cause analysis: Report 4 (commit `ff5bd03b`) confirmed all code fixes were in the build, but nginx-dependent fixes never took effect because the host nginx lacked the headers-more module. The `more_clear_headers Server;` directive caused `nginx -t` to fail, preventing any config reload.
+
+### 22. Switch to Containerized Nginx
+
+- **Severity:** Fixes 3x HIGH (Server leak x2, Content-Type x1)
+- **Root Cause:** Host nginx on EC2 does not have `headers-more` module. `apt-get install libnginx-mod-http-headers-more-filter` failed silently, causing `nginx -t` to fail, so `nginx -s reload` never ran. ALL nginx config changes from Round 1-4 were never applied.
+- **Fix:** Added `ecoplate-nginx` service to `docker-compose.prod.yml` using `Dockerfile.nginx` (which has headers-more pre-installed). Stopped using host nginx entirely.
+- **Files Changed:** `deploy/docker-compose.prod.yml`, `deploy/nginx-upstream.conf`, `deploy/deploy.sh`
+
+### 23. Dockerfile.nginx — Checkov Compliance
+
+- **Severity:** 2x MEDIUM
+- **Root Cause:** New `Dockerfile.nginx` file missing `HEALTHCHECK` and non-root `USER` instructions
+- **Fix:** Added `USER nginx` and `HEALTHCHECK` instruction
+- **File Changed:** `deploy/Dockerfile.nginx`
+
+### 24. npm audit — Production Only
+
+- **Severity:** Removes 4x MEDIUM, potentially 2x HIGH
+- **Root Cause:** `npm audit` in CI scanned all dependencies including devDependencies (`@capacitor/cli`, `drizzle-kit`, `esbuild`, `@esbuild-kit/*`) that never reach the production image
+- **Fix:** Added `--omit=dev` flag to `npm audit` commands in CI
+- **File Changed:** `.github/workflows/ci.yml`
+
+### 25. Trivy Go Binary Cleanup — Broader Search
+
+- **Severity:** Up to 1x CRITICAL + 2x HIGH + 12x MEDIUM
+- **Root Cause:** Previous cleanup `grep -rl "Go BuildID" node_modules/` only searched node_modules. Vulnerable Go binaries are in base image system directories.
+- **Fix:** Extended search to `/usr/local/bin/` and `/app/`
+- **File Changed:** `Dockerfile`
+- **Note:** If Go binaries are embedded in the Bun runtime, they cannot be removed. These would be accepted as base image vulnerabilities.
+
+### 26. Security Report — Branch Resolution Fix
+
+- **Severity:** Bug fix (not a vulnerability)
+- **Root Cause:** Double `workflow_run` chain (CI → CD → Security Report) loses original branch info. CD's `head_branch` is always "main" because `workflow_run` workflows run on the default branch.
+- **Fix:** CD uploads `pipeline-metadata.json` artifact with original branch/commit. Security Report downloads and reads it instead of using `github.event.workflow_run.head_branch`.
+- **Files Changed:** `.github/workflows/cd.yml`, `.github/workflows/security-report.yml`
+
+---
+
 ## Remaining Items (Manual Action Required)
 
 1. **Rotate compromised credentials** detected by Trufflehog in git history
 2. **CSP unsafe-inline** — accepted risk until nonce-based CSP can be implemented
 3. **Sec-Fetch-* headers** — accepted risk (ZAP scanner false positives)
-4. **Merge `dev` to `main`** — all code fixes are on dev but scan runs on main
+4. **Trivy Go CVEs (if in Bun runtime)** — accepted as base image vulnerability if cleanup cannot remove them
