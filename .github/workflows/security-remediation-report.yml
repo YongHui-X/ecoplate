@@ -11,10 +11,6 @@ on:
         description: 'Fix JavaScript dependencies'
         type: boolean
         default: true
-      create_pr:
-        description: 'Create PR with fixes'
-        type: boolean
-        default: true
 
   schedule:
     - cron: '0 0 * * 0'  # Every Sunday
@@ -540,64 +536,3 @@ jobs:
           echo "| **\`remediation-report\`** | **Full before/after comparison** |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📥 Download \`remediation-report\` for the complete picture." >> $GITHUB_STEP_SUMMARY
-
-  # ===========================================================================
-  # Phase 5: Create PR with Fixes (Optional)
-  # ===========================================================================
-
-  create-pr:
-    name: "Phase 5: Create Pull Request"
-    needs: [generate-report]
-    if: ${{ github.event_name == 'schedule' || inputs.create_pr }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download fixed files
-        uses: actions/download-artifact@v4
-        with:
-          name: fixed-files
-          path: ./
-        continue-on-error: true
-
-      - name: Download remediation report
-        uses: actions/download-artifact@v4
-        with:
-          name: remediation-report
-          path: ./
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "fix(security): auto-remediate vulnerabilities"
-          title: "Weekly Security Fixes"
-          body: |
-            ## What's in This PR
-
-            Our weekly security scan found some vulnerable dependencies, and we've automatically updated them to safer versions.
-
-            ### Changes Made
-
-            - **Python packages** — Updated via `pip-audit --fix`
-            - **JavaScript packages** — Updated via `npm audit fix`
-
-            ### Before You Merge
-
-            1. **Check the workflow run** — Download `remediation-report` to see exactly what changed
-            2. **Make sure tests pass** — The CI should run automatically
-            3. **Quick sanity check** — Does the app still work as expected?
-
-            ### If Something Broke
-
-            Some updates might cause issues:
-            - Check `fixes-applied` to see what was updated
-            - You might need to pin a specific version or find an alternative package
-
-            ---
-            *This PR was created automatically by our weekly security scan.*
-          branch: security/auto-remediation
-          labels: |
-            security
-            dependencies
-            automated

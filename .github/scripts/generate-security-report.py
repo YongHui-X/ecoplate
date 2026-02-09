@@ -4,9 +4,15 @@ Security Report Generator for EcoPlate DevSecOps Pipeline
 
 Generates a consolidated security report from CI/CD scan artifacts.
 Written to feel like a report from a security analyst, not a robot.
+
+Features:
+- Aggregates findings from all security scans
+- Compares against previous baseline to show changes
+- Generates both HTML and Markdown reports
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -20,13 +26,46 @@ from pathlib import Path
 # =============================================================================
 
 class Finding:
-    def __init__(self, title, severity, description="", location="", cve_id="", recommendation=""):
+    def __init__(self, title, severity, description="", location="", cve_id="", recommendation="", tool=""):
         self.title = title
         self.severity = severity
         self.description = description
         self.location = location
         self.cve_id = cve_id
         self.recommendation = recommendation
+        self.tool = tool
+
+    def fingerprint(self):
+        """Generate a unique identifier for this finding."""
+        # Use CVE if available, otherwise hash key attributes
+        if self.cve_id:
+            return f"{self.tool}:{self.cve_id}"
+        key = f"{self.tool}:{self.title}:{self.location}:{self.severity}"
+        return hashlib.md5(key.encode()).hexdigest()[:12]
+
+    def to_dict(self):
+        return {
+            "title": self.title,
+            "severity": self.severity,
+            "description": self.description,
+            "location": self.location,
+            "cve_id": self.cve_id,
+            "recommendation": self.recommendation,
+            "tool": self.tool,
+            "fingerprint": self.fingerprint()
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            title=d.get("title", ""),
+            severity=d.get("severity", "medium"),
+            description=d.get("description", ""),
+            location=d.get("location", ""),
+            cve_id=d.get("cve_id", ""),
+            recommendation=d.get("recommendation", ""),
+            tool=d.get("tool", "")
+        )
 
 
 class ScanResult:
@@ -125,7 +164,8 @@ def parse_semgrep(reports_dir):
             title=r.get("check_id", "Unknown rule"),
             severity=sev,
             description=r.get("extra", {}).get("message", ""),
-            location=f"{r.get('path', '')}:{r.get('start', {}).get('line', '')}"
+            location=f"{r.get('path', '')}:{r.get('start', {}).get('line', '')}",
+            tool="Semgrep"
         ))
     summary = f"Found {len(findings)} potential issue{'s' if len(findings) != 1 else ''}" if findings else "No issues found - code looks good"
     return ScanResult("Semgrep", "SAST", determine_status(findings), findings, summary)
@@ -148,7 +188,8 @@ def parse_bandit(reports_dir):
             title=f"{r.get('test_id', '')} - {r.get('test_name', '')}",
             severity=sev,
             description=r.get("issue_text", ""),
-            location=f"{r.get('filename', '')}:{r.get('line_number', '')}"
+            location=f"{r.get('filename', '')}:{r.get('line_number', '')}",
+            tool="Bandit"
         ))
     summary = f"Found {len(findings)} Python security issue{'s' if len(findings) != 1 else ''}" if findings else "Python code passed security checks"
     return ScanResult("Bandit", "SAST", determine_status(findings), findings, summary)
@@ -189,7 +230,8 @@ def parse_trufflehog(reports_dir):
                 severity="critical",
                 description=f"A verified {detector} credential was found in the codebase. This needs immediate attention.",
                 location=location,
-                recommendation="Rotate this credential immediately and remove it from the code history."
+                recommendation="Rotate this credential immediately and remove it from the code history.",
+                tool="Trufflehog"
             ))
         except json.JSONDecodeError:
             continue
@@ -217,7 +259,8 @@ def parse_pip_audit(reports_dir):
                     description=vuln.get("description", "")[:200],
                     location=f"Current version: {dep.get('version', 'unknown')}",
                     cve_id=vuln.get("id", ""),
-                    recommendation=fix_text
+                    recommendation=fix_text,
+                    tool="pip-audit"
                 ))
     summary = f"Found {len(findings)} vulnerable Python package{'s' if len(findings) != 1 else ''}" if findings else "All Python dependencies are up to date"
     return ScanResult("pip-audit", "SCA", determine_status(findings), findings, summary)
@@ -244,7 +287,8 @@ def parse_js_audit(reports_dir):
                     severity=sev_map.get(sev, "medium"),
                     description=desc if isinstance(desc, str) else f"{sev} severity issue",
                     location=label,
-                    recommendation="Run 'npm audit fix' or manually update this package"
+                    recommendation="Run 'npm audit fix' or manually update this package",
+                    tool="npm-audit"
                 ))
     if not os.path.exists(os.path.join(reports_dir, "js-audit")):
         return ScanResult("npm audit", "SCA", "skipped", summary_text="Scan was skipped this run")
@@ -269,7 +313,8 @@ def parse_checkov(reports_dir):
                 severity="medium",
                 description=fc.get("guideline", "Review this configuration for security best practices"),
                 location=fc.get("file_path", ""),
-                recommendation=fc.get("guideline", "")
+                recommendation=fc.get("guideline", ""),
+                tool="Checkov"
             ))
     passed = sum(c.get("summary", {}).get("passed", 0) for c in checks)
     failed = len(findings)
@@ -291,7 +336,8 @@ def parse_license(reports_dir):
                     title=f"{parts[0]} uses GPL/AGPL license",
                     severity="medium",
                     description="This package uses a copyleft license which may have implications for commercial use",
-                    recommendation="Review if this license is compatible with your project's licensing requirements"
+                    recommendation="Review if this license is compatible with your project's licensing requirements",
+                    tool="License-Check"
                 ))
     pkg_count = len([l for l in text.split("\n") if l.strip() and not l.startswith("|--") and "|" in l]) - 1
     summary = f"Scanned {max(pkg_count, 0)} packages" + (f", {len(findings)} use restrictive licenses" if findings else ", all licenses look compatible")
@@ -336,7 +382,8 @@ def parse_trivy(reports_dir, subdir, label):
                 severity=sev,
                 description=line.strip()[:150],
                 cve_id=cve,
-                recommendation="Update the base image or affected package"
+                recommendation="Update the base image or affected package",
+                tool=f"Trivy-{label}"
             ))
     summary = f"Found {len(findings)} CVE{'s' if len(findings) != 1 else ''} in container" if findings else "Container image looks secure"
     return ScanResult(f"Trivy ({label})", "Container", determine_status(findings), findings, summary)
@@ -387,7 +434,8 @@ def parse_zap(reports_dir, subdir, label):
                 severity=sev,
                 description=alert.get("desc", "")[:200],
                 location=alert.get("url", ""),
-                recommendation=solution[:200] if solution else "Review the ZAP report for remediation steps"
+                recommendation=solution[:200] if solution else "Review the ZAP report for remediation steps",
+                tool=f"ZAP-{label}"
             ))
     summary = f"Found {len(findings)} security issue{'s' if len(findings) != 1 else ''} in live application" if findings else "No vulnerabilities found during dynamic testing"
     return ScanResult(f"ZAP {label}", "DAST", determine_status(findings), findings, summary)
@@ -414,7 +462,8 @@ def parse_e2e_results(reports_dir):
             severity="high",
             description="This end-to-end test is failing",
             location="e2e/specs/",
-            recommendation="Check the test screenshots and logs to debug this failure"
+            recommendation="Check the test screenshots and logs to debug this failure",
+            tool="E2E-Tests"
         ))
     if failed > 0 and not findings:
         for i in range(min(failed, 10)):
@@ -422,7 +471,8 @@ def parse_e2e_results(reports_dir):
                 title=f"E2E Test Failure",
                 severity="high",
                 description="A test failed - check the HTML report for details",
-                location="e2e/specs/"
+                location="e2e/specs/",
+                tool="E2E-Tests"
             ))
     total = passed + failed
     if total == 0:
@@ -456,7 +506,8 @@ def parse_unit_test_coverage(reports_dir):
                 title=f"{component} coverage is only {pct}%",
                 severity="medium",
                 description=f"Code coverage for {component} is below 50%",
-                recommendation="Add more unit tests to improve coverage"
+                recommendation="Add more unit tests to improve coverage",
+                tool="Unit-Tests"
             ))
 
     if not coverage_data:
@@ -496,6 +547,76 @@ def collect_all(reports_dir):
     return results
 
 
+# =============================================================================
+# Baseline Comparison
+# =============================================================================
+
+def export_baseline(results):
+    """Export all findings as a JSON baseline for future comparison."""
+    baseline = {
+        "generated": datetime.now(timezone.utc).isoformat(),
+        "findings": []
+    }
+    for r in results:
+        for f in r.findings:
+            # Ensure tool is set
+            finding_dict = f.to_dict()
+            if not finding_dict["tool"]:
+                finding_dict["tool"] = r.tool_name
+            baseline["findings"].append(finding_dict)
+    return baseline
+
+
+def load_baseline(filepath):
+    """Load a previous baseline file."""
+    try:
+        with open(filepath, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def compare_baselines(current_results, previous_baseline):
+    """
+    Compare current findings against previous baseline.
+    Returns: (new_findings, fixed_findings, unchanged_findings, previous_date)
+    """
+    if not previous_baseline:
+        return [], [], [], None
+
+    previous_date = previous_baseline.get("generated", "")
+    previous_findings = {
+        f.get("fingerprint", ""): f
+        for f in previous_baseline.get("findings", [])
+        if f.get("fingerprint")
+    }
+
+    # Collect current fingerprints
+    current_findings = {}
+    for r in current_results:
+        for f in r.findings:
+            f.tool = f.tool or r.tool_name  # Ensure tool is set
+            fp = f.fingerprint()
+            current_findings[fp] = f
+
+    # Compare
+    new_findings = []
+    unchanged_findings = []
+    fixed_findings = []
+
+    for fp, finding in current_findings.items():
+        if fp in previous_findings:
+            unchanged_findings.append(finding)
+        else:
+            new_findings.append(finding)
+
+    for fp, finding_dict in previous_findings.items():
+        if fp not in current_findings:
+            fixed_findings.append(Finding.from_dict(finding_dict))
+
+    return new_findings, fixed_findings, unchanged_findings, previous_date
+
+
 def overall_status(results):
     if any(r.status == "fail" for r in results):
         return "fail"
@@ -530,6 +651,7 @@ STATUS_COLORS = {"pass": "#16a34a", "warn": "#ca8a04", "fail": "#dc2626", "skipp
 STATUS_LABELS = {"pass": "Passed", "warn": "Needs Review", "fail": "Action Required", "skipped": "Skipped", "error": "Error"}
 STATUS_ICONS = {"pass": "✓", "warn": "⚠", "fail": "✗", "skipped": "○", "error": "✗"}
 SEV_COLORS = {"critical": "#dc2626", "high": "#ea580c", "medium": "#ca8a04", "low": "#2563eb", "info": "#6b7280"}
+CHANGE_COLORS = {"new": "#dc2626", "fixed": "#16a34a", "unchanged": "#6b7280"}
 
 CSS = """
 :root { --bg: #f8fafc; --card: #fff; --text: #1e293b; --muted: #64748b; --border: #e2e8f0; }
@@ -588,7 +710,11 @@ footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 2r
 """
 
 
-def render_html(results, branch, commit, repo):
+def render_html(results, branch, commit, repo, comparison=None):
+    """
+    Render HTML report.
+    comparison: tuple of (new_findings, fixed_findings, unchanged_findings, previous_date) or None
+    """
     now = datetime.now(timezone.utc)
     now_str = now.strftime("%B %d, %Y at %H:%M UTC")
     status = overall_status(results)
@@ -602,6 +728,11 @@ def render_html(results, branch, commit, repo):
     scans_passed = sum(1 for r in results if r.status == "pass")
 
     risk_level, risk_desc, risk_color = get_risk_assessment(results)
+
+    # Process comparison data
+    new_findings, fixed_findings, unchanged_findings, previous_date = [], [], [], None
+    if comparison:
+        new_findings, fixed_findings, unchanged_findings, previous_date = comparison
 
     # Group results by category
     categories = {}
@@ -674,6 +805,84 @@ def render_html(results, branch, commit, repo):
             <div class="findings-section">{findings_list}</div>
         </div>'''
 
+    # Build comparison section if we have baseline data
+    comparison_html = ""
+    if previous_date and (new_findings or fixed_findings):
+        # Format previous date
+        try:
+            prev_dt = datetime.fromisoformat(previous_date.replace('Z', '+00:00'))
+            prev_date_str = prev_dt.strftime("%B %d, %Y")
+        except Exception:
+            prev_date_str = "previous run"
+
+        comparison_html = f'''
+<div class="section" style="border-left: 4px solid #6366f1; margin-bottom: 1.5rem;">
+    <h2 style="color: #6366f1;">Changes Since {prev_date_str}</h2>
+    <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.9rem;">
+        Comparing current scan against the previous baseline.
+    </p>
+    <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 1rem;">
+        <div class="stat-card" style="border-bottom-color: #dc2626;">
+            <div class="number" style="color: #dc2626;">{len(new_findings)}</div>
+            <div class="label">New Issues</div>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #16a34a;">
+            <div class="number" style="color: #16a34a;">{len(fixed_findings)}</div>
+            <div class="label">Fixed</div>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #6b7280;">
+            <div class="number">{len(unchanged_findings)}</div>
+            <div class="label">Unchanged</div>
+        </div>
+    </div>'''
+
+        # Show new findings (bad)
+        if new_findings:
+            comparison_html += '''
+    <details open>
+        <summary style="color: #dc2626; font-weight: 500;">New Issues (need attention)</summary>
+        <div class="findings-section" style="margin-top: 0.5rem;">'''
+            for f in new_findings[:10]:
+                sev_color = SEV_COLORS.get(f.severity, "#6b7280")
+                comparison_html += f'''
+            <div class="finding" style="border-left-color: {sev_color}; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: {sev_color};">{f.severity}</span>
+                    {escape(f.title)}
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">({escape(f.tool)})</span>
+                </div>
+                {f'<div class="location">{escape(f.location)}</div>' if f.location else ''}
+            </div>'''
+            if len(new_findings) > 10:
+                comparison_html += f'<p style="color: var(--muted); font-size: 0.85rem; padding: 0.5rem;">...and {len(new_findings) - 10} more</p>'
+            comparison_html += '''
+        </div>
+    </details>'''
+
+        # Show fixed findings (good)
+        if fixed_findings:
+            comparison_html += '''
+    <details>
+        <summary style="color: #16a34a; font-weight: 500;">Fixed Issues (great work!)</summary>
+        <div class="findings-section" style="margin-top: 0.5rem;">'''
+            for f in fixed_findings[:10]:
+                comparison_html += f'''
+            <div class="finding" style="border-left-color: #16a34a; background: #f0fdf4;">
+                <div class="title">
+                    <span style="color: #16a34a; margin-right: 0.5rem;">✓</span>
+                    <span style="text-decoration: line-through; color: var(--muted);">{escape(f.title)}</span>
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">({escape(f.tool)})</span>
+                </div>
+            </div>'''
+            if len(fixed_findings) > 10:
+                comparison_html += f'<p style="color: var(--muted); font-size: 0.85rem; padding: 0.5rem;">...and {len(fixed_findings) - 10} more</p>'
+            comparison_html += '''
+        </div>
+    </details>'''
+
+        comparison_html += '''
+</div>'''
+
     html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -726,6 +935,8 @@ def render_html(results, branch, commit, repo):
     </div>
 </div>
 
+{comparison_html}
+
 {scan_sections}
 
 {findings_html}
@@ -743,7 +954,11 @@ def render_html(results, branch, commit, repo):
 # Markdown Renderer
 # =============================================================================
 
-def render_markdown(results, branch, commit):
+def render_markdown(results, branch, commit, comparison=None):
+    """
+    Render Markdown report.
+    comparison: tuple of (new_findings, fixed_findings, unchanged_findings, previous_date) or None
+    """
     now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
     status = overall_status(results)
 
@@ -754,6 +969,11 @@ def render_markdown(results, branch, commit):
     total_all = total_c + total_h + total_m + total_l
 
     risk_level, risk_desc, _ = get_risk_assessment(results)
+
+    # Process comparison data
+    new_findings, fixed_findings, unchanged_findings, previous_date = [], [], [], None
+    if comparison:
+        new_findings, fixed_findings, unchanged_findings, previous_date = comparison
 
     status_emoji = {"pass": "✅", "warn": "⚠️", "fail": "❌"}.get(status, "❓")
     scan_emoji = {"pass": "✅", "warn": "⚠️", "fail": "❌", "skipped": "⏭️", "error": "❌"}
@@ -788,6 +1008,43 @@ def render_markdown(results, branch, commit):
                         action_items += f" → {f.recommendation}"
                     action_items += "\n"
 
+    # Build comparison section if we have baseline data
+    comparison_section = ""
+    if previous_date and (new_findings or fixed_findings):
+        try:
+            prev_dt = datetime.fromisoformat(previous_date.replace('Z', '+00:00'))
+            prev_date_str = prev_dt.strftime("%B %d, %Y")
+        except Exception:
+            prev_date_str = "previous run"
+
+        comparison_section = f"""
+## 📊 Changes Since {prev_date_str}
+
+| Change Type | Count |
+|-------------|-------|
+| 🆕 New Issues | **{len(new_findings)}** |
+| ✅ Fixed | **{len(fixed_findings)}** |
+| ➖ Unchanged | {len(unchanged_findings)} |
+
+"""
+        if new_findings:
+            comparison_section += "### 🆕 New Issues\n\n"
+            for f in new_findings[:5]:
+                comparison_section += f"- **[{f.severity.upper()}]** {f.title} ({f.tool})\n"
+            if len(new_findings) > 5:
+                comparison_section += f"- *...and {len(new_findings) - 5} more*\n"
+            comparison_section += "\n"
+
+        if fixed_findings:
+            comparison_section += "### ✅ Fixed Issues\n\n"
+            for f in fixed_findings[:5]:
+                comparison_section += f"- ~~{f.title}~~ ({f.tool})\n"
+            if len(fixed_findings) > 5:
+                comparison_section += f"- *...and {len(fixed_findings) - 5} more*\n"
+            comparison_section += "\n"
+
+        comparison_section += "---\n"
+
     md = f'''# Security Report — EcoPlate
 
 **Branch:** `{branch}` · **Commit:** `{commit[:8]}` · **Generated:** {now}
@@ -807,7 +1064,7 @@ def render_markdown(results, branch, commit):
 | Low | {total_l} |
 {action_items}
 ---
-
+{comparison_section}
 ## Scan Results
 
 | Status | Tool | Summary | Findings |
@@ -829,6 +1086,8 @@ def main():
     parser.add_argument("--reports-dir", required=True)
     parser.add_argument("--output-html", required=True)
     parser.add_argument("--output-md", required=True)
+    parser.add_argument("--output-baseline", help="Output path for current findings baseline (JSON)")
+    parser.add_argument("--baseline", help="Path to previous baseline file for comparison")
     parser.add_argument("--branch", default="unknown")
     parser.add_argument("--commit", default="unknown")
     parser.add_argument("--repo", default="unknown")
@@ -836,8 +1095,28 @@ def main():
 
     results = collect_all(args.reports_dir)
 
-    html = render_html(results, args.branch, args.commit, args.repo)
-    md = render_markdown(results, args.branch, args.commit)
+    # Handle baseline comparison
+    comparison = None
+    if args.baseline and os.path.exists(args.baseline):
+        print(f"Loading baseline from: {args.baseline}")
+        previous_baseline = load_baseline(args.baseline)
+        if previous_baseline:
+            comparison = compare_baselines(results, previous_baseline)
+            new_findings, fixed_findings, unchanged_findings, prev_date = comparison
+            print(f"Comparison: {len(new_findings)} new, {len(fixed_findings)} fixed, {len(unchanged_findings)} unchanged")
+        else:
+            print("Warning: Could not load previous baseline")
+    else:
+        print("No baseline provided or file not found - generating report without comparison")
+
+    # Export current baseline for future comparisons
+    if args.output_baseline:
+        current_baseline = export_baseline(results)
+        Path(args.output_baseline).write_text(json.dumps(current_baseline, indent=2), encoding="utf-8")
+        print(f"Baseline exported: {args.output_baseline}")
+
+    html = render_html(results, args.branch, args.commit, args.repo, comparison)
+    md = render_markdown(results, args.branch, args.commit, comparison)
 
     Path(args.output_html).write_text(html, encoding="utf-8")
     Path(args.output_md).write_text(md, encoding="utf-8")

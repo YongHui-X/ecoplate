@@ -170,6 +170,17 @@ jobs:
           search_artifacts: true
         continue-on-error: true
 
+      - name: Download previous baseline
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: ci-cd.yml
+          branch: ${{ inputs.branch }}
+          name: security-baseline
+          path: baseline/
+          if_no_artifact_found: warn
+          search_artifacts: true
+        continue-on-error: true
+
       # ---- Generate Report ----
       - name: List downloaded reports
         run: find reports/ -type f 2>/dev/null || echo "No reports found"
@@ -180,10 +191,18 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           REPO_NAME: ${{ github.repository }}
         run: |
+          BASELINE_ARG=""
+          if [ -f baseline/security-baseline.json ]; then
+            echo "Found previous baseline - will generate comparison"
+            BASELINE_ARG="--baseline baseline/security-baseline.json"
+          fi
+
           python .github/scripts/generate-security-report.py \
             --reports-dir reports \
             --output-html security-report.html \
             --output-md security-summary.md \
+            --output-baseline security-baseline.json \
+            $BASELINE_ARG \
             --branch "$INPUT_BRANCH" \
             --commit "$COMMIT_SHA" \
             --repo "$REPO_NAME"
@@ -200,4 +219,5 @@ jobs:
           path: |
             security-report.html
             security-summary.md
+            security-baseline.json
           retention-days: 90
