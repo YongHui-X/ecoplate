@@ -6,7 +6,7 @@ services:
     container_name: ecoplate-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "80:8080"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx-upstream.conf:/etc/nginx/ecoplate-upstream.conf:ro
@@ -16,7 +16,7 @@ services:
     networks:
       - ecoplate-net
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 10s
       timeout: 5s
       retries: 3

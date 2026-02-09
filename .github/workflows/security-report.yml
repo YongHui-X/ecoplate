@@ -175,14 +175,18 @@ jobs:
         run: find reports/ -type f 2>/dev/null || echo "No reports found"
 
       - name: Generate consolidated security report
+        env:
+          INPUT_BRANCH: ${{ inputs.branch }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPO_NAME: ${{ github.repository }}
         run: |
           python .github/scripts/generate-security-report.py \
             --reports-dir reports \
             --output-html security-report.html \
             --output-md security-summary.md \
-            --branch "${{ inputs.branch }}" \
-            --commit "${{ github.sha }}" \
-            --repo "${{ github.repository }}"
+            --branch "$INPUT_BRANCH" \
+            --commit "$COMMIT_SHA" \
+            --repo "$REPO_NAME"
 
       - name: Post summary to GitHub
         if: always()

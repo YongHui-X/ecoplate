@@ -91,14 +91,15 @@ jobs:
         if: always()
         run: |
           echo "## Frontend Test Results" >> $GITHUB_STEP_SUMMARY
-          # Extract summary line
-          SUMMARY=$(grep -E "^\s*[0-9]+ pass" frontend/test-output.txt | tail -1 || echo "No results")
+          # Extract Vitest summary line (format: "Tests  547 passed | 30 skipped")
+          SUMMARY=$(grep -E "Tests.*passed" frontend/test-output.txt | tail -1 | sed 's/\x1b\[[0-9;]*m//g' || echo "No results")
           echo "✅ **$SUMMARY**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          # Extract coverage table only
+          # Extract coverage summary
           echo "### Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          sed -n '/^-.*|.*|.*|/,/^-.*|.*|.*|/p' frontend/test-output.txt | head -20 >> $GITHUB_STEP_SUMMARY || echo "See job logs for details"
+          # Get coverage summary section (last few lines with percentages)
+          grep -E "^(Statements|Branches|Functions|Lines)\s*:" frontend/test-output.txt >> $GITHUB_STEP_SUMMARY || echo "See job logs for details"
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload frontend coverage
         if: always()
@@ -203,7 +204,7 @@ jobs:
 
           if [ -n "$LCOV_ARGS" ]; then
             lcov $LCOV_ARGS -o merged-coverage/lcov.info
-            genhtml merged-coverage/lcov.info -o merged-coverage/html --title "EcoPlate Combined Coverage" --ignore-errors source
+            genhtml merged-coverage/lcov.info -o merged-coverage/html --title "EcoPlate Combined Coverage" --ignore-errors source,unmapped --synthesize-missing
           else
             mkdir -p merged-coverage/html
             echo "<html><body><h1>No coverage data available</h1></body></html>" > merged-coverage/html/index.html
@@ -707,7 +708,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-app.sarif
         continue-on-error: true
@@ -761,7 +762,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-rec.sarif
         continue-on-error: true
@@ -936,19 +937,8 @@ jobs:
           target: "http://${{ steps.target.outputs.host }}"
           cmd_options: "-a"
           allow_issue_writing: false
+          artifact_name: zap-baseline-report
         continue-on-error: true
-
-      - name: Upload ZAP report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-baseline-report
-          path: |
-            report_html.html
-            report_json.json
-            report_md.md
-          retention-days: 30
-          overwrite: true
 
   dast-api:
     name: DAST - API Security Scan
@@ -981,20 +971,8 @@ jobs:
           format: openapi
           cmd_options: "-a"
           allow_issue_writing: false
+          artifact_name: zap-api-report
         continue-on-error: true
-
-      - name: Upload API scan report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-api-report
-          path: |
-            report_html.html
-            report_json.json
-            report_md.md
-          retention-days: 30
-          if-no-files-found: ignore
-          overwrite: true
 
   # ===========================================================================
   # LAYER 6.5 — E2E Functional Tests (push only)
