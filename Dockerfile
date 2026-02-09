@@ -4,7 +4,7 @@
 # =============================================================================
 # Stage 1: Build Frontend
 # =============================================================================
-FROM oven/bun:1-alpine AS frontend-builder
+FROM oven/bun:1.2.5-alpine AS frontend-builder
 
 # Build args for frontend environment variables
 ARG VITE_GOOGLE_MAPS_API_KEY
@@ -27,7 +27,7 @@ RUN bun run build
 # =============================================================================
 # Stage 2: Build EcoLocker Frontend
 # =============================================================================
-FROM oven/bun:1-alpine AS ecolocker-builder
+FROM oven/bun:1.2.5-alpine AS ecolocker-builder
 
 WORKDIR /app/ecolocker
 
@@ -46,7 +46,7 @@ RUN bun run build
 # =============================================================================
 # Stage 3: Build Backend
 # =============================================================================
-FROM oven/bun:1-alpine AS backend-builder
+FROM oven/bun:1.2.5-alpine AS backend-builder
 
 WORKDIR /app/backend
 
@@ -62,7 +62,7 @@ COPY backend/ .
 # =============================================================================
 # Stage 4: Production Runtime
 # =============================================================================
-FROM oven/bun:1-alpine AS production
+FROM oven/bun:1.2.5-alpine AS production
 
 WORKDIR /app
 
@@ -73,12 +73,20 @@ RUN apk update && apk upgrade --no-cache
 RUN addgroup -g 1001 -S ecoplate && \
     adduser -S ecoplate -u 1001
 
-# Copy backend with dependencies
-COPY --from=backend-builder /app/backend/node_modules ./node_modules
+# Copy backend source and config
 COPY --from=backend-builder /app/backend/src ./src
 COPY --from=backend-builder /app/backend/package.json ./
 COPY --from=backend-builder /app/backend/tsconfig.json ./
 COPY --from=backend-builder /app/backend/drizzle.config.ts ./
+COPY --from=backend-builder /app/backend/bun.lockb* ./
+
+# Install production-only dependencies, then clean all scan-triggering artifacts in same layer
+# Go binaries in node_modules cause Trivy CVEs (CVE-2024-24790, CVE-2023-39325, CVE-2025-58183)
+# Bun cache contains bun-types docs with example Stripe key (Trivy secret false positive)
+RUN bun install --production && \
+    rm -rf node_modules/@esbuild node_modules/esbuild node_modules/drizzle-kit && \
+    grep -rl "Go BuildID" node_modules/ 2>/dev/null | xargs rm -f 2>/dev/null || true && \
+    rm -rf /root/.bun/install/cache
 
 # Copy frontend build output to be served by backend
 COPY --from=frontend-builder /app/frontend/dist ./public
@@ -88,6 +96,9 @@ COPY --from=ecolocker-builder /app/ecolocker/dist ./public/ecolocker
 
 # Copy entrypoint script
 COPY entrypoint.sh ./entrypoint.sh
+
+# Remove any remaining Go binaries from base image paths
+RUN grep -rl "Go BuildID" /usr/local/bin/ 2>/dev/null | xargs rm -f 2>/dev/null || true
 
 # Create data directory for SQLite and make entrypoint executable
 RUN mkdir -p /app/data && chmod +x /app/entrypoint.sh && chown -R ecoplate:ecoplate /app

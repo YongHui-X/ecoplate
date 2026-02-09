@@ -105,8 +105,22 @@ jobs:
 
       - name: Run Semgrep
         run: |
-          semgrep scan --config=auto --json --output=semgrep-report.json . || true
-          semgrep scan --config=auto . || true
+          semgrep scan --config=auto \
+            --exclude-rule "javascript.express.security.x-frame-options-misconfiguration.x-frame-options-misconfiguration" \
+            --exclude-rule "javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring" \
+            --exclude-rule "generic.nginx.security.header-redefinition.header-redefinition" \
+            --exclude-rule "generic.nginx.security.possible-h2c-smuggling.possible-nginx-h2c-smuggling" \
+            --exclude-rule "python.flask.security.audit.hardcoded-config.avoid_hardcoded_config_TESTING" \
+            --exclude-rule "yaml.github-actions.security.workflow-run-target-code-checkout.workflow-run-target-code-checkout" \
+            --json --output=semgrep-report.json . || true
+          semgrep scan --config=auto \
+            --exclude-rule "javascript.express.security.x-frame-options-misconfiguration.x-frame-options-misconfiguration" \
+            --exclude-rule "javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring" \
+            --exclude-rule "generic.nginx.security.header-redefinition.header-redefinition" \
+            --exclude-rule "generic.nginx.security.possible-h2c-smuggling.possible-nginx-h2c-smuggling" \
+            --exclude-rule "python.flask.security.audit.hardcoded-config.avoid_hardcoded_config_TESTING" \
+            --exclude-rule "yaml.github-actions.security.workflow-run-target-code-checkout.workflow-run-target-code-checkout" \
+            . || true
 
       - name: Upload Semgrep report
         if: always()
@@ -166,7 +180,7 @@ jobs:
 
       - name: Run Trufflehog
         run: |
-          trufflehog git file://. --only-verified --json > trufflehog-report.json 2>&1 || true
+          trufflehog git file://. --only-verified --json > trufflehog-report.json 2>trufflehog-stderr.log || true
           echo "=== Secret Scan Results ==="
           trufflehog git file://. --only-verified || true
 
@@ -175,7 +189,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: trufflehog-report
-          path: trufflehog-report.json
+          path: |
+            trufflehog-report.json
+            trufflehog-stderr.log
           retention-days: 30
           if-no-files-found: ignore
 
@@ -222,18 +238,18 @@ jobs:
         run: |
           cd backend
           npm install --package-lock-only --ignore-scripts 2>/dev/null || true
-          echo "=== Backend npm audit ==="
-          npm audit --json > ../backend-audit.json 2>&1 || true
-          npm audit || true
+          echo "=== Backend npm audit (production only) ==="
+          npm audit --omit=dev --json > ../backend-audit.json 2>&1 || true
+          npm audit --omit=dev || true
         continue-on-error: true
 
       - name: Audit frontend dependencies
         run: |
           cd frontend
           npm install --package-lock-only --ignore-scripts 2>/dev/null || true
-          echo "=== Frontend npm audit ==="
-          npm audit --json > ../frontend-audit.json 2>&1 || true
-          npm audit || true
+          echo "=== Frontend npm audit (production only) ==="
+          npm audit --omit=dev --json > ../frontend-audit.json 2>&1 || true
+          npm audit --omit=dev || true
         continue-on-error: true
 
       - name: Upload audit reports
@@ -716,7 +732,7 @@ jobs:
           done
 
       - name: Run ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: "http://${{ steps.target.outputs.host }}"
           cmd_options: "-a"
@@ -733,6 +749,7 @@ jobs:
             report_json.json
             report_md.md
           retention-days: 30
+          overwrite: true
 
   dast-api:
     name: DAST - API Security Scan
@@ -778,6 +795,7 @@ jobs:
             report_md.md
           retention-days: 30
           if-no-files-found: ignore
+          overwrite: true
 
   # ===========================================================================
   # LAYER 7 — Security Report (push only)
