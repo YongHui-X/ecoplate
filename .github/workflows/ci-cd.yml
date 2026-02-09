@@ -59,14 +59,15 @@ jobs:
         if: always()
         run: |
           echo "## Backend Test Results" >> $GITHUB_STEP_SUMMARY
-          # Extract summary line
-          SUMMARY=$(grep -E "^\s*[0-9]+ pass" backend/test-output.txt | tail -1 || echo "No results")
-          echo "✅ **$SUMMARY**" >> $GITHUB_STEP_SUMMARY
+          # Extract Bun test summary (format: "323 pass")
+          PASS=$(grep -E "^[[:space:]]*[0-9]+ pass" backend/test-output.txt | tail -1 || echo "")
+          FAIL=$(grep -E "^[[:space:]]*[0-9]+ fail" backend/test-output.txt | tail -1 || echo "")
+          echo "✅ **$PASS** $FAIL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          # Extract coverage table only
+          # Extract coverage table (Bun format: File | % Funcs | % Lines | Uncovered)
           echo "### Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          sed -n '/^-.*|.*|.*|/,/^-.*|.*|.*|/p' backend/test-output.txt | head -20 >> $GITHUB_STEP_SUMMARY || echo "See job logs for details"
+          grep -E "^(All files|File|---)" backend/test-output.txt | head -5 >> $GITHUB_STEP_SUMMARY || echo "See job logs for details"
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload backend coverage
         if: always()
@@ -218,13 +219,16 @@ jobs:
             if [ -f "$file" ]; then
               local result
               result=$(lcov --summary "$file" 2>&1 | grep "$metric" | awk '{print $2}' | tr -d '%')
-              if [ -z "$result" ] || echo "$result" | grep -qi "no data"; then
+              # Check for empty, "no", "no data", or non-numeric values
+              if [ -z "$result" ] || echo "$result" | grep -qiE "^(no|n/a|nan)"; then
                 echo "N/A"
-              else
+              elif echo "$result" | grep -qE '^[0-9.]+$'; then
                 echo "$result"
+              else
+                echo "N/A"
               fi
             else
-              echo "0"
+              echo "N/A"
             fi
           }
 
@@ -247,9 +251,28 @@ jobs:
           RE_FUNCS=$(extract_lcov_metric recommendation-cov/coverage.lcov "functions")
           RE_BRANCH=$(extract_lcov_metric recommendation-cov/coverage.lcov "branches")
 
-          AVG_LINES=$(python3 -c "vals=[v for v in ['${BE_LINES}','${FE_LINES}','${RE_LINES}'] if v != 'N/A']; print(f'{sum(float(v) for v in vals)/len(vals):.1f}' if vals else 'N/A')")
-          AVG_FUNCS=$(python3 -c "vals=[v for v in ['${BE_FUNCS}','${FE_FUNCS}','${RE_FUNCS}'] if v != 'N/A']; print(f'{sum(float(v) for v in vals)/len(vals):.1f}' if vals else 'N/A')")
-          AVG_BRANCH=$(python3 -c "vals=[v for v in ['${BE_BRANCH}','${FE_BRANCH}','${RE_BRANCH}'] if v != 'N/A']; print(f'{sum(float(v) for v in vals)/len(vals):.1f}' if vals else 'N/A')")
+          # Calculate averages, filtering out non-numeric values
+          AVG_LINES=$(python3 -c "
+def safe_float(v):
+    try: return float(v)
+    except: return None
+vals=[x for x in [safe_float(v) for v in ['${BE_LINES}','${FE_LINES}','${RE_LINES}']] if x is not None]
+print(f'{sum(vals)/len(vals):.1f}' if vals else 'N/A')
+")
+          AVG_FUNCS=$(python3 -c "
+def safe_float(v):
+    try: return float(v)
+    except: return None
+vals=[x for x in [safe_float(v) for v in ['${BE_FUNCS}','${FE_FUNCS}','${RE_FUNCS}']] if x is not None]
+print(f'{sum(vals)/len(vals):.1f}' if vals else 'N/A')
+")
+          AVG_BRANCH=$(python3 -c "
+def safe_float(v):
+    try: return float(v)
+    except: return None
+vals=[x for x in [safe_float(v) for v in ['${BE_BRANCH}','${FE_BRANCH}','${RE_BRANCH}']] if x is not None]
+print(f'{sum(vals)/len(vals):.1f}' if vals else 'N/A')
+")
 
           echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
