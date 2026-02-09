@@ -434,6 +434,7 @@ jobs:
             report_json.json
             report_md.md
           retention-days: 30
+          overwrite: true
 
   dast-api:
     name: DAST - API Security Scan
@@ -479,6 +480,7 @@ jobs:
             report_md.md
           retention-days: 30
           if-no-files-found: ignore
+          overwrite: true
 
   # ===========================================================================
   # Post-Deployment Security Summary

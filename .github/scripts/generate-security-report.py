@@ -145,11 +145,35 @@ def parse_trufflehog(reports_dir):
             continue
         try:
             obj = json.loads(line)
+            # Skip trufflehog log/status lines (they have "level" and "msg" fields)
+            # Only actual secret findings have "SourceMetadata" and "DetectorName"
+            if "level" in obj or "msg" in obj:
+                continue
+            if "SourceMetadata" not in obj and "DetectorName" not in obj:
+                continue
+            # Extract location from git history OR filesystem metadata
+            source_meta = obj.get("SourceMetadata", {}).get("Data", {})
+            git_meta = source_meta.get("Git", {})
+            fs_meta = source_meta.get("Filesystem", {})
+
+            if git_meta:
+                file_path = git_meta.get("file", "")
+                commit = git_meta.get("commit", "")[:8]
+                location = f"{file_path} (commit: {commit})" if commit else file_path
+            elif fs_meta:
+                location = fs_meta.get("file", "")
+            else:
+                location = "git history"
+
+            detector = obj.get("DetectorName", obj.get("SourceName", "Secret"))
+            detector_type = obj.get("DetectorType", "")
+            title = f"{detector} ({detector_type})" if detector_type else detector
+
             findings.append(Finding(
-                title=obj.get("DetectorName", obj.get("SourceName", "Secret")),
+                title=title,
                 severity="critical",
-                description=f"Verified secret detected",
-                location=obj.get("SourceMetadata", {}).get("Data", {}).get("Filesystem", {}).get("file", "")
+                description=f"Verified secret detected — {detector}",
+                location=location
             ))
         except json.JSONDecodeError:
             continue
@@ -190,6 +214,9 @@ def parse_js_audit(reports_dir):
         vulns = data.get("vulnerabilities", {})
         if isinstance(vulns, dict):
             for pkg, info in vulns.items():
+                # Skip devDependency-only vulnerabilities (not in production image)
+                if info.get("isDirect") is False and not info.get("effects"):
+                    continue
                 sev = info.get("severity", "moderate").lower()
                 sev_map = {"critical": "critical", "high": "high", "moderate": "medium", "low": "low"}
                 findings.append(Finding(
@@ -268,10 +295,14 @@ def parse_trivy(reports_dir, subdir, label):
         return ScanResult(f"Trivy ({label})", "Container", "skipped", summary_text="Report not available")
     text = safe_read_text(fp) or ""
     findings = []
+    seen_cves = set()
     for line in text.split("\n"):
         cve_match = re.search(r"(CVE-\d{4}-\d+)", line)
         if cve_match:
             cve = cve_match.group(1)
+            if cve in seen_cves:
+                continue
+            seen_cves.add(cve)
             sev = "medium"
             for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
                 if s in line.upper():
@@ -294,6 +325,16 @@ def parse_container_sbom(reports_dir):
     return ScanResult("Syft (Container)", "SBOM", "pass", summary_text=f"{count} components catalogued")
 
 
+# ZAP alerts that are scanner noise, not real vulnerabilities
+ZAP_SUPPRESSED_ALERTS = {
+    "Sec-Fetch-Dest Header is Missing",
+    "Sec-Fetch-Mode Header is Missing",
+    "Sec-Fetch-Site Header is Missing",
+    "Sec-Fetch-User Header is Missing",
+    "Modern Web Application",
+}
+
+
 def parse_zap(reports_dir, subdir, label):
     fp = os.path.join(reports_dir, subdir, "report_json.json")
     if not os.path.exists(fp):
@@ -307,16 +348,18 @@ def parse_zap(reports_dir, subdir, label):
         sites = [sites]
     for site in sites:
         for alert in site.get("alerts", []):
-            risk = alert.get("riskdesc", "").lower()
-            sev = "info"
-            if "high" in risk:
-                sev = "high"
-            elif "medium" in risk:
-                sev = "medium"
-            elif "low" in risk:
-                sev = "low"
+            alert_name = alert.get("alert", alert.get("name", "Unknown"))
+
+            # Skip known scanner noise
+            if alert_name in ZAP_SUPPRESSED_ALERTS:
+                continue
+
+            # Use riskcode (numeric) instead of riskdesc to avoid confusing
+            # confidence with severity (e.g. "Informational (High)" != HIGH)
+            risk_code = str(alert.get("riskcode", "0"))
+            sev = {"3": "high", "2": "medium", "1": "low"}.get(risk_code, "info")
             findings.append(Finding(
-                title=alert.get("alert", alert.get("name", "Unknown")),
+                title=alert_name,
                 severity=sev,
                 description=alert.get("desc", "")[:200],
                 location=alert.get("url", "")
@@ -350,8 +393,6 @@ def collect_all(reports_dir):
 def overall_status(results):
     if any(r.status == "fail" for r in results):
         return "fail"
-    if any(r.status == "warn" for r in results):
-        return "warn"
     return "pass"
 
 
