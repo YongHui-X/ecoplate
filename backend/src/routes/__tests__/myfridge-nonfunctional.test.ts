@@ -226,8 +226,8 @@ describe("MyFridge - Security Tests", () => {
     sqlite.run(`INSERT INTO products (user_id, name, quantity) VALUES (2, 'User2Product', 1)`);
 
     // Query for user 1 should not return user 2's products
-    const user1Products = sqlite.query("SELECT * FROM products WHERE user_id = 1").all();
-    const hasUser2Product = user1Products.some((p: { name: string }) => p.name === "User2Product");
+    const user1Products = sqlite.query("SELECT * FROM products WHERE user_id = 1").all() as Array<{ name: string }>;
+    const hasUser2Product = user1Products.some((p) => p.name === "User2Product");
 
     expect(hasUser2Product).toBe(false);
   });

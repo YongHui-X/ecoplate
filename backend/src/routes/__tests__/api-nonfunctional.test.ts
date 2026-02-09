@@ -540,7 +540,7 @@ describe("API - Logging Tests", () => {
     expect(log.timestamp).toBeDefined();
     expect(log.level).toBe("info");
     expect(log.message).toBe("User logged in");
-    expect((log as { userId: number }).userId).toBe(1);
+    expect((log as unknown as { userId: number }).userId).toBe(1);
   });
 
   test("should mask sensitive data in logs", () => {

@@ -3,7 +3,6 @@ import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { sign } from "jose";
 
 // In-memory test database
 let testDb: ReturnType<typeof drizzle>;
@@ -312,20 +311,20 @@ describe("EcoLocker - Security Tests", () => {
       // Query with buyer_id filter (simulating authorization)
       const orders = sqlite.query(`
         SELECT * FROM ecolocker_orders WHERE buyer_id = ${testUserId}
-      `).all();
+      `).all() as Array<{ buyer_id: number }>;
 
       // Verify no orders from other buyer are returned
-      const hasOtherBuyerOrders = orders.some((o: { buyer_id: number }) => o.buyer_id === otherBuyerId);
+      const hasOtherBuyerOrders = orders.some((o) => o.buyer_id === otherBuyerId);
       expect(hasOtherBuyerOrders).toBe(false);
     });
 
     test("seller should only manage their own orders", async () => {
       const orders = sqlite.query(`
         SELECT * FROM ecolocker_orders WHERE seller_id = 2
-      `).all();
+      `).all() as Array<{ seller_id: number }>;
 
       // All orders should belong to seller_id = 2
-      const allOwnOrders = orders.every((o: { seller_id: number }) => o.seller_id === 2);
+      const allOwnOrders = orders.every((o) => o.seller_id === 2);
       expect(allOwnOrders).toBe(true);
     });
 
