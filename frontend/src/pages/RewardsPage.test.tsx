@@ -37,7 +37,7 @@ const mockRewards = [
     name: "Eco Tote Bag",
     description: "Sustainable cotton tote bag",
     imageUrl: null,
-    category: "physical",
+    category: "apparel",
     pointsCost: 500,
     stock: 10,
     isActive: true,
@@ -47,7 +47,7 @@ const mockRewards = [
     name: "$5 GrabFood Voucher",
     description: "Redeem for food delivery",
     imageUrl: null,
-    category: "voucher",
+    category: "food",
     pointsCost: 300,
     stock: 50,
     isActive: true,
@@ -57,7 +57,7 @@ const mockRewards = [
     name: "Bamboo Cutlery Set",
     description: "Eco-friendly utensils",
     imageUrl: null,
-    category: "physical",
+    category: "apparel",
     pointsCost: 800,
     stock: 0,
     isActive: true,
@@ -117,8 +117,8 @@ describe("RewardsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Physical/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Vouchers/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Food & Beverage/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Apparel/i })).toBeInTheDocument();
     });
   });
 
@@ -192,14 +192,14 @@ describe("RewardsPage - Filtering", () => {
     });
   });
 
-  it("should filter to show only physical rewards", async () => {
+  it("should filter to show only apparel rewards", async () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Physical/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Apparel/i }));
 
     await waitFor(() => {
       expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
@@ -208,14 +208,14 @@ describe("RewardsPage - Filtering", () => {
     });
   });
 
-  it("should filter to show only voucher rewards", async () => {
+  it("should filter to show only food rewards", async () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
       expect(screen.getByText("$5 GrabFood Voucher")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Vouchers/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Food & Beverage/i }));
 
     await waitFor(() => {
       expect(screen.getByText("$5 GrabFood Voucher")).toBeInTheDocument();
@@ -231,8 +231,8 @@ describe("RewardsPage - Filtering", () => {
       expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
     });
 
-    // Click Physical first
-    fireEvent.click(screen.getByRole("button", { name: /Physical/i }));
+    // Click Apparel first
+    fireEvent.click(screen.getByRole("button", { name: /Apparel/i }));
 
     // Then click All
     fireEvent.click(screen.getByRole("button", { name: "All" }));
