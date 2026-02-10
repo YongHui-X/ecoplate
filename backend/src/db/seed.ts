@@ -764,7 +764,7 @@ const sampleRewards = [
   {
     name: "Din Tai Fung Voucher $50",
     description: "Premium $50 Din Tai Fung voucher. Treat yourself to world-famous dumplings and cuisine!",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/DinTaiFungLogo.svg/1200px-DinTaiFungLogo.svg.png",
+    imageUrl: "https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=400",
     category: "food",
     pointsCost: 4000,
     stock: 8,
