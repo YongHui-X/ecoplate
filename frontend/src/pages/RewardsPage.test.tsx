@@ -15,7 +15,7 @@ const mockLocalStorage = {
   removeItem: vi.fn(),
   clear: vi.fn(),
 };
-Object.defineProperty(window, "localStorage", { value: mockLocalStorage });
+Object.defineProperty(globalThis, "localStorage", { value: mockLocalStorage });
 
 // Mock useNavigate
 const mockNavigate = vi.fn();
@@ -34,30 +34,30 @@ function renderWithRouter(ui: React.ReactElement) {
 const mockRewards = [
   {
     id: 1,
-    name: "Eco Tote Bag",
-    description: "Sustainable cotton tote bag",
+    name: "Starbucks Gift Card $5",
+    description: "Enjoy a $5 Starbucks gift card",
     imageUrl: null,
-    category: "physical",
+    category: "food",
     pointsCost: 500,
     stock: 10,
     isActive: true,
   },
   {
     id: 2,
-    name: "$5 GrabFood Voucher",
-    description: "Redeem for food delivery",
+    name: "Adidas Voucher $10",
+    description: "Get a $10 Adidas voucher",
     imageUrl: null,
-    category: "voucher",
+    category: "apparel",
     pointsCost: 300,
     stock: 50,
     isActive: true,
   },
   {
     id: 3,
-    name: "Bamboo Cutlery Set",
-    description: "Eco-friendly utensils",
+    name: "Nike Voucher $10",
+    description: "Redeem for Nike products",
     imageUrl: null,
-    category: "physical",
+    category: "apparel",
     pointsCost: 800,
     stock: 0,
     isActive: true,
@@ -117,8 +117,8 @@ describe("RewardsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Physical/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Vouchers/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Food/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Apparel/i })).toBeInTheDocument();
     });
   });
 
@@ -126,9 +126,9 @@ describe("RewardsPage", () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
-      expect(screen.getByText("$5 GrabFood Voucher")).toBeInTheDocument();
-      expect(screen.getByText("Bamboo Cutlery Set")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
+      expect(screen.getByText("Adidas Voucher $10")).toBeInTheDocument();
+      expect(screen.getByText("Nike Voucher $10")).toBeInTheDocument();
     });
   });
 
@@ -192,35 +192,35 @@ describe("RewardsPage - Filtering", () => {
     });
   });
 
-  it("should filter to show only physical rewards", async () => {
+  it("should filter to show only food rewards", async () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Physical/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Food/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
-      expect(screen.getByText("Bamboo Cutlery Set")).toBeInTheDocument();
-      expect(screen.queryByText("$5 GrabFood Voucher")).not.toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
+      expect(screen.queryByText("Adidas Voucher $10")).not.toBeInTheDocument();
+      expect(screen.queryByText("Nike Voucher $10")).not.toBeInTheDocument();
     });
   });
 
-  it("should filter to show only voucher rewards", async () => {
+  it("should filter to show only apparel rewards", async () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("$5 GrabFood Voucher")).toBeInTheDocument();
+      expect(screen.getByText("Adidas Voucher $10")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Vouchers/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Apparel/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("$5 GrabFood Voucher")).toBeInTheDocument();
-      expect(screen.queryByText("Eco Tote Bag")).not.toBeInTheDocument();
-      expect(screen.queryByText("Bamboo Cutlery Set")).not.toBeInTheDocument();
+      expect(screen.getByText("Adidas Voucher $10")).toBeInTheDocument();
+      expect(screen.getByText("Nike Voucher $10")).toBeInTheDocument();
+      expect(screen.queryByText("Starbucks Gift Card $5")).not.toBeInTheDocument();
     });
   });
 
@@ -228,19 +228,19 @@ describe("RewardsPage - Filtering", () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
     });
 
-    // Click Physical first
-    fireEvent.click(screen.getByRole("button", { name: /Physical/i }));
+    // Click Food first
+    fireEvent.click(screen.getByRole("button", { name: /Food/i }));
 
     // Then click All
     fireEvent.click(screen.getByRole("button", { name: "All" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
-      expect(screen.getByText("$5 GrabFood Voucher")).toBeInTheDocument();
-      expect(screen.getByText("Bamboo Cutlery Set")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
+      expect(screen.getByText("Adidas Voucher $10")).toBeInTheDocument();
+      expect(screen.getByText("Nike Voucher $10")).toBeInTheDocument();
     });
   });
 });
@@ -284,7 +284,7 @@ describe("RewardsPage - Redemption", () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
     });
 
     // Find and click the first Redeem button (not disabled)
@@ -304,7 +304,7 @@ describe("RewardsPage - Redemption", () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
     });
 
     const redeemButtons = screen.getAllByRole("button", { name: "Redeem" });
@@ -321,7 +321,7 @@ describe("RewardsPage - Redemption", () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
     });
 
     const redeemButtons = screen.getAllByRole("button", { name: "Redeem" });
@@ -345,7 +345,7 @@ describe("RewardsPage - Redemption", () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
     });
 
     const redeemButtons = screen.getAllByRole("button", { name: "Redeem" });
@@ -370,7 +370,7 @@ describe("RewardsPage - Redemption", () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
     });
 
     const redeemButtons = screen.getAllByRole("button", { name: "Redeem" });
@@ -447,7 +447,7 @@ describe("RewardsPage - Error Handling", () => {
     renderWithRouter(<RewardsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Eco Tote Bag")).toBeInTheDocument();
+      expect(screen.getByText("Starbucks Gift Card $5")).toBeInTheDocument();
     });
 
     const redeemButtons = screen.getAllByRole("button", { name: "Redeem" });
