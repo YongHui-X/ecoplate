@@ -690,7 +690,7 @@ const sampleRewards = [
   {
     name: "Starbucks Gift Card $5",
     description: "Enjoy a $5 Starbucks gift card. Perfect for your morning coffee!",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo_2011.svg/1200px-Starbucks_Corporation_Logo_2011.svg.png",
+    imageUrl: "/images/rewards/starbucks.png",
     category: "food",
     pointsCost: 300,
     stock: 50,
@@ -698,7 +698,7 @@ const sampleRewards = [
   {
     name: "Grab Voucher $5",
     description: "Redeem for a $5 Grab voucher. Use for rides or GrabFood!",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Grab_Logo.svg/1200px-Grab_Logo.svg.png",
+    imageUrl: "/images/rewards/grab.jpg",
     category: "food",
     pointsCost: 350,
     stock: 75,
@@ -706,7 +706,7 @@ const sampleRewards = [
   {
     name: "Luckin Coffee $3",
     description: "Enjoy a $3 Luckin Coffee voucher. Great value for quality coffee!",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Luckin_Coffee_logo.svg/1200px-Luckin_Coffee_logo.svg.png",
+    imageUrl: "/images/rewards/luckin.jpg",
     category: "food",
     pointsCost: 200,
     stock: 100,
@@ -714,7 +714,7 @@ const sampleRewards = [
   {
     name: "CHAGEE Voucher $5",
     description: "Redeem for a $5 CHAGEE voucher. Premium tea at your fingertips!",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/8/89/Chagee_logo.png",
+    imageUrl: "/images/rewards/chagee.png",
     category: "food",
     pointsCost: 300,
     stock: 80,
@@ -722,7 +722,7 @@ const sampleRewards = [
   {
     name: "EZ-Link Card Top-up $5",
     description: "Get $5 credit for your EZ-Link card. Use for public transport!",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/en/thumb/f/f3/EZ-Link_logo.svg/1200px-EZ-Link_logo.svg.png",
+    imageUrl: "/images/rewards/ezlink.png",
     category: "food",
     pointsCost: 400,
     stock: 60,
@@ -730,7 +730,7 @@ const sampleRewards = [
   {
     name: "GongCha Voucher $5",
     description: "Redeem for a $5 GongCha voucher. Enjoy premium bubble tea!",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/en/thumb/7/70/Gong_Cha_logo.svg/1200px-Gong_Cha_logo.svg.png",
+    imageUrl: "/images/rewards/gongcha.webp",
     category: "food",
     pointsCost: 300,
     stock: 80,
@@ -756,7 +756,7 @@ const sampleRewards = [
   {
     name: "Uniqlo Voucher $50",
     description: "Premium $50 Uniqlo voucher. Reward yourself with sustainable fashion essentials!",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/UNIQLO_logo.svg/1200px-UNIQLO_logo.svg.png",
+    imageUrl: "/images/rewards/uniqlo.png",
     category: "apparel",
     pointsCost: 3500,
     stock: 10,

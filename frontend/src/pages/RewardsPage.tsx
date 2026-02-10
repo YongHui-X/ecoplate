@@ -19,6 +19,8 @@ import {
   CheckCircle,
   AlertCircle,
   History,
+  Package,
+  Ticket,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../services/api";
