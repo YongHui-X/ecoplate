@@ -29,6 +29,7 @@ import {
   Cell,
   BarChart,
   Bar,
+  Legend,
 } from "recharts";
 
 // ==================== Types ====================
@@ -306,7 +307,7 @@ export default function DashboardPage() {
         <Card className="overflow-hidden">
           <CardContent className="p-3 sm:p-4 lg:p-6">
             <h3 className="text-sm sm:text-base font-semibold mb-3 sm:mb-4">
-              CO\u2082 Reduction Over Time
+              CO&#8322; Saved Over Time
             </h3>
             <div className="h-48 sm:h-64 -ml-2 sm:ml-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -482,7 +483,7 @@ export default function DashboardPage() {
               <h3 className="text-sm sm:text-base font-semibold mb-3 sm:mb-4">
                 CO&#8322; by Category
               </h3>
-              <div className="h-48 sm:h-64">
+              <div className="h-56 sm:h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -490,13 +491,15 @@ export default function DashboardPage() {
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
-                      cy="50%"
-                      outerRadius="70%"
-                      label={({ name, percent }) =>
-                        `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
+                      cy="42%"
+                      outerRadius="65%"
+                      label={({ percent }) =>
+                        (percent ?? 0) > 0.01
+                          ? `${((percent ?? 0) * 100).toFixed(0)}%`
+                          : ""
                       }
                       labelLine={false}
-                      fontSize={10}
+                      fontSize={11}
                     >
                       {co2Data.co2ByCategory.map((_, i) => (
                         <Cell
@@ -507,6 +510,13 @@ export default function DashboardPage() {
                     </Pie>
                     <Tooltip
                       formatter={(value) => [`${value} kg`, "CO\u2082"]}
+                    />
+                    <Legend
+                      layout="horizontal"
+                      align="center"
+                      verticalAlign="bottom"
+                      iconSize={10}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 5 }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -562,7 +572,7 @@ export default function DashboardPage() {
                 <BarChart
                   data={co2Data.topItems}
                   layout="vertical"
-                  margin={{ top: 5, right: 20, bottom: 5, left: 80 }}
+                  margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -572,8 +582,8 @@ export default function DashboardPage() {
                   <YAxis
                     type="category"
                     dataKey="name"
-                    tick={{ fontSize: 10 }}
-                    width={75}
+                    tick={{ fontSize: 9 }}
+                    width={120}
                   />
                   <Tooltip
                     formatter={(value) => [`${value} kg`, "CO\u2082"]}
@@ -705,17 +715,17 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Price Comparison + Discount Distribution */}
+        {/* Sales Speed + Discount Distribution */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="overflow-hidden">
             <CardContent className="p-3 sm:p-4 lg:p-6">
               <h3 className="text-sm sm:text-base font-semibold mb-3 sm:mb-4">
-                Price Comparison
+                Sales Speed
               </h3>
               <div className="h-48 sm:h-64 -ml-2 sm:ml-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={financialData.priceComparison}
+                    data={financialData.salesSpeed}
                     margin={{ top: 5, right: 5, bottom: 5, left: 0 }}
                   >
                     <CartesianGrid
@@ -723,24 +733,16 @@ export default function DashboardPage() {
                       className="stroke-muted"
                     />
                     <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 9 }}
+                      dataKey="range"
+                      tick={{ fontSize: 10 }}
                       tickMargin={8}
-                      interval={0}
-                      angle={-20}
                     />
-                    <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={35} />
+                    <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={25} />
                     <Tooltip contentStyle={{ fontSize: 12 }} />
                     <Bar
-                      dataKey="originalPrice"
-                      fill="#94a3b8"
-                      name="Original"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="sellingPrice"
-                      fill="#22c55e"
-                      name="Sold For"
+                      dataKey="count"
+                      fill="#f59e0b"
+                      name="Listings"
                       radius={[4, 4, 0, 0]}
                     />
                   </BarChart>
@@ -784,34 +786,43 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Sales Speed */}
+        {/* Price Comparison */}
         <Card className="overflow-hidden">
           <CardContent className="p-3 sm:p-4 lg:p-6">
             <h3 className="text-sm sm:text-base font-semibold mb-3 sm:mb-4">
-              Sales Speed
+              Price Comparison
             </h3>
-            <div className="h-48 sm:h-64 -ml-2 sm:ml-0">
+            <div className="h-64 sm:h-80 -ml-2 sm:ml-0">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={financialData.salesSpeed}
-                  margin={{ top: 5, right: 5, bottom: 5, left: 0 }}
+                  data={financialData.priceComparison}
+                  layout="vertical"
+                  margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
                     className="stroke-muted"
                   />
-                  <XAxis
-                    dataKey="range"
+                  <XAxis type="number" tick={{ fontSize: 10 }} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
                     tick={{ fontSize: 10 }}
-                    tickMargin={8}
+                    width={140}
                   />
-                  <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={25} />
                   <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar
-                    dataKey="count"
-                    fill="#f59e0b"
-                    name="Listings"
-                    radius={[4, 4, 0, 0]}
+                    dataKey="originalPrice"
+                    fill="#94a3b8"
+                    name="Original Price"
+                    radius={[0, 4, 4, 0]}
+                  />
+                  <Bar
+                    dataKey="sellingPrice"
+                    fill="#22c55e"
+                    name="Selling Price"
+                    radius={[0, 4, 4, 0]}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -906,7 +917,7 @@ export default function DashboardPage() {
               <h3 className="text-sm sm:text-base font-semibold mb-3 sm:mb-4">
                 Food by Category
               </h3>
-              <div className="h-48 sm:h-64">
+              <div className="h-56 sm:h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -914,13 +925,15 @@ export default function DashboardPage() {
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
-                      cy="50%"
-                      outerRadius="70%"
-                      label={({ name, percent }) =>
-                        `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
+                      cy="42%"
+                      outerRadius="65%"
+                      label={({ percent }) =>
+                        (percent ?? 0) > 0.01
+                          ? `${((percent ?? 0) * 100).toFixed(0)}%`
+                          : ""
                       }
                       labelLine={false}
-                      fontSize={10}
+                      fontSize={11}
                     >
                       {foodData.foodByCategory.map((_, i) => (
                         <Cell
@@ -931,6 +944,13 @@ export default function DashboardPage() {
                     </Pie>
                     <Tooltip
                       formatter={(value) => [`${value} kg`, "Quantity"]}
+                    />
+                    <Legend
+                      layout="horizontal"
+                      align="center"
+                      verticalAlign="bottom"
+                      iconSize={10}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 5 }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -994,7 +1014,7 @@ export default function DashboardPage() {
                 <BarChart
                   data={foodData.topItems}
                   layout="vertical"
-                  margin={{ top: 5, right: 20, bottom: 5, left: 80 }}
+                  margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -1004,8 +1024,8 @@ export default function DashboardPage() {
                   <YAxis
                     type="category"
                     dataKey="name"
-                    tick={{ fontSize: 10 }}
-                    width={75}
+                    tick={{ fontSize: 9 }}
+                    width={120}
                   />
                   <Tooltip
                     formatter={(value) => [`${value} kg`, "Quantity"]}

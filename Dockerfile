@@ -4,6 +4,7 @@
 # =============================================================================
 # Stage 1: Build Frontend
 # =============================================================================
+# Pin to specific version for reproducible builds and security
 FROM oven/bun:1.2.5-alpine AS frontend-builder
 
 # Build args for frontend environment variables

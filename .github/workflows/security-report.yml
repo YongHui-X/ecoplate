@@ -182,9 +182,6 @@ jobs:
         continue-on-error: true
 
       # ---- Generate Report ----
-      - name: List downloaded reports
-        run: find reports/ -type f 2>/dev/null || echo "No reports found"
-
       - name: Generate consolidated security report
         env:
           INPUT_BRANCH: ${{ inputs.branch }}
