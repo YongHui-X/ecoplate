@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { api } from "../services/api";
+import { api, API_BASE } from "../services/api";
 import { marketplaceService } from "../services/marketplace";
 import { useToast } from "../contexts/ToastContext";
 import { Button } from "../components/ui/button";
@@ -139,7 +139,7 @@ export default function CreateListingPage() {
       selectedImages.forEach(file => formData.append("images", file));
 
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/v1/marketplace/upload", {
+      const response = await fetch(`${API_BASE}/marketplace/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

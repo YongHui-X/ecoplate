@@ -21,6 +21,8 @@ import {
   History,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../services/api";
+import { uploadService } from "../services/upload";
 
 interface Reward {
   id: number;
@@ -58,26 +60,14 @@ export default function RewardsPage() {
   const fetchRewardsAndBalance = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
 
-      const [rewardsRes, balanceRes] = await Promise.all([
-        fetch("/api/v1/rewards", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/v1/rewards/balance", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const [rewardsData, balanceData] = await Promise.all([
+        api.get<Reward[]>("/rewards"),
+        api.get<{ balance: number }>("/rewards/balance"),
       ]);
 
-      if (rewardsRes.ok) {
-        const data = await rewardsRes.json();
-        setRewards(data);
-      }
-
-      if (balanceRes.ok) {
-        const data = await balanceRes.json();
-        setBalance(data.balance);
-      }
+      setRewards(rewardsData);
+      setBalance(balanceData.balance);
     } catch (err) {
       console.error("Failed to fetch rewards:", err);
     } finally {
@@ -92,22 +82,7 @@ export default function RewardsPage() {
     setError(null);
 
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/v1/rewards/redeem", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ rewardId: selectedReward.id }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Failed to redeem reward");
-        return;
-      }
+      const data = await api.post<RedemptionResult>("/rewards/redeem", { rewardId: selectedReward.id });
 
       setRedemptionResult(data);
       setBalance((prev) => prev - selectedReward.pointsCost);
@@ -117,8 +92,8 @@ export default function RewardsPage() {
           r.id === selectedReward.id ? { ...r, stock: r.stock - 1 } : r
         )
       );
-    } catch (err) {
-      setError("Failed to redeem reward. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Failed to redeem reward. Please try again.");
     } finally {
       setRedeeming(false);
     }
@@ -226,7 +201,7 @@ export default function RewardsPage() {
               <div className="aspect-[4/3] bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center overflow-hidden">
                 {reward.imageUrl ? (
                   <img
-                    src={reward.imageUrl}
+                    src={uploadService.getImageUrl(reward.imageUrl)}
                     alt={reward.name}
                     className="w-full h-full object-contain bg-white"
                   />

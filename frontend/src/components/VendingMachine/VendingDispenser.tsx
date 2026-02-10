@@ -1,5 +1,6 @@
 import { cn } from "../../lib/utils";
 import type { VendingProduct, VendingStatus } from "../../hooks/useVendingMachine";
+import { uploadService } from "../../services/upload";
 
 interface VendingDispenserProps {
   status: VendingStatus;
@@ -54,7 +55,7 @@ export function VendingDispenser({
               <div className="flex items-center gap-3">
                 {dispensedProduct.listing.images[0]?.imageUrl ? (
                   <img
-                    src={dispensedProduct.listing.images[0].imageUrl}
+                    src={uploadService.getImageUrl(dispensedProduct.listing.images[0].imageUrl)}
                     alt={dispensedProduct.listing.title}
                     className="w-12 h-12 object-contain rounded"
                   />

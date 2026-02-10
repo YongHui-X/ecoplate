@@ -14,6 +14,8 @@ import {
   Check,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../services/api";
+import { uploadService } from "../services/upload";
 
 interface Redemption {
   id: number;
@@ -45,15 +47,8 @@ export default function MyRedemptionsPage() {
 
   const fetchRedemptions = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/v1/rewards/my-redemptions", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setRedemptions(data);
-      }
+      const data = await api.get<Redemption[]>("/rewards/my-redemptions");
+      setRedemptions(data);
     } catch (err) {
       console.error("Failed to fetch redemptions:", err);
     } finally {
@@ -147,7 +142,7 @@ export default function MyRedemptionsPage() {
                   <div className="h-16 w-16 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {redemption.reward.imageUrl ? (
                       <img
-                        src={redemption.reward.imageUrl}
+                        src={uploadService.getImageUrl(redemption.reward.imageUrl)}
                         alt={redemption.reward.name}
                         className="w-full h-full object-cover"
                       />

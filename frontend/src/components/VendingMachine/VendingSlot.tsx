@@ -1,5 +1,6 @@
 import { cn } from "../../lib/utils";
 import type { VendingProduct } from "../../hooks/useVendingMachine";
+import { uploadService } from "../../services/upload";
 
 interface VendingSlotProps {
   product?: VendingProduct;
@@ -41,7 +42,7 @@ export function VendingSlot({
         {product ? (
           imageUrl ? (
             <img
-              src={imageUrl}
+              src={imageUrl ? uploadService.getImageUrl(imageUrl) : undefined}
               alt={product.listing.title}
               className="max-w-full max-h-full object-contain"
             />
