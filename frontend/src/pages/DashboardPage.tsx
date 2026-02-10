@@ -122,7 +122,7 @@ const PIE_COLORS = [
 
 const tabs: { key: Tab; label: string }[] = [
   { key: "summary", label: "Summary" },
-  { key: "co2", label: "CO\u2082" },
+  { key: "co2", label: "CO₂" },
   { key: "financial", label: "Financial" },
   { key: "food", label: "Food" },
 ];
@@ -215,7 +215,7 @@ export default function DashboardPage() {
     const summary = summaryData?.summary;
     const statCards = [
       {
-        label: "Total CO\u2082 Reduced",
+        label: "Total CO₂ Reduced",
         value: `${summary?.totalCo2Reduced ?? 0} kg`,
         icon: Leaf,
         color: "text-primary",
@@ -328,7 +328,7 @@ export default function DashboardPage() {
                     stroke="hsl(var(--primary))"
                     strokeWidth={2}
                     dot={{ r: 3 }}
-                    name="CO\u2082 (kg)"
+                    name="CO₂ (kg)"
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -509,7 +509,7 @@ export default function DashboardPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value) => [`${value} kg`, "CO\u2082"]}
+                      formatter={(value) => [`${value} kg`, "CO₂"]}
                     />
                     <Legend
                       layout="horizontal"
@@ -552,7 +552,7 @@ export default function DashboardPage() {
                       stroke="hsl(var(--primary))"
                       strokeWidth={2}
                       dot={{ r: 3 }}
-                      name="CO\u2082 (kg)"
+                      name="CO₂ (kg)"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -586,7 +586,7 @@ export default function DashboardPage() {
                     width={120}
                   />
                   <Tooltip
-                    formatter={(value) => [`${value} kg`, "CO\u2082"]}
+                    formatter={(value) => [`${value} kg`, "CO₂"]}
                     contentStyle={{ fontSize: 12 }}
                   />
                   <Bar dataKey="value" fill="hsl(var(--primary))" radius={4} />
