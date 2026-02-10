@@ -358,7 +358,7 @@ export async function getFinancialStats(
     .filter((l) => l.originalPrice && l.price)
     .slice(0, 10)
     .map((l) => ({
-      name: l.title.length > 15 ? l.title.slice(0, 15) + "..." : l.title,
+      name: l.title,
       originalPrice: Math.round((l.originalPrice || 0) * 100) / 100,
       sellingPrice: Math.round((l.price || 0) * 100) / 100,
     }));

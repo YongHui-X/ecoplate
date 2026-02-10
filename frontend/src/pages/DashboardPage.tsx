@@ -583,10 +583,7 @@ export default function DashboardPage() {
                     type="category"
                     dataKey="name"
                     tick={{ fontSize: 9 }}
-                    width={100}
-                    tickFormatter={(value) =>
-                      value.length > 15 ? `${value.slice(0, 15)}...` : value
-                    }
+                    width={120}
                   />
                   <Tooltip
                     formatter={(value) => [`${value} kg`, "CO\u2082"]}
@@ -1029,10 +1026,7 @@ export default function DashboardPage() {
                     type="category"
                     dataKey="name"
                     tick={{ fontSize: 9 }}
-                    width={100}
-                    tickFormatter={(value) =>
-                      value.length > 15 ? `${value.slice(0, 15)}...` : value
-                    }
+                    width={120}
                   />
                   <Tooltip
                     formatter={(value) => [`${value} kg`, "Quantity"]}
