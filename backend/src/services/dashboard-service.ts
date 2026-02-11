@@ -4,18 +4,22 @@ import * as schema from "../db/schema";
 
 type Period = "day" | "month" | "annual";
 
+// Category CO2 factors (kg CO2e per kg food) - unified with consumption-service.ts
 const CATEGORY_CO2_FACTORS: Record<string, number> = {
-  meat: 27.0,
-  dairy: 3.2,
-  produce: 1.5,
-  vegetables: 2.0,
-  fruits: 1.1,
-  grains: 1.4,
-  pantry: 1.5,
-  seafood: 6.1,
-  bakery: 1.3,
-  beverages: 0.8,
-  other: 2.5,
+  meat: 15.0,
+  protein: 15.0,
+  dairy: 5.0,
+  produce: 0.5,
+  vegetables: 0.5,
+  fruits: 0.5,
+  grains: 1.2,
+  pantry: 2.0,
+  seafood: 6.0,
+  bakery: 1.0,
+  beverages: 1.0,
+  snacks: 2.5,
+  frozen: 3.0,
+  other: 3.0,
 };
 
 function normalizeCategory(category: string | null): string {
@@ -104,18 +108,23 @@ export async function getDashboardStats(
   let totalCo2Reduced = 0;
   const productMap = new Map(products.map((p) => [p.id, p]));
   for (const m of positiveMetrics) {
-    if (m.productId == null) continue;
-    const product = productMap.get(m.productId);
-    if (!product) continue;
-    const mQuantity = m.quantity ?? 0;
     let co2: number;
-    // co2Emission is per-unit (kg CO2 per kg food), so multiply directly by quantity
-    if (product.co2Emission) {
-      co2 = product.co2Emission * mQuantity;
+    // Use pre-stored co2Value from metrics (calculated from products.co2Emission)
+    if (m.co2Value != null && m.co2Value > 0) {
+      co2 = m.co2Value;
     } else {
-      const cat = normalizeCategory(product.category);
-      const factor = CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"];
-      co2 = factor * mQuantity;
+      // Fallback for legacy data without co2Value
+      if (m.productId == null) continue;
+      const product = productMap.get(m.productId);
+      if (!product) continue;
+      const mQuantity = m.quantity ?? 0;
+      if (product.co2Emission) {
+        co2 = product.co2Emission * mQuantity;
+      } else {
+        const cat = normalizeCategory(product.category);
+        const factor = CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"];
+        co2 = factor * mQuantity;
+      }
     }
     totalCo2Reduced += co2;
   }
@@ -135,19 +144,24 @@ export async function getDashboardStats(
   for (const m of positiveMetrics) {
     const dateObj = parseMetricDate(m.todayDate);
     const dateKey = formatDate(dateObj, period);
-    const product =
-      m.productId != null ? productMap.get(m.productId) : undefined;
     const mQuantity = m.quantity ?? 0;
     let co2: number;
-    // co2Emission is per-unit (kg CO2 per kg food), so multiply directly by quantity
-    if (product?.co2Emission) {
-      co2 = product.co2Emission * mQuantity;
-    } else if (product) {
-      const cat = normalizeCategory(product.category);
-      const factor = CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"];
-      co2 = factor * mQuantity;
+    // Use pre-stored co2Value from metrics (calculated from products.co2Emission)
+    if (m.co2Value != null && m.co2Value > 0) {
+      co2 = m.co2Value;
     } else {
-      co2 = CATEGORY_CO2_FACTORS["other"] * mQuantity;
+      // Fallback for legacy data without co2Value
+      const product =
+        m.productId != null ? productMap.get(m.productId) : undefined;
+      if (product?.co2Emission) {
+        co2 = product.co2Emission * mQuantity;
+      } else if (product) {
+        const cat = normalizeCategory(product.category);
+        const factor = CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"];
+        co2 = factor * mQuantity;
+      } else {
+        co2 = CATEGORY_CO2_FACTORS["other"] * mQuantity;
+      }
     }
 
     co2Map.set(dateKey, (co2Map.get(dateKey) || 0) + co2);
@@ -213,21 +227,32 @@ export async function getCO2Stats(userId: number, period: Period = "month") {
   let totalCo2 = 0;
 
   for (const m of positiveMetrics) {
-    if (m.productId == null) continue;
-    const product = productMap.get(m.productId);
-    if (!product) continue;
     const mQuantity = m.quantity ?? 0;
     let co2: number;
-    // co2Emission is per-unit (kg CO2 per kg food), so multiply directly by quantity
-    if (product.co2Emission) {
-      co2 = product.co2Emission * mQuantity;
+    let catLabel: string;
+
+    // Use pre-stored co2Value from metrics (calculated from products.co2Emission)
+    if (m.co2Value != null && m.co2Value > 0) {
+      co2 = m.co2Value;
+      // Still need product for category
+      const product = m.productId != null ? productMap.get(m.productId) : undefined;
+      catLabel = capitalizeCategory(product?.category ?? null);
     } else {
-      const cat = normalizeCategory(product.category);
-      const factor = CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"];
-      co2 = factor * mQuantity;
+      // Fallback for legacy data without co2Value
+      if (m.productId == null) continue;
+      const product = productMap.get(m.productId);
+      if (!product) continue;
+      if (product.co2Emission) {
+        co2 = product.co2Emission * mQuantity;
+      } else {
+        const cat = normalizeCategory(product.category);
+        const factor = CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"];
+        co2 = factor * mQuantity;
+      }
+      catLabel = capitalizeCategory(product.category);
     }
+
     totalCo2 += co2;
-    const catLabel = capitalizeCategory(product.category);
     categoryMap.set(catLabel, (categoryMap.get(catLabel) || 0) + co2);
   }
 
@@ -235,41 +260,57 @@ export async function getCO2Stats(userId: number, period: Period = "month") {
   for (const m of positiveMetrics) {
     const dateObj = parseMetricDate(m.todayDate);
     const dateKey = formatDate(dateObj, period);
-    const product =
-      m.productId != null ? productMap.get(m.productId) : undefined;
     const mQuantity = m.quantity ?? 0;
     let co2: number;
-    // co2Emission is per-unit (kg CO2 per kg food), so multiply directly by quantity
-    if (product?.co2Emission) {
-      co2 = product.co2Emission * mQuantity;
-    } else if (product) {
-      const cat = normalizeCategory(product.category);
-      const factor = CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"];
-      co2 = factor * mQuantity;
+
+    // Use pre-stored co2Value from metrics (calculated from products.co2Emission)
+    if (m.co2Value != null && m.co2Value > 0) {
+      co2 = m.co2Value;
     } else {
-      co2 = CATEGORY_CO2_FACTORS["other"] * mQuantity;
+      // Fallback for legacy data without co2Value
+      const product =
+        m.productId != null ? productMap.get(m.productId) : undefined;
+      if (product?.co2Emission) {
+        co2 = product.co2Emission * mQuantity;
+      } else if (product) {
+        const cat = normalizeCategory(product.category);
+        const factor = CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"];
+        co2 = factor * mQuantity;
+      } else {
+        co2 = CATEGORY_CO2_FACTORS["other"] * mQuantity;
+      }
     }
     trendMap.set(dateKey, (trendMap.get(dateKey) || 0) + co2);
   }
 
   const itemCo2 = new Map<string, number>();
   for (const m of positiveMetrics) {
-    if (m.productId == null) continue;
-    const product = productMap.get(m.productId);
-    if (!product) continue;
     const mQuantity = m.quantity ?? 0;
     let co2: number;
-    // co2Emission is per-unit (kg CO2 per kg food), so multiply directly by quantity
-    if (product.co2Emission) {
-      co2 = product.co2Emission * mQuantity;
+    let productName: string;
+
+    // Use pre-stored co2Value from metrics (calculated from products.co2Emission)
+    if (m.co2Value != null && m.co2Value > 0) {
+      co2 = m.co2Value;
+      // Still need product for name
+      const product = m.productId != null ? productMap.get(m.productId) : undefined;
+      productName = product?.productName ?? "Unknown";
     } else {
-      const cat = normalizeCategory(product.category);
-      co2 =
-        (CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"]) *
-        mQuantity;
+      // Fallback for legacy data without co2Value
+      if (m.productId == null) continue;
+      const product = productMap.get(m.productId);
+      if (!product) continue;
+      if (product.co2Emission) {
+        co2 = product.co2Emission * mQuantity;
+      } else {
+        const cat = normalizeCategory(product.category);
+        co2 =
+          (CATEGORY_CO2_FACTORS[cat] ?? CATEGORY_CO2_FACTORS["other"]) *
+          mQuantity;
+      }
+      productName = product.productName;
     }
-    const name = product.productName;
-    itemCo2.set(name, (itemCo2.get(name) || 0) + co2);
+    itemCo2.set(productName, (itemCo2.get(productName) || 0) + co2);
   }
 
   const co2ByCategory = Array.from(categoryMap.entries())
