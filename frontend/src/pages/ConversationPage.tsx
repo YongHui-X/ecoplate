@@ -18,6 +18,8 @@ import {
   Store,
   CheckCircle,
   ExternalLink,
+  UserCheck,
+  XCircle,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -28,6 +30,7 @@ export default function ConversationPage() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [markingSold, setMarkingSold] = useState(false);
+  const [reserving, setReserving] = useState(false);
   const [newMessageAlert, setNewMessageAlert] = useState(false);
   const [, setCurrentTime] = useState(Date.now());
   const { user } = useAuth();
@@ -116,6 +119,49 @@ export default function ConversationPage() {
     }
   };
 
+  const handleReserve = async () => {
+    if (!conversation || reserving) return;
+
+    if (!window.confirm(`Reserve this listing for ${conversation.buyer.name}?`)) {
+      return;
+    }
+
+    setReserving(true);
+    try {
+      await marketplaceService.reserveListingForBuyer(
+        conversation.listingId,
+        conversation.buyer.id
+      );
+      addToast(`Listing reserved for ${conversation.buyer.name}!`, "success");
+      await loadConversation();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to reserve listing";
+      addToast(message, "error");
+    } finally {
+      setReserving(false);
+    }
+  };
+
+  const handleUnreserve = async () => {
+    if (!conversation || reserving) return;
+
+    if (!window.confirm("Cancel this reservation? The buyer will be notified.")) {
+      return;
+    }
+
+    setReserving(true);
+    try {
+      await marketplaceService.unreserveListing(conversation.listingId);
+      addToast("Reservation cancelled", "success");
+      await loadConversation();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to cancel reservation";
+      addToast(message, "error");
+    } finally {
+      setReserving(false);
+    }
+  };
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -161,14 +207,17 @@ export default function ConversationPage() {
   const otherUser =
     conversation.seller.id === user?.id ? conversation.buyer : conversation.seller;
   const isSeller = conversation.role === "selling";
-  const isArchived = conversation.listing.status === "completed";
+  const isArchived = conversation.listing.status === "completed" || conversation.listing.status === "sold";
+  const isReserved = conversation.listing.status === "reserved";
+  const isReservedForThisBuyer = isReserved && conversation.listing.buyerId === conversation.buyer.id;
+  const isActive = conversation.listing.status === "active";
 
   // Get listing image
   const imageUrls = uploadService.getListingImageUrls(conversation.listing.images);
   const thumbnailUrl = imageUrls[0];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-[calc(100vh-12rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-8rem)]">
       {/* Header with Product Card */}
       <Card className={`mb-3 ${newMessageAlert ? "ring-2 ring-primary animate-pulse" : ""}`}>
         <CardHeader className="py-3 px-4 space-y-3">
@@ -224,6 +273,11 @@ export default function ConversationPage() {
                     Archived
                   </Badge>
                 )}
+                {isReservedForThisBuyer && (
+                  <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                    Reserved
+                  </Badge>
+                )}
                 {newMessageAlert && (
                   <span className="text-xs text-primary font-medium animate-bounce">
                     New message!
@@ -248,7 +302,7 @@ export default function ConversationPage() {
           </div>
 
           {/* Action Buttons - separate row to prevent overlap on mobile */}
-          <div className="flex items-center gap-2 justify-end">
+          <div className="flex items-center gap-2 justify-end flex-wrap">
             <Button variant="outline" size="sm" asChild>
               <Link to={`/marketplace/${conversation.listingId}`}>
                 <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
@@ -256,15 +310,42 @@ export default function ConversationPage() {
               </Link>
             </Button>
             {isSeller && !isArchived && (
-              <Button
-                size="sm"
-                onClick={handleMarkAsSold}
-                disabled={markingSold}
-                className="bg-success text-success-foreground hover:bg-success/90"
-              >
-                <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                Mark Sold
-              </Button>
+              <>
+                {/* Reserve/Unreserve button */}
+                {isActive && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleReserve}
+                    disabled={reserving}
+                  >
+                    <UserCheck className="h-3.5 w-3.5 mr-1" />
+                    Reserve
+                  </Button>
+                )}
+                {isReservedForThisBuyer && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleUnreserve}
+                    disabled={reserving}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <XCircle className="h-3.5 w-3.5 mr-1" />
+                    Unreserve
+                  </Button>
+                )}
+                {/* Mark Sold button */}
+                <Button
+                  size="sm"
+                  onClick={handleMarkAsSold}
+                  disabled={markingSold}
+                  className="bg-success text-success-foreground hover:bg-success/90"
+                >
+                  <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                  Mark Sold
+                </Button>
+              </>
             )}
           </div>
         </CardHeader>

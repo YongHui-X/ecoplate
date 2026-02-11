@@ -1,6 +1,6 @@
 import { Router, json, error, parseBody } from "../utils/router";
 import { db } from "../db/connection";
-import { marketplaceListings, conversations } from "../db/schema";
+import { marketplaceListings, conversations, products } from "../db/schema";
 import { eq, and, desc, ne } from "drizzle-orm";
 import { createNotification } from "../services/notification-service";
 import { z } from "zod";
@@ -103,6 +103,7 @@ const listingSchema = z.object({
   }).optional(),
   pickupInstructions: z.string().max(1000).optional(),
   imageUrls: z.array(z.string().max(500)).max(5).optional(),
+  productId: z.number().positive().optional(), // Link to MyFridge product
 });
 
 export function registerMarketplaceRoutes(router: Router) {
@@ -448,10 +449,45 @@ export function registerMarketplaceRoutes(router: Router) {
       // Calculate CO2 saved for this listing
       const co2Saved = calculateCo2Saved(data.quantity, data.unit, data.category);
 
+      // If productId is provided, validate and update the MyFridge product
+      let productIdToLink: number | undefined;
+      if (data.productId) {
+        const product = await db.query.products.findFirst({
+          where: and(
+            eq(products.id, data.productId),
+            eq(products.userId, user.id)
+          ),
+        });
+
+        if (!product) {
+          return error("Product not found or does not belong to you", 404);
+        }
+
+        if (data.quantity > product.quantity) {
+          return error(`Cannot list more than available quantity (${product.quantity})`, 400);
+        }
+
+        const newQuantity = product.quantity - data.quantity;
+
+        if (newQuantity <= 0) {
+          // Delete the product if all quantity is listed
+          await db.delete(products).where(eq(products.id, data.productId));
+        } else {
+          // Reduce the product quantity
+          await db
+            .update(products)
+            .set({ quantity: newQuantity })
+            .where(eq(products.id, data.productId));
+        }
+
+        productIdToLink = data.productId;
+      }
+
       const [listing] = await db
         .insert(marketplaceListings)
         .values({
           sellerId: user.id,
+          productId: productIdToLink,
           title: data.title,
           description: data.description,
           category: data.category,

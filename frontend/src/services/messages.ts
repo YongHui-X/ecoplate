@@ -20,6 +20,7 @@ export interface ConversationListing {
   price: number | null;
   images: string | null;
   status: string;
+  buyerId: number | null;
 }
 
 export interface Conversation {

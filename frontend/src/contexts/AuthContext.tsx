@@ -31,6 +31,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check for SSO token in URL parameters (coming back from EcoLocker)
+    const searchParams = new URLSearchParams(window.location.search);
+    const ssoToken = searchParams.get("token");
+
+    if (ssoToken) {
+      localStorage.setItem("token", ssoToken);
+      // Clear URL parameters
+      window.history.replaceState({}, "", window.location.pathname);
+      // Verify and load user
+      api.get<User>("/auth/me").then((userData) => {
+        localStorage.setItem("user", JSON.stringify(userData));
+        setUser(userData);
+      }).catch(() => {
+        localStorage.removeItem("token");
+      }).finally(() => setLoading(false));
+      return;
+    }
+
     const token = localStorage.getItem("token");
     const userData = localStorage.getItem("user");
 

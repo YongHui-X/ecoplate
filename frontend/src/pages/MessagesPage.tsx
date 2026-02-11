@@ -143,7 +143,7 @@ export default function MessagesPage() {
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2 pb-2 -mx-1 px-1">
+      <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-1 sm:px-1 touch-pan-x scrollbar-hide">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const count = tabCounts[tab.id];

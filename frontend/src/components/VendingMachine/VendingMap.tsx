@@ -105,7 +105,7 @@ export function VendingMap({ onSelectLocation }: VendingMapProps) {
   const singaporeCenter: [number, number] = [1.3521, 103.8198];
 
   return (
-    <div className="h-[500px] w-full rounded-xl overflow-hidden border-2 border-gray-200 shadow-lg">
+    <div className="h-[300px] sm:h-[400px] lg:h-[500px] w-full rounded-xl overflow-hidden border-2 border-gray-200 shadow-lg">
       <MapContainer
         center={singaporeCenter}
         zoom={11}

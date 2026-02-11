@@ -6,9 +6,11 @@ import {
   Bell,
   LogOut,
   User,
+  Home,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { OfflineBanner } from "./OfflineBanner";
+import { getEcoPlateUrl } from "../services/navigation";
 import { cn } from "@/lib/utils";
 
 interface LayoutProps {
@@ -89,6 +91,15 @@ export function Layout({ children }: LayoutProps) {
                 </Link>
               );
             })}
+            <button
+              onClick={() => {
+                window.location.href = getEcoPlateUrl();
+              }}
+              className="flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <Home className="h-5 w-5" />
+              <span className="text-xs font-medium">EcoPlate</span>
+            </button>
           </div>
         </nav>
       )}

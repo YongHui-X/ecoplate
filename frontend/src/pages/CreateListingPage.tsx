@@ -29,6 +29,7 @@ interface Product {
   productName: string;
   category: string | null;
   quantity: number;
+  unit: string | null;
   unitPrice: number | null;
   purchaseDate: string | null;
   description: string | null;
@@ -43,7 +44,7 @@ export default function CreateListingPage() {
   const [description, setDescription] = useState(product?.description || "");
   const [category, setCategory] = useState(product?.category || "");
   const [quantity, setQuantity] = useState(product?.quantity || 1);
-  const [unit, setUnit] = useState("pcs");
+  const [unit, setUnit] = useState(product?.unit || "pcs");
   const [price, setPrice] = useState<string>("");
   const [originalPrice, setOriginalPrice] = useState<string>(
     product?.unitPrice ? product.unitPrice.toString() : ""
@@ -179,6 +180,7 @@ export default function CreateListingPage() {
         coordinates: coordinates,
         pickupInstructions: pickupInstructions || undefined,
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        productId: product?.id, // Link to MyFridge product for quantity sync
       });
 
       addToast("Listing created successfully!", "success");

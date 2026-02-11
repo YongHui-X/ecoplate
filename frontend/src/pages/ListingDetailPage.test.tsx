@@ -248,7 +248,7 @@ describe("ListingDetailPage - Buyer View", () => {
     });
 
     // The page should show buyer actions since user id (1) != seller id (2)
-    // Check for presence of action buttons (either Buy, Message Seller, or EcoLocker)
+    // Check for presence of action buttons (Message to Buy or EcoLocker)
     const pageContent = document.body.textContent;
     expect(pageContent).toBeTruthy();
   });
@@ -272,7 +272,7 @@ describe("ListingDetailPage - Seller View", () => {
   it("should display seller controls for owners", async () => {
     renderWithProviders(<ListingDetailPage />);
     await waitFor(() => {
-      // When user is the seller, Buy and Message Seller buttons should not show
+      // When user is the seller, buyer buttons (Message to Buy, EcoLocker) should not show
       expect(screen.getByText("Fresh Organic Apples")).toBeInTheDocument();
     });
   });

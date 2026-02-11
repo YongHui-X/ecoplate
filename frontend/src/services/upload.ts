@@ -7,8 +7,10 @@ import { Capacitor } from "@capacitor/core";
 
 // Use relative URLs on web (goes through Vite proxy), full URL on mobile
 const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform();
-const API_BASE_URL = isNative
-  ? (import.meta.env.VITE_API_URL || "https://18.143.173.20")
+// VITE_API_URL includes /api/v1 (e.g. "https://18.143.173.20/api/v1")
+// Extract just the server origin for image/upload URLs
+const SERVER_ORIGIN = isNative
+  ? (import.meta.env.VITE_API_URL || "https://18.143.173.20").replace(/\/api\/v1\/?$/, "")
   : "";
 
 export interface UploadImageResponse {
@@ -36,7 +38,7 @@ export const uploadService = {
       throw new Error("Not authenticated");
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/upload/image`, {
+    const response = await fetch(`${SERVER_ORIGIN}/api/v1/upload/image`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -77,7 +79,7 @@ export const uploadService = {
       throw new Error("Not authenticated");
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/upload/images`, {
+    const response = await fetch(`${SERVER_ORIGIN}/api/v1/upload/images`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -103,11 +105,16 @@ export const uploadService = {
     if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
       return imageUrl; // Already absolute URL
     }
-    // Handle URLs that already start with /
-    if (imageUrl.startsWith("/")) {
-      return `${API_BASE_URL}${imageUrl}`;
+    // Static assets bundled in the app (e.g. /images/rewards/...) — use relative path
+    // so Capacitor serves them from local APK assets instead of the remote server
+    if (imageUrl.startsWith("/images/")) {
+      return imageUrl;
     }
-    return `${API_BASE_URL}/${imageUrl}`;
+    // Dynamic content (e.g. /uploads/...) — needs remote server URL on mobile
+    if (imageUrl.startsWith("/")) {
+      return `${SERVER_ORIGIN}${imageUrl}`;
+    }
+    return `${SERVER_ORIGIN}/${imageUrl}`;
   },
 
   /**

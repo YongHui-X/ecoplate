@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createRoot } from "react-dom/client";
 import {
@@ -6,45 +6,21 @@ import {
   Clock,
   Box,
   Loader2,
-  ExternalLink,
   RefreshCw,
   AlertCircle,
+  WifiOff,
 } from "lucide-react";
 import { lockerApi } from "../services/locker-api";
-import { getCurrentPosition } from "../services/capacitor";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
-import { getErrorMessage } from "../utils/network";
+import { getErrorMessage, useOnlineStatus } from "../utils/network";
+import { useGoogleMap } from "../hooks/useGoogleMap";
+import { useUserLocation } from "../hooks/useUserLocation";
+import { useLockerMarkers } from "../hooks/useLockerMarkers";
 import type { Locker } from "../types";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 
-// Load Google Maps script
-function loadGoogleMapsScript(apiKey: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.google?.maps) {
-      resolve();
-      return;
-    }
-
-    const existingScript = document.getElementById("google-maps-script");
-    if (existingScript) {
-      existingScript.addEventListener("load", () => resolve());
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = "google-maps-script";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Google Maps"));
-    document.head.appendChild(script);
-  });
-}
-
-// InfoWindow content component
 function LockerInfoContent({ locker }: { locker: Locker }) {
   return (
     <div className="min-w-[200px] p-1">
@@ -66,151 +42,73 @@ function LockerInfoContent({ locker }: { locker: Locker }) {
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { listingId } = useAuth();
+  const { listingId, clearListingId } = useAuth();
   const { addToast } = useToast();
+  const isOnline = useOnlineStatus();
   const [lockers, setLockers] = useState<Locker[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Google Maps refs
-  const mapRef = useRef<HTMLDivElement>(null);
-  const googleMapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
-  const userMarkerRef = useRef<google.maps.Marker | null>(null);
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-  const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [mapLoadError, setMapLoadError] = useState<string | null>(null);
+  // Map hooks — independent lifecycle, no overlapping deps
+  const { mapRef, map, infoWindow, isLoaded, error: mapLoadError } = useGoogleMap();
+  useUserLocation({ map });
 
-  // Singapore center coordinates
-  const defaultCenter = { lat: 1.3521, lng: 103.8198 };
+  const renderInfoWindow = useCallback(
+    (container: HTMLDivElement, locker: Locker) => {
+      const root = createRoot(container);
+      root.render(<LockerInfoContent locker={locker} />);
+    },
+    []
+  );
 
+  useLockerMarkers({
+    map,
+    infoWindow,
+    lockers,
+    selectable: false,
+    onInfoWindowRender: renderInfoWindow,
+  });
+
+  // Handle listingId redirect separately from locker loading
   useEffect(() => {
-    // If we have a pending listing ID, redirect to selection page
     if (listingId) {
-      navigate(`/select-locker?listingId=${listingId}`);
-      localStorage.removeItem("ecolocker_pending_listing");
-      return;
+      const id = listingId;
+      clearListingId();
+      navigate(`/select-locker?listingId=${id}`);
     }
+  }, [listingId, clearListingId, navigate]);
 
-    // Get user's location using Capacitor hybrid geolocation
-    getCurrentPosition().then((location) => {
-      setUserLocation(location);
-    });
-
-    loadLockers();
-  }, [listingId, navigate]);
-
-  // Load Google Maps
+  // Load lockers — runs on mount and when not redirecting
   useEffect(() => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      setMapLoadError("Google Maps API key not configured");
-      return;
+    if (listingId) return;
+
+    let cancelled = false;
+    loadLockers(cancelled);
+    return () => { cancelled = true; };
+  }, [listingId]);
+
+  // Auto-retry loading lockers when coming back online after a failure
+  useEffect(() => {
+    if (isOnline && loadError && lockers.length === 0) {
+      loadLockers(false);
     }
+  }, [isOnline]);
 
-    loadGoogleMapsScript(apiKey)
-      .then(() => setIsMapLoaded(true))
-      .catch((err) => setMapLoadError(err.message));
-  }, []);
-
-  // Initialize map
-  useEffect(() => {
-    if (!isMapLoaded || !mapRef.current || googleMapRef.current) return;
-
-    const mapCenter = userLocation || defaultCenter;
-
-    googleMapRef.current = new google.maps.Map(mapRef.current, {
-      center: mapCenter,
-      zoom: 12,
-      disableDefaultUI: false,
-      zoomControl: true,
-      streetViewControl: false,
-      mapTypeControl: false,
-      fullscreenControl: true,
-    });
-
-    infoWindowRef.current = new google.maps.InfoWindow();
-  }, [isMapLoaded, userLocation]);
-
-  // Update map center when user location changes
-  useEffect(() => {
-    if (!googleMapRef.current || !isMapLoaded) return;
-
-    if (userLocation) {
-      googleMapRef.current.panTo(userLocation);
-      googleMapRef.current.setZoom(12);
-
-      // Show user location marker (blue circle)
-      if (userMarkerRef.current) {
-        userMarkerRef.current.setPosition(userLocation);
-        userMarkerRef.current.setMap(googleMapRef.current);
-      } else {
-        userMarkerRef.current = new google.maps.Marker({
-          position: userLocation,
-          map: googleMapRef.current,
-          title: "Your Location",
-          icon: {
-            url: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#3b82f6" stroke="#ffffff" stroke-width="3"/><circle cx="12" cy="12" r="4" fill="#ffffff"/></svg>'),
-          },
-        });
-      }
-    }
-  }, [userLocation, isMapLoaded]);
-
-  // Update locker markers
-  const updateMarkers = useCallback(() => {
-    if (!googleMapRef.current || !isMapLoaded) return;
-
-    // Clear existing markers
-    markersRef.current.forEach((marker) => marker.setMap(null));
-    markersRef.current = [];
-
-    // Add new markers
-    lockers.forEach((locker) => {
-      const coords = parseCoordinates(locker.coordinates);
-
-      const marker = new google.maps.Marker({
-        position: coords,
-        map: googleMapRef.current,
-        title: locker.name,
-      });
-
-      marker.addListener("click", () => {
-        if (!infoWindowRef.current || !googleMapRef.current) return;
-
-        const container = document.createElement("div");
-        const root = createRoot(container);
-        root.render(<LockerInfoContent locker={locker} />);
-
-        infoWindowRef.current.setContent(container);
-        infoWindowRef.current.open(googleMapRef.current, marker);
-      });
-
-      markersRef.current.push(marker);
-    });
-  }, [lockers, isMapLoaded]);
-
-  useEffect(() => {
-    if (isMapLoaded) {
-      updateMarkers();
-    }
-  }, [updateMarkers, isMapLoaded]);
-
-  async function loadLockers() {
+  async function loadLockers(cancelled?: boolean) {
     try {
       setLoading(true);
+      setLoadError(null);
       const data = await lockerApi.getAll();
+      if (cancelled) return;
       setLockers(data);
     } catch (err) {
-      addToast(getErrorMessage(err), "error");
+      if (cancelled) return;
+      const message = getErrorMessage(err);
+      setLoadError(message);
+      addToast(message, "error");
     } finally {
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     }
-  }
-
-  function parseCoordinates(coordString: string): { lat: number; lng: number } {
-    const [lat, lng] = coordString.split(",").map((s) => parseFloat(s.trim()));
-    return { lat, lng };
   }
 
   if (loading) {
@@ -243,13 +141,24 @@ export function HomePage() {
         </p>
       </div>
 
-      {/* Retry button if no lockers loaded */}
-      {!loading && lockers.length === 0 && (
-        <div className="mx-4 mt-4 p-4 rounded-xl bg-muted text-center">
-          <p className="text-sm text-muted-foreground mb-3">
-            Unable to load lockers
-          </p>
-          <Button variant="outline" size="sm" onClick={loadLockers}>
+      {/* Error banner with retry — persists until lockers are loaded */}
+      {loadError && lockers.length === 0 && (
+        <div className="mx-4 mt-4 p-4 rounded-xl bg-destructive/10 text-center space-y-3">
+          {!isOnline ? (
+            <>
+              <WifiOff className="h-8 w-8 text-destructive mx-auto" />
+              <p className="text-sm font-medium text-destructive">You're offline</p>
+              <p className="text-sm text-muted-foreground">
+                Lockers will load automatically when you reconnect.
+              </p>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+              <p className="text-sm font-medium text-destructive">{loadError}</p>
+            </>
+          )}
+          <Button variant="outline" size="sm" onClick={() => loadLockers(false)}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -258,7 +167,7 @@ export function HomePage() {
 
       {/* Map */}
       <div className="flex-1 relative">
-        {!isMapLoaded && (
+        {!isLoaded && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
             <div className="text-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
@@ -282,16 +191,6 @@ export function HomePage() {
                 Select a locker when purchasing items on EcoPlate marketplace
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                window.location.href = "/";
-              }}
-            >
-              <ExternalLink className="h-4 w-4 mr-1" />
-              EcoPlate
-            </Button>
           </div>
         </CardContent>
       </Card>

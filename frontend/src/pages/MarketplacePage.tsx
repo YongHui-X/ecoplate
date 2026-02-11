@@ -171,7 +171,7 @@ export default function MarketplacePage() {
                 className="pl-11"
               />
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-1 sm:px-1 touch-pan-x scrollbar-hide">
               {categories.map((cat) => (
                 <button
                   key={cat}

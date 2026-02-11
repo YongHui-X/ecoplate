@@ -169,7 +169,7 @@ export default function Layout() {
 
         {/* Main content - adjusted for mobile header and bottom tabs, with left margin for fixed sidebar */}
         <main className="flex-1 min-h-screen lg:ml-64 overflow-x-hidden">
-          <div className="pt-[calc(env(safe-area-inset-top,0px)+80px)] pb-[calc(env(safe-area-inset-bottom,0px)+72px)] lg:pt-8 lg:pb-8 px-4 lg:px-10">
+          <div className="pt-[calc(env(safe-area-inset-top,0px)+56px)] sm:pt-[calc(env(safe-area-inset-top,0px)+64px)] pb-[calc(env(safe-area-inset-bottom,0px)+64px)] sm:pb-[calc(env(safe-area-inset-bottom,0px)+72px)] lg:pt-8 lg:pb-8 px-4 lg:px-10">
             <Outlet />
           </div>
         </main>

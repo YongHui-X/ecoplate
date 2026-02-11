@@ -177,7 +177,7 @@ export function ImagePicker({
 
       {/* Image preview grid */}
       {images.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
           {images.map((imageUrl, index) => (
             <div
               key={index}

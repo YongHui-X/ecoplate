@@ -21,13 +21,14 @@ services:
       - RECOMMENDATION_ENGINE_URL=http://recommendation-engine:5000
     volumes:
       - ecoplate-data:/app/data
+      - ecoplate-uploads:/app/public/uploads
     depends_on:
       recommendation-engine:
         condition: service_healthy
     networks:
       - ecoplate-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      test: ["CMD", "wget", "-qO/dev/null", "http://localhost:3000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -62,4 +63,6 @@ networks:
 
 volumes:
   ecoplate-data:
+    driver: local
+  ecoplate-uploads:
     driver: local

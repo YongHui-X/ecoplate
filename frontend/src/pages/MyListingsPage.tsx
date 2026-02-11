@@ -268,24 +268,24 @@ function ListingCard({ listing, onDelete }: ListingCardProps) {
 
         {/* Actions */}
         {listing.status === "active" && (
-          <div className="flex gap-2" onClick={handleActionClick}>
+          <div className="flex gap-1.5 sm:gap-2" onClick={handleActionClick}>
             <Button
               variant="outline"
               size="sm"
-              className="flex-1"
+              className="flex-1 text-xs sm:text-sm px-2 sm:px-3"
               onClick={() => navigate(`/marketplace/${listing.id}/edit`)}
             >
-              <Edit className="h-3 w-3 mr-1" />
-              Edit
+              <Edit className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">Edit</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => onDelete(listing.id)}
-              className="flex-1 text-red-600 hover:text-red-700"
+              className="flex-1 text-xs sm:text-sm px-2 sm:px-3 text-red-600 hover:text-red-700"
             >
-              <Trash2 className="h-3 w-3 mr-1" />
-              Delete
+              <Trash2 className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">Delete</span>
             </Button>
           </div>
         )}

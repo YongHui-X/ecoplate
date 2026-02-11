@@ -150,7 +150,7 @@ export default function NotificationBell() {
           {/* Dropdown panel - fixed on mobile, absolute on desktop */}
           <div
             ref={dropdownRef}
-            className="bg-card border shadow-lg overflow-hidden z-[9999] rounded-2xl sm:rounded-xl fixed left-4 right-4 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-80 notification-dropdown"
+            className="bg-card border shadow-lg overflow-hidden z-[9999] rounded-2xl sm:rounded-xl fixed inset-x-2 top-16 bottom-auto max-h-[70vh] sm:inset-auto sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-80 sm:max-h-[400px] notification-dropdown"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-card sticky top-0">
