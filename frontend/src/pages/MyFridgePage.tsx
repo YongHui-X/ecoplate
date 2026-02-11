@@ -722,6 +722,9 @@ function ScanReceiptModal({
         return;
       }
 
+      const imageSizeKB = Math.round(base64.length / 1024);
+      console.log(`[ProcessReceipt] Image size: ${imageSizeKB}KB (${(imageSizeKB / 1024).toFixed(2)}MB)`);
+
       setScanning(true);
       setShowCamera(false);
       const startTime = Date.now();
@@ -749,14 +752,18 @@ function ScanReceiptModal({
           console.log("[ProcessReceipt] Successfully processed items:", response.items.length);
           setScanError(null);
         }
-      } catch (error) {
-        console.error("[ProcessReceipt] Error during scan:", error);
+      } catch (error: unknown) {
+        const err = error as { status?: number; message?: string };
+        console.error("[ProcessReceipt] Error during scan:", {
+          message: err?.message,
+          status: err?.status,
+          fullError: error,
+        });
         const message = error instanceof Error
           ? error.message
           : "Failed to analyze receipt. Please check image clarity.";
         addToast(message, "error");
         setScanError(message);
-        // Keep preview visible - don't clear capturedPreview
       } finally {
         // Ensure loading screen shows for at least 800ms
         const elapsedTime = Date.now() - startTime;
@@ -804,18 +811,13 @@ function ScanReceiptModal({
 
   // When user confirms captured photo, compress and show preview
   const handleConfirmPhoto = async () => {
-    if (camera.capturedImage) {
-      try {
-        const base64 = await compressBase64(camera.capturedImage);
-        setCapturedPreview(base64);
-      } catch {
-        // Fallback: use original if compression fails
-        setCapturedPreview(camera.capturedImage);
-      }
-      setShowPreview(true);
-      setShowCamera(false);
-      camera.stopCamera();
-    }
+    const image = camera.capturedImage;
+    if (!image) return;
+    const base64 = await compressBase64(image);
+    setCapturedPreview(base64);
+    setShowPreview(true);
+    setShowCamera(false);
+    camera.stopCamera();
   };
 
   const handleOpenCamera = () => {
@@ -919,7 +921,7 @@ function ScanReceiptModal({
         });
         addedCount++;
       }
-      addToast(`Added ${addedCount} items to your fridge!`, "success");
+      addToast(`Added/updated ${addedCount} items in your fridge!`, "success");
       onScanned();
     } catch {
       if (addedCount > 0) {
@@ -1787,13 +1789,9 @@ function TrackConsumptionModal({
   );
 
   const handleConfirmPhoto = async () => {
-    if (!camera.capturedImage) return;
-    let base64: string;
-    try {
-      base64 = await compressBase64(camera.capturedImage);
-    } catch {
-      base64 = camera.capturedImage;
-    }
+    const image = camera.capturedImage;
+    if (!image) return;
+    const base64 = await compressBase64(image);
     const handler = step === "raw-input" ? processRawPhoto : processWastePhoto;
     handler(base64);
     camera.stopCamera();
