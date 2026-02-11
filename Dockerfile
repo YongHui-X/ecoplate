@@ -77,8 +77,8 @@ FROM oven/bun:1.2.5-alpine AS production
 
 WORKDIR /app
 
-# Update system packages to get security patches
-RUN apk update && apk upgrade --no-cache
+# Update system packages to get security patches and install wget for health checks
+RUN apk update && apk upgrade --no-cache && apk add --no-cache wget
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S ecoplate && \

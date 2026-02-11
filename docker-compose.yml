@@ -21,6 +21,7 @@ services:
       - RECOMMENDATION_ENGINE_URL=http://recommendation-engine:5000
     volumes:
       - ecoplate-data:/app/data
+      - ecoplate-uploads:/app/public/uploads
     depends_on:
       recommendation-engine:
         condition: service_healthy
@@ -62,4 +63,6 @@ networks:
 
 volumes:
   ecoplate-data:
+    driver: local
+  ecoplate-uploads:
     driver: local

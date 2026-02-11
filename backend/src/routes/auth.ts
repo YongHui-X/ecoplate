@@ -1,6 +1,6 @@
 import { Router, json, error, parseBody } from "../utils/router";
 import { db } from "../db/connection";
-import { users } from "../db/schema";
+import { users, userPoints } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -51,6 +51,13 @@ export function registerAuthRoutes(router: Router) {
           avatarUrl: data.avatarUrl,
         })
         .returning();
+
+      // Initialize user points for gamification
+      await db.insert(userPoints).values({
+        userId: user.id,
+        totalPoints: 0,
+        currentStreak: 0,
+      });
 
       const payload: JWTPayload = {
         sub: user.id.toString(),

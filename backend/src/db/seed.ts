@@ -773,6 +773,25 @@ const sampleRewards = [
 
 async function seed() {
   try {
+    // Check if --force flag is passed to force re-seeding
+    const forceReseed = process.argv.includes("--force");
+
+    // Check if database already has data
+    const existingUsers = await db.query.users.findMany({ limit: 1 });
+
+    if (existingUsers.length > 0 && !forceReseed) {
+      console.log("========================================");
+      console.log("Database already has data - skipping seed.");
+      console.log("To force re-seed, run: bun run db:seed --force");
+      console.log("========================================\n");
+      sqlite.close();
+      return;
+    }
+
+    if (forceReseed) {
+      console.log("Force flag detected - re-seeding database...\n");
+    }
+
     // Clear existing data in correct order (respecting foreign keys)
     console.log("Clearing existing data...");
     sqlite.exec("DELETE FROM user_redemptions");
