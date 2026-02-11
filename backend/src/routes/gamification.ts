@@ -97,7 +97,7 @@ export function registerGamificationRoutes(router: Router) {
         points: {
           total: detailedStats.computedTotalPoints,
           currentStreak: points.currentStreak,
-          longestStreak: detailedStats.longestStreak,
+          longestStreak: Math.max(detailedStats.longestStreak, points.currentStreak),
         },
         stats: {
           totalActiveDays: detailedStats.totalActiveDays,

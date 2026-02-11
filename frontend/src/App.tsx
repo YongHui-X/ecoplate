@@ -19,7 +19,12 @@ import AccountPage from "./pages/AccountPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import RewardsPage from "./pages/RewardsPage";
 import MyRedemptionsPage from "./pages/MyRedemptionsPage";
-import EcoLockerRedirectPage from "./pages/EcoLockerRedirectPage";
+import EcoLockerHomePage from "./features/ecolocker/pages/EcoLockerHomePage";
+import SelectLockerPage from "./features/ecolocker/pages/SelectLockerPage";
+import LockerPaymentPage from "./features/ecolocker/pages/LockerPaymentPage";
+import LockerOrdersPage from "./features/ecolocker/pages/LockerOrdersPage";
+import LockerOrderDetailPage from "./features/ecolocker/pages/LockerOrderDetailPage";
+import LockerNotificationsPage from "./features/ecolocker/pages/LockerNotificationsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -68,7 +73,12 @@ function App() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="rewards" element={<RewardsPage />} />
         <Route path="rewards/my-redemptions" element={<MyRedemptionsPage />} />
-        <Route path="ecolocker-redirect" element={<EcoLockerRedirectPage />} />
+        <Route path="ecolocker" element={<EcoLockerHomePage />} />
+        <Route path="ecolocker/select-locker" element={<SelectLockerPage />} />
+        <Route path="ecolocker/payment/:orderId" element={<LockerPaymentPage />} />
+        <Route path="ecolocker/orders" element={<LockerOrdersPage />} />
+        <Route path="ecolocker/orders/:orderId" element={<LockerOrderDetailPage />} />
+        <Route path="ecolocker/notifications" element={<LockerNotificationsPage />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
     </Routes>

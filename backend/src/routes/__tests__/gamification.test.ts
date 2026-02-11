@@ -119,7 +119,7 @@ function registerTestGamificationRoutes(
       points: {
         total: points.totalPoints,
         currentStreak: points.currentStreak,
-        longestStreak: 0, // Simplified for tests
+        longestStreak: Math.max(0, points.currentStreak), // Best streak >= current streak
       },
       stats: {
         totalActiveDays: 0,
@@ -621,6 +621,24 @@ describe("GET /api/v1/gamification/points", () => {
     const data = res.data as { points: { total: number; currentStreak: number } };
     expect(data.points.total).toBe(100);
     expect(data.points.currentStreak).toBe(5);
+  });
+
+  test("longestStreak is always >= currentStreak", async () => {
+    // When currentStreak is higher than computed longestStreak (hardcoded 0 in test),
+    // the Math.max guard ensures longestStreak >= currentStreak
+    await testDb.insert(schema.userPoints).values({
+      userId: testUserId,
+      totalPoints: 50,
+      currentStreak: 7,
+    });
+
+    const router = createRouter();
+    const res = await makeRequest(router, "GET", "/api/v1/gamification/points");
+
+    expect(res.status).toBe(200);
+    const data = res.data as { points: { total: number; currentStreak: number; longestStreak: number } };
+    expect(data.points.currentStreak).toBe(7);
+    expect(data.points.longestStreak).toBeGreaterThanOrEqual(data.points.currentStreak);
   });
 
   test("consumed and wasted are filtered from transactions", async () => {

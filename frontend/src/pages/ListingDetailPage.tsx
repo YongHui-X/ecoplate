@@ -82,7 +82,7 @@ export default function ListingDetailPage() {
     setActionLoading(true);
     try {
       const result = await marketplaceService.completeListing(Number(id));
-      addToast("Listing marked as sold!", "success");
+      addToast(`Listing marked as sold! +${result.points.earned} points`, "success");
       showBadgeToasts(result, addToast);
       loadListing();
     } catch (error: unknown) {
@@ -429,10 +429,7 @@ export default function ListingDetailPage() {
                     Message to Buy
                   </Button>
                   <Button
-                    onClick={() => {
-                      const token = localStorage.getItem("token");
-                      window.location.href = `/ecolocker?token=${token}&listingId=${listing.id}`;
-                    }}
+                    onClick={() => navigate(`/ecolocker/select-locker?listingId=${listing.id}`)}
                     disabled={actionLoading}
                     variant="outline"
                     className="w-full border-primary/50 hover:bg-primary/10"
@@ -451,10 +448,7 @@ export default function ListingDetailPage() {
                     </CardContent>
                   </Card>
                   <Button
-                    onClick={() => {
-                      const token = localStorage.getItem("token");
-                      window.location.href = `/ecolocker?token=${token}&listingId=${listing.id}`;
-                    }}
+                    onClick={() => navigate(`/ecolocker/select-locker?listingId=${listing.id}`)}
                     disabled={actionLoading}
                     className="w-full border-primary/50 hover:bg-primary/10"
                   >

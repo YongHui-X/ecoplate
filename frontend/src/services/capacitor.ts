@@ -52,28 +52,64 @@ export async function initializeCapacitor() {
   });
 }
 
-// Build the URL for navigating to EcoLocker
-// On Capacitor, uses absolute URL to remote server since EcoLocker isn't bundled in the APK
-// On web, uses relative path which works fine via the same-origin server
-export function getEcoLockerUrl(token: string, listingId: number): string {
-  if (isNative) {
-    const baseUrl = import.meta.env.VITE_API_URL
-      ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
-      : 'https://18.143.173.20';
-    return `${baseUrl}/ecolocker?token=${token}&listingId=${listingId}`;
-  }
-  return `/ecolocker?token=${token}&listingId=${listingId}`;
-}
+// Hybrid geolocation that uses Capacitor on native, browser API on web
+export async function getCurrentPosition(): Promise<{
+  lat: number;
+  lng: number;
+}> {
+  // Singapore center as default
+  const defaultLocation = { lat: 1.3521, lng: 103.8198 };
 
-// Build the URL for navigating to EcoLocker home/orders page (without specific listing)
-export function getEcoLockerHomeUrl(token: string): string {
   if (isNative) {
-    const baseUrl = import.meta.env.VITE_API_URL
-      ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
-      : 'https://18.143.173.20';
-    return `${baseUrl}/ecolocker?token=${token}`;
+    try {
+      const { Geolocation } = await import('@capacitor/geolocation');
+
+      const permission = await Geolocation.checkPermissions();
+      if (permission.location !== 'granted') {
+        const request = await Geolocation.requestPermissions();
+        if (request.location !== 'granted') {
+          return defaultLocation;
+        }
+      }
+
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+      });
+
+      return {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      };
+    } catch (error) {
+      console.error('Capacitor geolocation error:', error);
+      return defaultLocation;
+    }
   }
-  return `/ecolocker?token=${token}`;
+
+  // Web fallback
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(defaultLocation);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      () => {
+        resolve(defaultLocation);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      }
+    );
+  });
 }
 
 // Camera utility for receipt scanning
