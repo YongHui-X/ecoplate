@@ -252,6 +252,8 @@ export async function getDetailedPointsStats(userId: number) {
   monthAgoDate.setUTCMonth(monthAgoDate.getUTCMonth() - 1);
   const monthAgoStr = monthAgoDate.toISOString().slice(0, 10);
 
+  const yearStartStr = `${now.getUTCFullYear()}-01-01`;
+
   // Breakdown by type (all interactions)
   const breakdownByType: Record<string, { count: number; totalPoints: number }> = {
     consumed: { count: 0, totalPoints: 0 },
@@ -263,6 +265,8 @@ export async function getDetailedPointsStats(userId: number) {
   let pointsToday = 0;
   let pointsThisWeek = 0;
   let pointsThisMonth = 0;
+  let pointsThisYear = 0;
+  let computedTotalPoints = 0;
 
   // Collect unique dates with positive actions for streak computation
   const activeDateSet = new Set<string>();
@@ -308,6 +312,9 @@ export async function getDetailedPointsStats(userId: number) {
     const monthKey = dateKey.substring(0, 7); // YYYY-MM
     pointsByMonth.set(monthKey, (pointsByMonth.get(monthKey) || 0) + points);
 
+    // Accumulate computed total from all interactions
+    computedTotalPoints += points;
+
     // Time-windowed points using string comparison (YYYY-MM-DD sorts lexicographically)
     if (dateKey >= todayStr) {
       pointsToday += points;
@@ -317,6 +324,9 @@ export async function getDetailedPointsStats(userId: number) {
     }
     if (dateKey >= monthAgoStr) {
       pointsThisMonth += points;
+    }
+    if (dateKey >= yearStartStr) {
+      pointsThisYear += points;
     }
 
     // Track active days for streak (positive actions only)
@@ -379,6 +389,8 @@ export async function getDetailedPointsStats(userId: number) {
     pointsToday,
     pointsThisWeek,
     pointsThisMonth,
+    pointsThisYear,
+    computedTotalPoints,
     bestDayPoints,
     averagePointsPerActiveDay,
     breakdownByType,

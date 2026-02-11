@@ -101,6 +101,7 @@ function registerTestGamificationRoutes(
         pointsToday: 0,
         pointsThisWeek: 0,
         pointsThisMonth: 0,
+        pointsThisYear: 0,
         bestDayPoints: 0,
         averagePointsPerActiveDay: 0,
       },
@@ -598,11 +599,13 @@ describe("GET /api/v1/gamification/points", () => {
     expect(res.status).toBe(200);
     const data = res.data as {
       points: { total: number; currentStreak: number };
+      stats: { pointsThisYear: number };
       transactions: unknown[];
     };
     expect(data.points).toBeDefined();
     expect(data.points.total).toBe(0);
     expect(data.points.currentStreak).toBe(0);
+    expect(data.stats.pointsThisYear).toBe(0);
     expect(data.transactions).toEqual([]);
   });
 

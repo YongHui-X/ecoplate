@@ -68,10 +68,10 @@ describe("RewardsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockImplementation((url: string) => {
-      if (url.includes("/api/v1/rewards/balance")) {
+      if (url.includes("/api/v1/gamification/points")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ balance: 1000 }),
+          json: () => Promise.resolve({ points: { total: 1000 } }),
         });
       }
       if (url.includes("/api/v1/rewards") && !url.includes("redeem")) {
@@ -173,10 +173,10 @@ describe("RewardsPage - Filtering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockImplementation((url: string) => {
-      if (url.includes("/api/v1/rewards/balance")) {
+      if (url.includes("/api/v1/gamification/points")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ balance: 1000 }),
+          json: () => Promise.resolve({ points: { total: 1000 } }),
         });
       }
       if (url.includes("/api/v1/rewards")) {
@@ -249,10 +249,10 @@ describe("RewardsPage - Redemption", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.includes("/api/v1/rewards/balance")) {
+      if (url.includes("/api/v1/gamification/points")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ balance: 1000 }),
+          json: () => Promise.resolve({ points: { total: 1000 } }),
         });
       }
       if (url.includes("/api/v1/rewards/redeem") && options?.method === "POST") {
@@ -423,10 +423,10 @@ describe("RewardsPage - Error Handling", () => {
 
   it("should show error message on redemption failure", async () => {
     mockFetch.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.includes("/api/v1/rewards/balance")) {
+      if (url.includes("/api/v1/gamification/points")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ balance: 1000 }),
+          json: () => Promise.resolve({ points: { total: 1000 } }),
         });
       }
       if (url.includes("/api/v1/rewards/redeem") && options?.method === "POST") {
@@ -472,10 +472,10 @@ describe("RewardsPage - Empty State", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockImplementation((url: string) => {
-      if (url.includes("/api/v1/rewards/balance")) {
+      if (url.includes("/api/v1/gamification/points")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ balance: 0 }),
+          json: () => Promise.resolve({ points: { total: 0 } }),
         });
       }
       if (url.includes("/api/v1/rewards")) {

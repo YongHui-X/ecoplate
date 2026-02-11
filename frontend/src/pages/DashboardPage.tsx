@@ -92,8 +92,6 @@ interface FoodData {
 interface PointsData {
   points: {
     total: number;
-    available: number;
-    lifetime: number;
     currentStreak: number;
     longestStreak: number;
   };
@@ -101,6 +99,7 @@ interface PointsData {
     pointsToday: number;
     pointsThisWeek: number;
     pointsThisMonth: number;
+    pointsThisYear: number;
   };
 }
 
@@ -247,7 +246,7 @@ export default function DashboardPage() {
             ? (pointsData?.stats?.pointsToday ?? 0)
             : activePeriod === "month"
               ? (pointsData?.stats?.pointsThisMonth ?? 0)
-              : (pointsData?.points.total ?? 0)
+              : (pointsData?.stats?.pointsThisYear ?? 0)
         }`,
         icon: Star,
         color: "text-yellow-500",

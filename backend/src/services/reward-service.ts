@@ -1,6 +1,7 @@
 import { db } from "../index";
 import { rewards, userRedemptions, userPoints } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { getDetailedPointsStats } from "./gamification-service";
 
 // Generate a unique redemption code
 function generateRedemptionCode(): string {
@@ -21,12 +22,10 @@ export async function getAvailableRewards() {
     .orderBy(rewards.pointsCost);
 }
 
-// Get user's current points balance
+// Get user's current points balance (uses computed total for consistency)
 export async function getUserPointsBalance(userId: number): Promise<number> {
-  const result = await db.query.userPoints.findFirst({
-    where: eq(userPoints.userId, userId),
-  });
-  return result?.totalPoints ?? 0;
+  const stats = await getDetailedPointsStats(userId);
+  return stats.computedTotalPoints;
 }
 
 // Redeem a reward
@@ -48,12 +47,8 @@ export async function redeemReward(userId: number, rewardId: number) {
     throw new Error("Reward is out of stock");
   }
 
-  // Get user's points
-  const userPointsRecord = await db.query.userPoints.findFirst({
-    where: eq(userPoints.userId, userId),
-  });
-
-  const currentPoints = userPointsRecord?.totalPoints ?? 0;
+  // Get user's computed points balance
+  const currentPoints = await getUserPointsBalance(userId);
 
   if (currentPoints < reward.pointsCost) {
     throw new Error("Insufficient points");
@@ -88,10 +83,14 @@ export async function redeemReward(userId: number, rewardId: number) {
     })
     .returning();
 
-  // Deduct points from user
+  // Deduct points from stored balance
+  const userPointsRecord = await db.query.userPoints.findFirst({
+    where: eq(userPoints.userId, userId),
+  });
+  const storedPoints = userPointsRecord?.totalPoints ?? 0;
   await db
     .update(userPoints)
-    .set({ totalPoints: currentPoints - reward.pointsCost })
+    .set({ totalPoints: storedPoints - reward.pointsCost })
     .where(eq(userPoints.userId, userId));
 
   // Decrease stock

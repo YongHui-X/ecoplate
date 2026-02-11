@@ -63,13 +63,13 @@ export default function RewardsPage() {
     try {
       setLoading(true);
 
-      const [rewardsData, balanceData] = await Promise.all([
+      const [rewardsData, pointsData] = await Promise.all([
         api.get<Reward[]>("/rewards"),
-        api.get<{ balance: number }>("/rewards/balance"),
+        api.get<{ points: { total: number } }>("/gamification/points"),
       ]);
 
       setRewards(rewardsData);
-      setBalance(balanceData.balance);
+      setBalance(pointsData.points.total);
     } catch (err) {
       console.error("Failed to fetch rewards:", err);
     } finally {
@@ -94,6 +94,8 @@ export default function RewardsPage() {
           r.id === selectedReward.id ? { ...r, stock: r.stock - 1 } : r
         )
       );
+
+      window.dispatchEvent(new Event("points:updated"));
     } catch (err: any) {
       setError(err.message || "Failed to redeem reward. Please try again.");
     } finally {

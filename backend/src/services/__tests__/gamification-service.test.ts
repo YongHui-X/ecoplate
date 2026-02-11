@@ -663,6 +663,44 @@ describe("getDetailedPointsStats", () => {
     // pointsToday = 79 + 15 = 94
     expect(stats.pointsToday).toBe(94);
   });
+
+  test("computes pointsThisYear correctly (this year vs last year)", async () => {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    // Use a date from last year
+    const lastYear = `${now.getUTCFullYear() - 1}-06-15`;
+
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 1, type: "consumed" },
+      { userId, productId, todayDate: lastYear, quantity: 1, type: "consumed" },
+    ]);
+
+    const stats = await getDetailedPointsStats(userId);
+
+    // Only today's interaction should count for this year
+    // consumed dairy: round(1 * 7.5) = 8
+    expect(stats.pointsThisYear).toBe(8);
+  });
+
+  test("computedTotalPoints matches sum of all interactions", async () => {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const lastYear = `${now.getUTCFullYear() - 1}-03-10`;
+
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 1, type: "consumed" },
+      { userId, productId, todayDate: today, quantity: 1, type: "sold" },
+      { userId, productId, todayDate: lastYear, quantity: 1, type: "consumed" },
+    ]);
+
+    const stats = await getDetailedPointsStats(userId);
+
+    // consumed today: round(1 * 7.5) = 8
+    // sold today: round(1 * 7.5 * 1.5) = round(11.25) = 11
+    // consumed last year: round(1 * 7.5) = 8
+    // total = 8 + 11 + 8 = 27
+    expect(stats.computedTotalPoints).toBe(27);
+  });
 });
 
 // ── getUserMetrics ───────────────────────────────────────────────────

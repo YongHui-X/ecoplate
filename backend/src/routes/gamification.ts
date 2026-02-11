@@ -69,7 +69,7 @@ export function registerGamificationRoutes(router: Router) {
 
       return json({
         points: {
-          total: points.totalPoints,
+          total: detailedStats.computedTotalPoints,
           currentStreak: points.currentStreak,
           longestStreak: detailedStats.longestStreak,
         },
@@ -80,6 +80,7 @@ export function registerGamificationRoutes(router: Router) {
           pointsToday: detailedStats.pointsToday,
           pointsThisWeek: detailedStats.pointsThisWeek,
           pointsThisMonth: detailedStats.pointsThisMonth,
+          pointsThisYear: detailedStats.pointsThisYear,
           bestDayPoints: detailedStats.bestDayPoints,
           averagePointsPerActiveDay: detailedStats.averagePointsPerActiveDay,
         },
