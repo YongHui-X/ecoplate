@@ -10,6 +10,7 @@ import { z } from "zod";
 
 const redeemSchema = z.object({
   rewardId: z.number().int().positive(),
+  quantity: z.number().int().min(1).max(10).optional().default(1),
 });
 
 export function registerRewardsRoutes(router: Router) {
@@ -44,7 +45,7 @@ export function registerRewardsRoutes(router: Router) {
       const body = await parseBody(req);
       const data = redeemSchema.parse(body);
 
-      const result = await redeemReward(user.id, data.rewardId);
+      const result = await redeemReward(user.id, data.rewardId, data.quantity);
       return json(result);
     } catch (e: any) {
       if (e instanceof z.ZodError) {

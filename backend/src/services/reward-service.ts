@@ -28,8 +28,8 @@ export async function getUserPointsBalance(userId: number): Promise<number> {
   return stats.computedTotalPoints;
 }
 
-// Redeem a reward
-export async function redeemReward(userId: number, rewardId: number) {
+// Redeem a reward (supports multiple quantities)
+export async function redeemReward(userId: number, rewardId: number, quantity: number = 1) {
   // Get the reward
   const reward = await db.query.rewards.findFirst({
     where: eq(rewards.id, rewardId),
@@ -43,64 +43,72 @@ export async function redeemReward(userId: number, rewardId: number) {
     throw new Error("Reward is not available");
   }
 
-  if (reward.stock <= 0) {
+  if (reward.stock < quantity) {
     throw new Error("Reward is out of stock");
   }
 
   // Get user's computed points balance
   const currentPoints = await getUserPointsBalance(userId);
+  const totalCost = reward.pointsCost * quantity;
 
-  if (currentPoints < reward.pointsCost) {
+  if (currentPoints < totalCost) {
     throw new Error("Insufficient points");
-  }
-
-  // Generate unique redemption code
-  let redemptionCode = generateRedemptionCode();
-  let attempts = 0;
-  while (attempts < 10) {
-    const existing = await db.query.userRedemptions.findFirst({
-      where: eq(userRedemptions.redemptionCode, redemptionCode),
-    });
-    if (!existing) break;
-    redemptionCode = generateRedemptionCode();
-    attempts++;
   }
 
   // Calculate expiry date (30 days from now)
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
-  // Create redemption record
-  const [redemption] = await db
-    .insert(userRedemptions)
-    .values({
-      userId,
-      rewardId,
-      pointsSpent: reward.pointsCost,
-      redemptionCode,
-      status: "pending",
-      expiresAt,
-    })
-    .returning();
+  // Create redemption records for each quantity
+  const redemptions = [];
+  for (let i = 0; i < quantity; i++) {
+    // Generate unique redemption code for each
+    let redemptionCode = generateRedemptionCode();
+    let attempts = 0;
+    while (attempts < 10) {
+      const existing = await db.query.userRedemptions.findFirst({
+        where: eq(userRedemptions.redemptionCode, redemptionCode),
+      });
+      if (!existing) break;
+      redemptionCode = generateRedemptionCode();
+      attempts++;
+    }
 
-  // Deduct points from stored balance
+    const [redemption] = await db
+      .insert(userRedemptions)
+      .values({
+        userId,
+        rewardId,
+        pointsSpent: reward.pointsCost,
+        redemptionCode,
+        status: "pending",
+        expiresAt,
+      })
+      .returning();
+
+    redemptions.push(redemption);
+  }
+
+  // Deduct total points from stored balance
   const userPointsRecord = await db.query.userPoints.findFirst({
     where: eq(userPoints.userId, userId),
   });
   const storedPoints = userPointsRecord?.totalPoints ?? 0;
   await db
     .update(userPoints)
-    .set({ totalPoints: storedPoints - reward.pointsCost })
+    .set({ totalPoints: storedPoints - totalCost })
     .where(eq(userPoints.userId, userId));
 
-  // Decrease stock
+  // Decrease stock by quantity
   await db
     .update(rewards)
-    .set({ stock: reward.stock - 1 })
+    .set({ stock: reward.stock - quantity })
     .where(eq(rewards.id, rewardId));
 
   return {
-    ...redemption,
+    redemptions,
+    totalPointsSpent: totalCost,
+    quantity,
     reward,
   };
 }
