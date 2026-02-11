@@ -739,7 +739,7 @@ const sampleRewards = [
   {
     name: "Adidas Voucher $10",
     description: "Get a $10 Adidas voucher. Treat yourself to sustainable sportswear!",
-    imageUrl: "https://logos-world.net/wp-content/uploads/2020/04/Adidas-Logo.png",
+    imageUrl: "/images/rewards/adidas.jpg",
     category: "apparel",
     pointsCost: 800,
     stock: 30,
@@ -747,7 +747,7 @@ const sampleRewards = [
   {
     name: "Nike Voucher $10",
     description: "Redeem for a $10 Nike voucher. Gear up with eco-conscious style!",
-    imageUrl: "https://logos-world.net/wp-content/uploads/2020/04/Nike-Logo.png",
+    imageUrl: "/images/rewards/nike.jpg",
     category: "apparel",
     pointsCost: 800,
     stock: 30,
@@ -764,7 +764,7 @@ const sampleRewards = [
   {
     name: "Din Tai Fung Voucher $50",
     description: "Premium $50 Din Tai Fung voucher. Treat yourself to world-famous dumplings and cuisine!",
-    imageUrl: "https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=400",
+    imageUrl: "/images/rewards/dintaifung.png",
     category: "food",
     pointsCost: 4000,
     stock: 8,
