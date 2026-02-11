@@ -13,7 +13,7 @@ import { startLockerJobs } from "./jobs/locker-jobs";
 import { registerNotificationRoutes } from "./routes/notifications";
 import { registerRewardsRoutes } from "./routes/rewards";
 import * as schema from "./db/schema";
-import { existsSync } from "fs";
+import { existsSync, statSync } from "fs";
 import { join, resolve } from "path";
 import { db } from "./db/connection";
 
@@ -136,7 +136,7 @@ async function serveStatic(path: string): Promise<Response | null> {
   // Handle uploads directory (stored in public/uploads/)
   if (path.startsWith("/uploads/")) {
     const uploadPath = safePath(publicDir, path);
-    if (!uploadPath || !existsSync(uploadPath)) return null;
+    if (!uploadPath || !existsSync(uploadPath) || statSync(uploadPath).isDirectory()) return null;
     const file = Bun.file(uploadPath);
     return new Response(file, {
       headers: { "Content-Type": getMimeType(uploadPath) },
@@ -150,8 +150,8 @@ async function serveStatic(path: string): Promise<Response | null> {
     const relativePath = path.replace(/^\/ecolocker\/?/, "/") || "/";
     let filePath = safePath(ecolockerDir, relativePath);
 
-    // SPA fallback: serve index.html for non-file paths
-    if (!filePath || relativePath === "/" || !existsSync(filePath)) {
+    // SPA fallback: serve index.html for non-file paths or directories
+    if (!filePath || relativePath === "/" || !existsSync(filePath) || statSync(filePath).isDirectory()) {
       filePath = join(ecolockerDir, "index.html");
     }
 
@@ -167,8 +167,9 @@ async function serveStatic(path: string): Promise<Response | null> {
 
   let filePath = safePath(publicDir, path);
 
-  // Default to index.html for root or non-existent files (SPA routing)
-  if (!filePath || path === "/" || !existsSync(filePath)) {
+  // Default to index.html for root, non-existent files, or directories (SPA routing)
+  // Directories must be caught here — Bun.file() on a directory causes a sendfile EINVAL error
+  if (!filePath || path === "/" || !existsSync(filePath) || statSync(filePath).isDirectory()) {
     filePath = join(publicDir, "index.html");
   }
 
