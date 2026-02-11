@@ -10,6 +10,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { ArrowLeft, MapPin, Clock, Edit, Trash2, CheckCircle, ChevronLeft, ChevronRight, MessageCircle, Package } from "lucide-react";
+import { getEcoLockerUrl } from "../services/capacitor";
 import { formatDate, getDaysUntilExpiry } from "../lib/utils";
 import { SimilarProducts } from "../components/marketplace/SimilarProducts";
 import { showBadgeToasts } from "../utils/badgeNotification";
@@ -422,7 +423,7 @@ export default function ListingDetailPage() {
                   <Button
                     onClick={() => {
                       const token = localStorage.getItem("token");
-                      window.location.href = `/ecolocker?token=${token}&listingId=${listing.id}`;
+                      window.location.href = getEcoLockerUrl(token!, listing.id);
                     }}
                     disabled={actionLoading}
                     variant="outline"
@@ -452,7 +453,7 @@ export default function ListingDetailPage() {
                   <Button
                     onClick={() => {
                       const token = localStorage.getItem("token");
-                      window.location.href = `/ecolocker?token=${token}&listingId=${listing.id}`;
+                      window.location.href = getEcoLockerUrl(token!, listing.id);
                     }}
                     disabled={actionLoading}
                     variant="outline"

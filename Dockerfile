@@ -77,8 +77,8 @@ FROM oven/bun:1.2.5-alpine AS production
 
 WORKDIR /app
 
-# Update system packages to get security patches and install wget for health checks
-RUN apk update && apk upgrade --no-cache && apk add --no-cache wget
+# Update system packages to get security patches and install wget for health checks + su-exec for entrypoint
+RUN apk update && apk upgrade --no-cache && apk add --no-cache wget su-exec
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S ecoplate && \
@@ -114,8 +114,8 @@ RUN grep -rl "Go BuildID" /usr/local/bin/ 2>/dev/null | xargs rm -f 2>/dev/null 
 # Create data directory for SQLite and make entrypoint executable
 RUN mkdir -p /app/data && chmod +x /app/entrypoint.sh && chown -R ecoplate:ecoplate /app
 
-# Switch to non-root user
-USER ecoplate
+# Do NOT switch to non-root here — entrypoint runs as root to fix
+# volume permissions, then drops to ecoplate via su-exec.
 
 # Expose port
 EXPOSE 3000
@@ -124,5 +124,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=5 \
     CMD wget -qO/dev/null http://localhost:3000/api/v1/health || exit 1
 
-# Start with entrypoint (runs migration + seed if needed, then starts server)
+# Start with entrypoint (fixes volume perms, runs migration + seed, then starts server as ecoplate)
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]

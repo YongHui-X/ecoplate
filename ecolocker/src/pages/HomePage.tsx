@@ -9,12 +9,13 @@ import {
   ExternalLink,
   RefreshCw,
   AlertCircle,
+  WifiOff,
 } from "lucide-react";
 import { lockerApi } from "../services/locker-api";
 import { getCurrentPosition } from "../services/capacitor";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
-import { getErrorMessage } from "../utils/network";
+import { getErrorMessage, useOnlineStatus } from "../utils/network";
 import type { Locker } from "../types";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -66,10 +67,12 @@ function LockerInfoContent({ locker }: { locker: Locker }) {
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { listingId } = useAuth();
+  const { listingId, clearListingId } = useAuth();
   const { addToast } = useToast();
+  const isOnline = useOnlineStatus();
   const [lockers, setLockers] = useState<Locker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   // Google Maps refs
@@ -84,21 +87,36 @@ export function HomePage() {
   // Singapore center coordinates
   const defaultCenter = { lat: 1.3521, lng: 103.8198 };
 
+  // Handle listingId redirect separately from locker loading
   useEffect(() => {
-    // If we have a pending listing ID, redirect to selection page
     if (listingId) {
-      navigate(`/select-locker?listingId=${listingId}`);
-      localStorage.removeItem("ecolocker_pending_listing");
-      return;
+      const id = listingId;
+      clearListingId();
+      navigate(`/select-locker?listingId=${id}`);
     }
+  }, [listingId, clearListingId, navigate]);
 
-    // Get user's location using Capacitor hybrid geolocation
+  // Load lockers and user location — runs on mount and when not redirecting
+  useEffect(() => {
+    if (listingId) return; // Will redirect via the effect above
+
+    let cancelled = false;
+
     getCurrentPosition().then((location) => {
-      setUserLocation(location);
+      if (!cancelled) setUserLocation(location);
     });
 
-    loadLockers();
-  }, [listingId, navigate]);
+    loadLockers(cancelled);
+
+    return () => { cancelled = true; };
+  }, [listingId]);
+
+  // Auto-retry loading lockers when coming back online after a failure
+  useEffect(() => {
+    if (isOnline && loadError && lockers.length === 0) {
+      loadLockers(false);
+    }
+  }, [isOnline]);
 
   // Load Google Maps
   useEffect(() => {
@@ -196,15 +214,20 @@ export function HomePage() {
     }
   }, [updateMarkers, isMapLoaded]);
 
-  async function loadLockers() {
+  async function loadLockers(cancelled?: boolean) {
     try {
       setLoading(true);
+      setLoadError(null);
       const data = await lockerApi.getAll();
+      if (cancelled) return;
       setLockers(data);
     } catch (err) {
-      addToast(getErrorMessage(err), "error");
+      if (cancelled) return;
+      const message = getErrorMessage(err);
+      setLoadError(message);
+      addToast(message, "error");
     } finally {
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     }
   }
 
@@ -243,13 +266,24 @@ export function HomePage() {
         </p>
       </div>
 
-      {/* Retry button if no lockers loaded */}
-      {!loading && lockers.length === 0 && (
-        <div className="mx-4 mt-4 p-4 rounded-xl bg-muted text-center">
-          <p className="text-sm text-muted-foreground mb-3">
-            Unable to load lockers
-          </p>
-          <Button variant="outline" size="sm" onClick={loadLockers}>
+      {/* Error banner with retry — persists until lockers are loaded */}
+      {loadError && lockers.length === 0 && (
+        <div className="mx-4 mt-4 p-4 rounded-xl bg-destructive/10 text-center space-y-3">
+          {!isOnline ? (
+            <>
+              <WifiOff className="h-8 w-8 text-destructive mx-auto" />
+              <p className="text-sm font-medium text-destructive">You're offline</p>
+              <p className="text-sm text-muted-foreground">
+                Lockers will load automatically when you reconnect.
+              </p>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+              <p className="text-sm font-medium text-destructive">{loadError}</p>
+            </>
+          )}
+          <Button variant="outline" size="sm" onClick={() => loadLockers(false)}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -286,7 +320,8 @@ export function HomePage() {
               variant="outline"
               size="sm"
               onClick={() => {
-                window.location.href = "/";
+                const token = localStorage.getItem("ecolocker_token");
+                window.location.href = token ? `/marketplace?token=${token}` : "/marketplace";
               }}
             >
               <ExternalLink className="h-4 w-4 mr-1" />

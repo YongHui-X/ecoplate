@@ -10,11 +10,12 @@ import {
   ArrowLeft,
   RefreshCw,
   AlertCircle,
+  WifiOff,
 } from "lucide-react";
 import { lockerApi, marketplaceApi, orderApi } from "../services/locker-api";
 import { getCurrentPosition } from "../services/capacitor";
 import { useToast } from "../contexts/ToastContext";
-import { getErrorMessage } from "../utils/network";
+import { getErrorMessage, useOnlineStatus } from "../utils/network";
 import type { Locker, Listing } from "../types";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -89,11 +90,14 @@ export function SelectLockerPage() {
   const [searchParams] = useSearchParams();
   const listingId = searchParams.get("listingId");
   const { addToast } = useToast();
+  const isOnline = useOnlineStatus();
 
   const [lockers, setLockers] = useState<Locker[]>([]);
   const [listing, setListing] = useState<(Listing & { seller: { id: number; name: string } }) | null>(null);
   const [selectedLocker, setSelectedLocker] = useState<Locker | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lockerError, setLockerError] = useState<string | null>(null);
+  const [listingError, setListingError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -110,13 +114,24 @@ export function SelectLockerPage() {
   const defaultCenter = { lat: 1.3521, lng: 103.8198 };
 
   useEffect(() => {
+    let cancelled = false;
+
     // Get user's location using Capacitor hybrid geolocation
     getCurrentPosition().then((location) => {
-      setUserLocation(location);
+      if (!cancelled) setUserLocation(location);
     });
 
-    loadData();
+    loadData(cancelled);
+
+    return () => { cancelled = true; };
   }, [listingId]);
+
+  // Auto-retry when coming back online after a locker loading failure
+  useEffect(() => {
+    if (isOnline && lockerError && lockers.length === 0) {
+      loadData(false);
+    }
+  }, [isOnline]);
 
   // Load Google Maps
   useEffect(() => {
@@ -253,20 +268,43 @@ export function SelectLockerPage() {
     }
   }, [updateMarkers, isMapLoaded, lockers]);
 
-  async function loadData() {
+  async function loadData(cancelled?: boolean) {
     try {
       setLoading(true);
-      const lockersData = await lockerApi.getAll();
-      setLockers(lockersData);
+      setLockerError(null);
 
-      if (listingId) {
-        const listingData = await marketplaceApi.getListing(parseInt(listingId, 10));
-        setListing(listingData);
+      // Load lockers and listing in parallel for faster page load
+      const lockersPromise = lockerApi.getAll();
+      const listingPromise = listingId
+        ? marketplaceApi.getListing(parseInt(listingId, 10))
+        : Promise.resolve(null);
+
+      const [lockersData, listingData] = await Promise.allSettled([
+        lockersPromise,
+        listingPromise,
+      ]);
+
+      if (cancelled) return;
+
+      // Handle lockers result
+      if (lockersData.status === "fulfilled") {
+        setLockers(lockersData.value);
+        setLockerError(null);
+      } else {
+        const message = getErrorMessage(lockersData.reason);
+        setLockerError(message);
+        addToast(message, "error");
       }
-    } catch (err) {
-      addToast(getErrorMessage(err), "error");
+
+      // Handle listing result — non-fatal, page still works without it
+      if (listingData.status === "fulfilled" && listingData.value) {
+        setListing(listingData.value);
+        setListingError(null);
+      } else if (listingData.status === "rejected") {
+        setListingError(getErrorMessage(listingData.reason));
+      }
     } finally {
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     }
   }
 
@@ -327,15 +365,31 @@ export function SelectLockerPage() {
             For: {listing.title} ({formatPrice(listing.price || 0)})
           </p>
         )}
+        {!listing && listingId && listingError && (
+          <p className="text-sm text-warning mt-1">
+            Could not load listing details. You can still select a locker.
+          </p>
+        )}
       </div>
 
-      {/* Retry button if no lockers loaded */}
-      {!loading && lockers.length === 0 && (
-        <div className="mx-4 mt-4 p-4 rounded-xl bg-muted text-center">
-          <p className="text-sm text-muted-foreground mb-3">
-            Unable to load lockers
-          </p>
-          <Button variant="outline" size="sm" onClick={loadData}>
+      {/* Error banner for locker loading failures */}
+      {lockerError && lockers.length === 0 && (
+        <div className="mx-4 mt-4 p-4 rounded-xl bg-destructive/10 text-center space-y-3">
+          {!isOnline ? (
+            <>
+              <WifiOff className="h-8 w-8 text-destructive mx-auto" />
+              <p className="text-sm font-medium text-destructive">You're offline</p>
+              <p className="text-sm text-muted-foreground">
+                Lockers will load automatically when you reconnect.
+              </p>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+              <p className="text-sm font-medium text-destructive">{lockerError}</p>
+            </>
+          )}
+          <Button variant="outline" size="sm" onClick={() => loadData(false)}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -432,7 +486,7 @@ export function SelectLockerPage() {
         </Card>
       )}
 
-      {!selectedLocker && (
+      {!selectedLocker && lockers.length > 0 && (
         <div className="p-4 text-center text-muted-foreground">
           <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
           <p>Select a locker on the map</p>

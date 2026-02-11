@@ -12,6 +12,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   listingId: number | null;
+  clearListingId: () => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -87,6 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Listen for 401 unauthorized events from api.ts to force re-login
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setListingId(null);
+    };
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
+  }, []);
+
   const login = async (email: string, password: string) => {
     const response = await api.post<{
       user: User;
@@ -98,6 +109,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(response.user);
   };
 
+  const clearListingId = () => {
+    setListingId(null);
+    localStorage.removeItem("ecolocker_pending_listing");
+  };
+
   const logout = () => {
     localStorage.removeItem("ecolocker_token");
     localStorage.removeItem("ecolocker_user");
@@ -107,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, listingId, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, listingId, clearListingId, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

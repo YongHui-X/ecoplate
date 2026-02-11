@@ -1,4 +1,15 @@
-const API_BASE = "/api/v1";
+const getApiBase = (): string => {
+  const isCapacitor = typeof window !== 'undefined' &&
+    (window as any).Capacitor !== undefined;
+
+  if (isCapacitor) {
+    return import.meta.env.VITE_API_URL || 'https://18.143.173.20/api/v1';
+  }
+
+  return '/api/v1';
+};
+
+const API_BASE = getApiBase();
 
 class ApiError extends Error {
   constructor(
@@ -37,7 +48,7 @@ async function request<T>(
     if (response.status === 401 && !skipAuthRedirect) {
       localStorage.removeItem("ecolocker_token");
       localStorage.removeItem("ecolocker_user");
-      // Don't redirect here - let the auth context handle it
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }
     throw new ApiError(response.status, data.error || "Request failed");
   }

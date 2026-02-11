@@ -12,7 +12,7 @@ import {
   Key,
   Calendar,
   Truck,
-  ExternalLink,
+  Home,
 } from "lucide-react";
 import { orderApi } from "../services/locker-api";
 import { useAuth } from "../contexts/AuthContext";
@@ -386,22 +386,30 @@ export function OrderDetailPage() {
       {/* Completed message */}
       {order.status === "collected" && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-success/10 text-success text-center">
-            <CheckCircle2 className="h-8 w-8 mx-auto mb-2" />
-            <p className="font-medium">Order Complete!</p>
-            <p className="text-sm">Thank you for using EcoLocker.</p>
+          <div className="p-6 rounded-xl bg-success/10 text-success text-center">
+            <CheckCircle2 className="h-10 w-10 mx-auto mb-3" />
+            <p className="font-semibold text-lg">Order Complete!</p>
+            <p className="text-sm mt-1">Thank you for using EcoLocker.</p>
           </div>
 
-          {/* Return to EcoPlate button */}
+          <Button
+            className="w-full"
+            onClick={() => {
+              const token = localStorage.getItem("ecolocker_token");
+              window.location.href = token ? `/marketplace?token=${token}` : "/marketplace";
+            }}
+          >
+            <Home className="h-4 w-4 mr-2" />
+            Continue Shopping on EcoPlate
+          </Button>
+
           <Button
             variant="outline"
             className="w-full"
-            onClick={() => {
-              window.location.href = "/marketplace";
-            }}
+            onClick={() => navigate("/orders")}
           >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Return to EcoPlate
+            <Package className="h-4 w-4 mr-2" />
+            View All Orders
           </Button>
         </div>
       )}
