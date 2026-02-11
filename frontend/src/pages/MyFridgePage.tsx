@@ -31,7 +31,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { cn } from "../lib/utils";
-import { formatCO2, getCO2ColorClass, calculateTotalCO2 } from "../utils/co2Utils";
+import { formatCO2, getCO2ColorClass, calculateTotalCO2, calculateProductCO2 } from "../utils/co2Utils";
 import { calculateCO2Emission } from "../utils/co2Calculator";
 import { PRODUCT_UNITS } from "../constants/units";
 import { compressImage, compressBase64 } from "../utils/compressImage";
@@ -412,9 +412,9 @@ function ProductCard({
                 <span>${product.unitPrice.toFixed(2)}</span>
               )}
               {product.co2Emission != null && (
-                <span className={cn("flex items-center gap-1", getCO2ColorClass(product.co2Emission))}>
+                <span className={cn("flex items-center gap-1", getCO2ColorClass(calculateProductCO2(product.co2Emission, product.quantity, product.unit)))}>
                   <Leaf className="h-3 w-3" />
-                  {formatCO2(product.co2Emission)}
+                  {formatCO2(calculateProductCO2(product.co2Emission, product.quantity, product.unit))}
                 </span>
               )}
               {product.purchaseDate && (
