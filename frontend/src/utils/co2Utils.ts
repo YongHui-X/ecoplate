@@ -3,9 +3,9 @@
  * Low: < 1 kg (green), Medium: 1-3 kg (yellow), High: > 3 kg (red)
  */
 export function getCO2ColorClass(co2Value: number): string {
-  if (co2Value < 1) return "text-green-600";
-  if (co2Value < 3) return "text-yellow-600";
-  return "text-red-600";
+  if (co2Value < 1) return "text-success";
+  if (co2Value < 3) return "text-warning";
+  return "text-destructive";
 }
 
 /**

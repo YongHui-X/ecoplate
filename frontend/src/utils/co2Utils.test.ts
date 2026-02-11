@@ -2,22 +2,22 @@ import { describe, it, expect } from 'vitest';
 import { getCO2ColorClass, formatCO2, calculateTotalCO2 } from './co2Utils';
 
 describe('getCO2ColorClass', () => {
-  it('should return green for low CO2 values (< 1)', () => {
-    expect(getCO2ColorClass(0)).toBe('text-green-600');
-    expect(getCO2ColorClass(0.5)).toBe('text-green-600');
-    expect(getCO2ColorClass(0.99)).toBe('text-green-600');
+  it('should return success color for low CO2 values (< 1)', () => {
+    expect(getCO2ColorClass(0)).toBe('text-success');
+    expect(getCO2ColorClass(0.5)).toBe('text-success');
+    expect(getCO2ColorClass(0.99)).toBe('text-success');
   });
 
-  it('should return yellow for medium CO2 values (1-3)', () => {
-    expect(getCO2ColorClass(1)).toBe('text-yellow-600');
-    expect(getCO2ColorClass(2)).toBe('text-yellow-600');
-    expect(getCO2ColorClass(2.99)).toBe('text-yellow-600');
+  it('should return warning color for medium CO2 values (1-3)', () => {
+    expect(getCO2ColorClass(1)).toBe('text-warning');
+    expect(getCO2ColorClass(2)).toBe('text-warning');
+    expect(getCO2ColorClass(2.99)).toBe('text-warning');
   });
 
-  it('should return red for high CO2 values (> 3)', () => {
-    expect(getCO2ColorClass(3)).toBe('text-red-600');
-    expect(getCO2ColorClass(5)).toBe('text-red-600');
-    expect(getCO2ColorClass(27)).toBe('text-red-600');
+  it('should return destructive color for high CO2 values (> 3)', () => {
+    expect(getCO2ColorClass(3)).toBe('text-destructive');
+    expect(getCO2ColorClass(5)).toBe('text-destructive');
+    expect(getCO2ColorClass(27)).toBe('text-destructive');
   });
 });
 
