@@ -316,7 +316,7 @@ const sampleListings = [
     expiryDays: 3,
     location: "Bishan|1.3513,103.8492",
     sellerIndex: 4, // Evan
-    imageUrl: "/images/marketplace/1585478259715-876acc5be8eb.jpg",
+    imageUrl: "/images/marketplace/sourdough-loaf.jpg",
   },
   // MEAT
   {
@@ -459,7 +459,7 @@ const productTemplates = [
   // Dairy
   { title: "Fresh Butter", category: "dairy", unit: "pcs", basePrice: 7.0, imageUrl: "/images/marketplace/1589985270826-4b7bb135bc9d.jpg" },
   { title: "Cream Cheese", category: "dairy", unit: "pcs", basePrice: 6.0, imageUrl: "/images/marketplace/1486297678162-eb2a19b0a32d.jpg" },
-  { title: "Sour Cream", category: "dairy", unit: "pcs", basePrice: 4.0, imageUrl: "/images/marketplace/1627482891550-3eda31e1f7dc.jpg" },
+  { title: "Sour Cream", category: "dairy", unit: "pcs", basePrice: 4.0, imageUrl: "/images/marketplace/sour-cream.jpg" },
   { title: "Cottage Cheese", category: "dairy", unit: "pcs", basePrice: 5.0, imageUrl: "/images/marketplace/1628088062854-d1870b4553da.jpg" },
   { title: "Flavored Yogurt Pack", category: "dairy", unit: "pcs", basePrice: 6.0, imageUrl: "/images/marketplace/1571212515416-fef01fc43637.jpg" },
   // Meat
@@ -488,7 +488,7 @@ const productTemplates = [
   { title: "Coconut Milk", category: "beverages", unit: "L", basePrice: 4.0, imageUrl: "/images/marketplace/1550583724-b2692b85b150.jpg" },
   // Pantry
   { title: "Olive Oil", category: "pantry", unit: "L", basePrice: 15.0, imageUrl: "/images/marketplace/1474979266404-7eaacbcd87c5.jpg" },
-  { title: "Peanut Butter", category: "pantry", unit: "pcs", basePrice: 6.0, imageUrl: "/images/marketplace/1600189020840-c6f165e672dd.jpg" },
+  { title: "Peanut Butter", category: "pantry", unit: "pcs", basePrice: 6.0, imageUrl: "/images/marketplace/peanut-butter.jpg" },
   { title: "Maple Syrup", category: "pantry", unit: "pcs", basePrice: 12.0, imageUrl: "/images/marketplace/1589496933738-f5c27bc146e3.jpg" },
   { title: "Rice Crackers", category: "pantry", unit: "pcs", basePrice: 4.0, imageUrl: "/images/marketplace/1558961363-fa8fdf82db35.jpg" },
   { title: "Instant Noodles Pack", category: "pantry", unit: "pcs", basePrice: 5.0, imageUrl: "/images/marketplace/1612929633738-8fe44f7ec841.jpg" },
