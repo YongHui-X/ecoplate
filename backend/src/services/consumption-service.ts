@@ -105,8 +105,14 @@ export function calculateWasteMetrics(
 
     const consumedQty = ingredient.quantityUsed - wastedQty;
 
-    const co2Wasted = wastedQty * ef;
-    const co2Saved = consumedQty * ef;
+    // Convert to kg for CO2 calculations (emission factors are per-kg)
+    const wastedKg = convertToKg(wastedQty, ingredient.unit);
+    const consumedKg = convertToKg(consumedQty, ingredient.unit);
+    const usedKg = convertToKg(ingredient.quantityUsed, ingredient.unit);
+
+    const co2Wasted = wastedKg * ef;
+    const co2Saved = consumedKg * ef;
+    // Economic waste ratio uses original units (ratio is unit-agnostic)
     const economicWaste =
       ingredient.quantityUsed > 0
         ? (wastedQty / ingredient.quantityUsed) * ingredient.unitPrice
@@ -117,8 +123,8 @@ export function calculateWasteMetrics(
     totalCO2Saved += co2Saved;
     totalEconomicWaste += economicWaste;
     totalEconomicConsumed += economicConsumed;
-    totalWasteWeight += wastedQty;
-    totalUsedWeight += ingredient.quantityUsed;
+    totalWasteWeight += wastedKg;
+    totalUsedWeight += usedKg;
 
     itemBreakdown.push({
       productId: ingredient.productId,

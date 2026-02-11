@@ -380,6 +380,7 @@ export default function MyFridgePage() {
             loadPendingConsumptions();
           }}
           pendingRecord={selectedPendingRecord}
+          fridgeProducts={products}
         />
       )}
     </div>
@@ -1580,10 +1581,12 @@ function TrackConsumptionModal({
   onClose,
   onComplete,
   pendingRecord,
+  fridgeProducts,
 }: {
   onClose: () => void;
   onComplete: () => void;
   pendingRecord?: PendingConsumptionRecord | null;
+  fridgeProducts: Product[];
 }) {
   const navigate = useNavigate();
   const { addToast } = useToast();
@@ -1851,20 +1854,24 @@ function TrackConsumptionModal({
     return error === "";
   };
 
-  const addIngredient = () => {
+  const availableFridgeProducts = fridgeProducts.filter(
+    (p) => p.quantity > 0 && !ingredients.some((ing) => ing.productId === p.id)
+  );
+
+  const addProductAsIngredient = (product: Product) => {
     setIngredients((prev) => [
       ...prev,
       {
         id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36),
-        productId: 0,
-        name: "",
-        matchedProductName: "",
+        productId: product.id,
+        name: product.productName,
+        matchedProductName: product.productName,
         estimatedQuantity: 1,
-        unit: null,
-        category: "other",
-        unitPrice: 0,
-        co2Emission: 0,
-        confidence: "low" as const,
+        unit: product.unit,
+        category: product.category || "other",
+        unitPrice: product.unitPrice || 0,
+        co2Emission: product.co2Emission || 0,
+        confidence: "high" as const,
       },
     ]);
   };
@@ -2342,10 +2349,24 @@ function TrackConsumptionModal({
                     {ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""}
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={addIngredient} className="shadow-sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const product = availableFridgeProducts.find((p) => p.id === Number(e.target.value));
+                    if (product) addProductAsIngredient(product);
+                  }}
+                  disabled={availableFridgeProducts.length === 0}
+                  className="h-8 rounded-lg border border-input bg-background px-2 text-sm shadow-sm"
+                >
+                  <option value="" disabled>
+                    {availableFridgeProducts.length === 0 ? "No products" : "+ Add from fridge"}
+                  </option>
+                  {availableFridgeProducts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.productName}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -2541,13 +2562,24 @@ function TrackConsumptionModal({
             <div>
               <p className="text-sm font-medium text-primary">Almost done!</p>
               <p className="text-xs text-primary/80 mt-0.5">
-                Take a photo of leftovers, or tap "Do Later" to save progress.
+                Take a photo of leftovers, tap "No Waste" if you ate everything, or "Do Later" to save progress.
               </p>
             </div>
           </div>
         }
         backButton={
           <div className="space-y-2">
+            <Button
+              variant="default"
+              onClick={() => {
+                setEditableWasteItems([]);
+                setStep("waste-review");
+              }}
+              className="w-full bg-green-600 text-white hover:bg-green-700 shadow-sm"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              No Waste (Clean Plate)
+            </Button>
             <Button
               variant="secondary"
               onClick={handleDoLater}
