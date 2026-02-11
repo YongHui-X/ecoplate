@@ -12,7 +12,6 @@ import {
   Key,
   Calendar,
   Truck,
-  Home,
 } from "lucide-react";
 import { orderApi } from "../services/locker-api";
 import { useAuth } from "../contexts/AuthContext";
@@ -24,7 +23,6 @@ import { Input } from "../components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { formatPrice, formatDateTime } from "@/lib/utils";
-import { getEcoPlateUrl } from "../services/navigation";
 
 const statusConfig: Record<
   string,
@@ -392,16 +390,6 @@ export function OrderDetailPage() {
             <p className="font-semibold text-lg">Order Complete!</p>
             <p className="text-sm mt-1">Thank you for using EcoLocker.</p>
           </div>
-
-          <Button
-            className="w-full"
-            onClick={() => {
-              window.location.href = getEcoPlateUrl();
-            }}
-          >
-            <Home className="h-4 w-4 mr-2" />
-            Continue Shopping on EcoPlate
-          </Button>
 
           <Button
             variant="outline"

@@ -6,7 +6,6 @@ import {
   Bell,
   LogOut,
   User,
-  ArrowLeft,
   Home,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -45,16 +44,6 @@ export function Layout({ children }: LayoutProps) {
 
           {user && (
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  window.location.href = getEcoPlateUrl();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                title="Back to EcoPlate"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">EcoPlate</span>
-              </button>
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
                   <User className="h-4 w-4 text-muted-foreground" />

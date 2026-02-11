@@ -6,7 +6,6 @@ import {
   Clock,
   Box,
   Loader2,
-  ExternalLink,
   RefreshCw,
   AlertCircle,
   WifiOff,
@@ -15,7 +14,6 @@ import { lockerApi } from "../services/locker-api";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { getErrorMessage, useOnlineStatus } from "../utils/network";
-import { getEcoPlateUrl } from "../services/navigation";
 import { useGoogleMap } from "../hooks/useGoogleMap";
 import { useUserLocation } from "../hooks/useUserLocation";
 import { useLockerMarkers } from "../hooks/useLockerMarkers";
@@ -193,16 +191,6 @@ export function HomePage() {
                 Select a locker when purchasing items on EcoPlate marketplace
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                window.location.href = getEcoPlateUrl();
-              }}
-            >
-              <ExternalLink className="h-4 w-4 mr-1" />
-              EcoPlate
-            </Button>
           </div>
         </CardContent>
       </Card>
