@@ -172,20 +172,20 @@ beforeEach(() => {
 // ── POINT_VALUES ─────────────────────────────────────────────────────
 
 describe("POINT_VALUES", () => {
-  test("consumed awards 5 points", () => {
-    expect(POINT_VALUES.consumed).toBe(5);
+  test("consumed awards 0 points", () => {
+    expect(POINT_VALUES.consumed).toBe(0);
   });
 
-  test("shared awards 10 points", () => {
-    expect(POINT_VALUES.shared).toBe(10);
+  test("shared awards 0 points", () => {
+    expect(POINT_VALUES.shared).toBe(0);
   });
 
   test("sold awards 8 points", () => {
     expect(POINT_VALUES.sold).toBe(8);
   });
 
-  test("wasted penalizes 3 points", () => {
-    expect(POINT_VALUES.wasted).toBe(-3);
+  test("wasted awards 0 points", () => {
+    expect(POINT_VALUES.wasted).toBe(0);
   });
 });
 
@@ -193,15 +193,13 @@ describe("POINT_VALUES", () => {
 
 describe("awardPoints", () => {
   // Product is "Milk" category "dairy": CO2 factor = 7.0 + 0.5 = 7.5
-  // consumed: round(qty * 7.5)
-  // sold: round(qty * 7.5 * 1.5)
-  // wasted: -round(qty * 7.5)
+  // Only "sold" earns points: round(qty * 7.5 * 1.5)
+  // consumed/shared/wasted all return amount=0
 
-  test("awards correct positive points for consumed (dairy, qty=1)", async () => {
+  test("consumed returns 0 points (no longer earns)", async () => {
     const result = await awardPoints(userId, "consumed", productId);
-    // 1 * 7.5 = 7.5 → round = 8
-    expect(result.amount).toBe(8);
-    expect(result.newTotal).toBe(8);
+    expect(result.amount).toBe(0);
+    expect(result.newTotal).toBe(0);
     expect(result.action).toBe("consumed");
   });
 
@@ -212,36 +210,39 @@ describe("awardPoints", () => {
     expect(result.newTotal).toBe(11);
   });
 
-  test("awards correct positive points for shared (dairy, qty=1)", async () => {
+  test("shared returns 0 points (no longer earns)", async () => {
     const result = await awardPoints(userId, "shared", productId);
-    // shared uses consumed formula: round(1 * 7.5) = 8
-    expect(result.amount).toBe(8);
-    expect(result.newTotal).toBe(8);
+    expect(result.amount).toBe(0);
+    expect(result.newTotal).toBe(0);
   });
 
-  test("penalizes points for wasted (negative)", async () => {
+  test("wasted returns 0 points (no longer penalizes)", async () => {
     await getOrCreateUserPoints(userId);
     await testDb.update(schema.userPoints)
       .set({ totalPoints: 100 })
       .where(eq(schema.userPoints.userId, userId));
 
     const result = await awardPoints(userId, "wasted", productId);
-    // -round(1 * 7.5) = -8
-    expect(result.amount).toBe(-8);
-    expect(result.newTotal).toBe(92); // 100 - 8
+    expect(result.amount).toBe(0);
+    expect(result.newTotal).toBe(100); // unchanged
   });
 
-  test("scales points with quantity", async () => {
-    const result = await awardPoints(userId, "consumed", productId, 3);
-    // round(3 * 7.5) = round(22.5) = 23
-    expect(result.amount).toBe(23);
-    expect(result.newTotal).toBe(23);
+  test("sold scales points with quantity", async () => {
+    const result = await awardPoints(userId, "sold", productId, 3);
+    // round(3 * 7.5 * 1.5) = round(33.75) = 34
+    expect(result.amount).toBe(34);
+    expect(result.newTotal).toBe(34);
   });
 
-  test("total points floor at 0 (never goes negative)", async () => {
+  test("wasted does not reduce total (amount=0)", async () => {
+    await getOrCreateUserPoints(userId);
+    await testDb.update(schema.userPoints)
+      .set({ totalPoints: 10 })
+      .where(eq(schema.userPoints.userId, userId));
+
     const result = await awardPoints(userId, "wasted", productId, 100);
-    // -round(100 * 7.5) = -750, but floor at 0
-    expect(result.newTotal).toBe(0);
+    expect(result.amount).toBe(0);
+    expect(result.newTotal).toBe(10); // unchanged
   });
 
   test("records a sustainability metric row", async () => {
@@ -262,33 +263,32 @@ describe("awardPoints", () => {
     expect(metrics.length).toBe(0);
   });
 
-  test("wasted action resets streak to 0", async () => {
-    // First set a streak via a positive action
-    await awardPoints(userId, "consumed", productId);
+  test("wasted action does not reset streak (no longer penalizes)", async () => {
+    // Set a streak via a sold action
+    await awardPoints(userId, "sold", productId);
     const pointsBefore = await getOrCreateUserPoints(userId);
     expect(pointsBefore.currentStreak).toBe(1);
 
-    // Then waste should reset streak
+    // Wasted should not change streak
     await awardPoints(userId, "wasted", productId);
     const pointsAfter = await getOrCreateUserPoints(userId);
-    expect(pointsAfter.currentStreak).toBe(0);
+    expect(pointsAfter.currentStreak).toBe(1);
   });
 
-  test("consume with fractional qty (0.2) awards scaled points", async () => {
+  test("consumed with fractional qty (0.2) returns 0 points", async () => {
     const result = await awardPoints(userId, "consumed", productId, 0.2);
-    // round(0.2 * 7.5) = round(1.5) = 2, bumped to minimum 3
-    expect(result.amount).toBe(3);
+    expect(result.amount).toBe(0);
   });
 
-  test("wasted with fractional qty (0.3) awards scaled points", async () => {
+  test("wasted with fractional qty (0.3) returns 0 points", async () => {
     await getOrCreateUserPoints(userId);
     await testDb.update(schema.userPoints)
       .set({ totalPoints: 100 })
       .where(eq(schema.userPoints.userId, userId));
 
     const result = await awardPoints(userId, "wasted", productId, 0.3);
-    // -round(0.3 * 7.5) = -round(2.25) = -2, bumped to minimum -3
-    expect(result.amount).toBe(-3);
+    expect(result.amount).toBe(0);
+    expect(result.newTotal).toBe(100); // unchanged
   });
 
   test("sold with qty=1 awards CO2-based points", async () => {
@@ -303,78 +303,73 @@ describe("awardPoints", () => {
     expect(result.amount).toBe(34);
   });
 
-  // ── Quantity scaling (dairy product, CO2 factor 7.5) ──────────────
+  // ── Quantity scaling for sold (dairy product, CO2 factor 7.5) ──────
 
-  test("consumed 2.5 kg dairy awards 19 pts", async () => {
-    const result = await awardPoints(userId, "consumed", productId, 2.5);
-    // round(2.5 * 7.5) = round(18.75) = 19
-    expect(result.amount).toBe(19);
+  test("sold 2.5 kg dairy awards 28 pts", async () => {
+    const result = await awardPoints(userId, "sold", productId, 2.5);
+    // round(2.5 * 7.5 * 1.5) = round(28.125) = 28
+    expect(result.amount).toBe(28);
   });
 
-  test("consumed 0.5 kg dairy awards 4 pts", async () => {
-    const result = await awardPoints(userId, "consumed", productId, 0.5);
-    // round(0.5 * 7.5) = round(3.75) = 4
-    expect(result.amount).toBe(4);
+  test("sold 0.5 kg dairy awards 6 pts", async () => {
+    const result = await awardPoints(userId, "sold", productId, 0.5);
+    // round(0.5 * 7.5 * 1.5) = round(5.625) = 6
+    expect(result.amount).toBe(6);
   });
 
-  test("consumed 1.0 kg dairy awards 8 pts", async () => {
-    const result = await awardPoints(userId, "consumed", productId, 1.0);
-    // round(1.0 * 7.5) = 8
-    expect(result.amount).toBe(8);
+  test("sold 1.0 kg dairy awards 11 pts", async () => {
+    const result = await awardPoints(userId, "sold", productId, 1.0);
+    // round(1.0 * 7.5 * 1.5) = round(11.25) = 11
+    expect(result.amount).toBe(11);
   });
 
-  test("consumed 10 kg dairy awards 75 pts", async () => {
-    const result = await awardPoints(userId, "consumed", productId, 10);
-    // round(10 * 7.5) = 75
-    expect(result.amount).toBe(75);
+  test("sold 10 kg dairy awards 113 pts", async () => {
+    const result = await awardPoints(userId, "sold", productId, 10);
+    // round(10 * 7.5 * 1.5) = round(112.5) = 113
+    expect(result.amount).toBe(113);
   });
 
-  test("wasted 2.0 kg dairy penalizes 15 pts", async () => {
+  test("wasted 2.0 kg dairy returns 0 pts (no penalty)", async () => {
     await getOrCreateUserPoints(userId);
     await testDb.update(schema.userPoints)
       .set({ totalPoints: 100 })
       .where(eq(schema.userPoints.userId, userId));
 
     const result = await awardPoints(userId, "wasted", productId, 2.0);
-    // -round(2.0 * 7.5) = -15
-    expect(result.amount).toBe(-15);
-    expect(result.newTotal).toBe(85); // 100 - 15
+    expect(result.amount).toBe(0);
+    expect(result.newTotal).toBe(100);
   });
 
-  test("wasted 0.5 kg dairy penalizes 4 pts", async () => {
+  test("wasted 0.5 kg dairy returns 0 pts (no penalty)", async () => {
     await getOrCreateUserPoints(userId);
     await testDb.update(schema.userPoints)
       .set({ totalPoints: 50 })
       .where(eq(schema.userPoints.userId, userId));
 
     const result = await awardPoints(userId, "wasted", productId, 0.5);
-    // -round(0.5 * 7.5) = -round(3.75) = -4
-    expect(result.amount).toBe(-4);
-    expect(result.newTotal).toBe(46);
+    expect(result.amount).toBe(0);
+    expect(result.newTotal).toBe(50);
   });
 
-  test("wasted 5.0 kg dairy penalizes 38 pts", async () => {
+  test("wasted 5.0 kg dairy returns 0 pts (no penalty)", async () => {
     await getOrCreateUserPoints(userId);
     await testDb.update(schema.userPoints)
       .set({ totalPoints: 100 })
       .where(eq(schema.userPoints.userId, userId));
 
     const result = await awardPoints(userId, "wasted", productId, 5.0);
-    // -round(5.0 * 7.5) = -38
-    expect(result.amount).toBe(-38);
-    expect(result.newTotal).toBe(62);
+    expect(result.amount).toBe(0);
+    expect(result.newTotal).toBe(100);
   });
 
-  test("shared 2.0 kg dairy awards 15 pts", async () => {
+  test("shared 2.0 kg dairy returns 0 pts", async () => {
     const result = await awardPoints(userId, "shared", productId, 2.0);
-    // round(2.0 * 7.5) = 15
-    expect(result.amount).toBe(15);
+    expect(result.amount).toBe(0);
   });
 
-  test("shared 0.3 kg dairy awards 3 pts (minimum)", async () => {
+  test("shared 0.3 kg dairy returns 0 pts", async () => {
     const result = await awardPoints(userId, "shared", productId, 0.3);
-    // round(0.3 * 7.5) = round(2.25) = 2, bumped to minimum 3
-    expect(result.amount).toBe(3);
+    expect(result.amount).toBe(0);
   });
 
   test("sold 1.5 kg dairy awards 17 pts", async () => {
@@ -383,65 +378,68 @@ describe("awardPoints", () => {
     expect(result.amount).toBe(17);
   });
 
-  test("cumulative points: consume 2kg + waste 0.5kg (dairy)", async () => {
-    // Consume 2kg: round(2 * 7.5) = 15
+  test("cumulative points: consume 2kg + waste 0.5kg both return 0 (dairy)", async () => {
     const r1 = await awardPoints(userId, "consumed", productId, 2.0);
-    expect(r1.amount).toBe(15);
-    expect(r1.newTotal).toBe(15);
+    expect(r1.amount).toBe(0);
+    expect(r1.newTotal).toBe(0);
 
-    // Waste 0.5kg: -round(0.5 * 7.5) = -4
     const r2 = await awardPoints(userId, "wasted", productId, 0.5);
-    expect(r2.amount).toBe(-4);
-    expect(r2.newTotal).toBe(11); // 15 - 4
+    expect(r2.amount).toBe(0);
+    expect(r2.newTotal).toBe(0);
   });
 
-  test("cumulative points: multiple kg-based actions accumulate correctly (dairy)", async () => {
-    // Consume 3.0 kg → round(3.0 * 7.5) = round(22.5) = 23
+  test("cumulative points: only sold accumulates (dairy)", async () => {
+    // Consume 3.0 kg → 0 points
     const r1 = await awardPoints(userId, "consumed", productId, 3.0);
-    expect(r1.newTotal).toBe(23);
+    expect(r1.newTotal).toBe(0);
 
     // Sold 2.0 kg → round(2.0 * 7.5 * 1.5) = round(22.5) = 23
     const r2 = await awardPoints(userId, "sold", productId, 2.0);
     expect(r2.amount).toBe(23);
-    expect(r2.newTotal).toBe(46); // 23 + 23
+    expect(r2.newTotal).toBe(23);
 
-    // Wasted 4.0 kg → -round(4.0 * 7.5) = -30
+    // Wasted 4.0 kg → 0 points
     const r3 = await awardPoints(userId, "wasted", productId, 4.0);
-    expect(r3.amount).toBe(-30);
-    expect(r3.newTotal).toBe(16); // 46 - 30
+    expect(r3.amount).toBe(0);
+    expect(r3.newTotal).toBe(23); // unchanged
   });
 
-  test("consume and sold increment streak only once per day", async () => {
-    // First consume action should set streak to 1
+  test("only sold increments streak", async () => {
+    // Consumed action should NOT set streak
     await awardPoints(userId, "consumed", productId);
     const after1 = await getOrCreateUserPoints(userId);
-    expect(after1.currentStreak).toBe(1);
+    expect(after1.currentStreak).toBe(0);
 
-    // Second action on the same day should NOT increment streak
+    // Sold action should set streak to 1
     await awardPoints(userId, "sold", productId);
     const after2 = await getOrCreateUserPoints(userId);
     expect(after2.currentStreak).toBe(1);
   });
 
-  test("no productId defaults to 'other' category (CO2 factor 3.0)", async () => {
+  test("no productId defaults to 'other' category, consumed returns 0", async () => {
     const result = await awardPoints(userId, "consumed", null, 1);
-    // round(1 * 3.0) = 3
-    expect(result.amount).toBe(3);
+    expect(result.amount).toBe(0);
+  });
+
+  test("no productId defaults to 'other' category, sold returns minimum 3", async () => {
+    const result = await awardPoints(userId, "sold", null, 1);
+    // round(1 * 3.0 * 1.5) = round(4.5) = 5
+    expect(result.amount).toBe(5);
   });
 });
 
 // ── updateStreak ─────────────────────────────────────────────────────
 
 describe("updateStreak", () => {
-  test("first qualifying action sets streak to 1", async () => {
+  test("first qualifying sold action sets streak to 1", async () => {
     const today = new Date().toISOString().slice(0, 10);
-    // Insert a qualifying metric
+    // Insert a qualifying metric (only sold qualifies now)
     await testDb.insert(schema.productSustainabilityMetrics).values({
       userId,
       productId,
       todayDate: today,
       quantity: 1,
-      type: "consumed",
+      type: "sold",
     });
     // Create user points record first
     await getOrCreateUserPoints(userId);
@@ -452,11 +450,29 @@ describe("updateStreak", () => {
     expect(up.currentStreak).toBe(1);
   });
 
+  test("consumed action does not qualify for streak", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await testDb.insert(schema.productSustainabilityMetrics).values({
+      userId,
+      productId,
+      todayDate: today,
+      quantity: 1,
+      type: "consumed",
+    });
+    await getOrCreateUserPoints(userId);
+
+    await updateStreak(userId);
+
+    const up = await getOrCreateUserPoints(userId);
+    // consumed doesn't qualify, so streak stays at 0
+    expect(up.currentStreak).toBe(0);
+  });
+
   test("second qualifying action on same day does not double-increment", async () => {
     const today = new Date().toISOString().slice(0, 10);
-    // Insert two metrics for today
+    // Insert two sold metrics for today
     await testDb.insert(schema.productSustainabilityMetrics).values([
-      { userId, productId, todayDate: today, quantity: 1, type: "consumed" },
+      { userId, productId, todayDate: today, quantity: 1, type: "sold" },
       { userId, productId, todayDate: today, quantity: 1, type: "sold" },
     ]);
     await getOrCreateUserPoints(userId);
@@ -465,20 +481,19 @@ describe("updateStreak", () => {
 
     const up = await getOrCreateUserPoints(userId);
     // Should still be 0 because there were already >1 interactions when updateStreak ran
-    // (the check is: if todayInteractions.length > 1, return early)
     expect(up.currentStreak).toBe(0);
   });
 
-  test("action on consecutive day increments streak", async () => {
+  test("sold action on consecutive day increments streak", async () => {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     const yesterday = new Date(now);
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-    // Yesterday's action
+    // Yesterday's sold action
     await testDb.insert(schema.productSustainabilityMetrics).values({
-      userId, productId, todayDate: yesterdayStr, quantity: 1, type: "consumed",
+      userId, productId, todayDate: yesterdayStr, quantity: 1, type: "sold",
     });
     // Set current streak to 1 (simulating yesterday's streak update)
     await getOrCreateUserPoints(userId);
@@ -486,9 +501,9 @@ describe("updateStreak", () => {
       .set({ currentStreak: 1 })
       .where(eq(schema.userPoints.userId, userId));
 
-    // Today's action (exactly 1 for today so the >1 check doesn't trigger)
+    // Today's sold action (exactly 1 for today so the >1 check doesn't trigger)
     await testDb.insert(schema.productSustainabilityMetrics).values({
-      userId, productId, todayDate: today, quantity: 1, type: "consumed",
+      userId, productId, todayDate: today, quantity: 1, type: "sold",
     });
 
     await updateStreak(userId);
@@ -504,16 +519,16 @@ describe("updateStreak", () => {
     twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2);
     const twoDaysAgoStr = twoDaysAgo.toISOString().slice(0, 10);
 
-    // Action two days ago
+    // Sold action two days ago
     await testDb.insert(schema.productSustainabilityMetrics).values({
-      userId, productId, todayDate: twoDaysAgoStr, quantity: 1, type: "consumed",
+      userId, productId, todayDate: twoDaysAgoStr, quantity: 1, type: "sold",
     });
     await getOrCreateUserPoints(userId);
     await testDb.update(schema.userPoints)
       .set({ currentStreak: 5 })
       .where(eq(schema.userPoints.userId, userId));
 
-    // Today's action (gap of 1 day)
+    // Today's sold action (gap of 1 day)
     await testDb.insert(schema.productSustainabilityMetrics).values({
       userId, productId, todayDate: today, quantity: 1, type: "sold",
     });
@@ -545,15 +560,15 @@ describe("getDetailedPointsStats", () => {
     expect(stats.breakdownByType.shared.count).toBe(0);
   });
 
-  test("computes longestStreak from interaction history", async () => {
+  test("computes longestStreak from sold interaction history", async () => {
     const now = new Date();
-    // Create 3 consecutive days of activity
+    // Create 3 consecutive days of sold activity
     for (let i = 2; i >= 0; i--) {
       const d = new Date(now);
       d.setUTCDate(d.getUTCDate() - i);
       const dateStr = d.toISOString().slice(0, 10);
       await testDb.insert(schema.productSustainabilityMetrics).values({
-        userId, productId, todayDate: dateStr, quantity: 1, type: "consumed",
+        userId, productId, todayDate: dateStr, quantity: 1, type: "sold",
       });
     }
 
@@ -680,11 +695,11 @@ describe("getDetailedPointsStats", () => {
     // consumed: 0 (no points for consumed)
     expect(stats.breakdownByType.consumed.totalPoints).toBe(0);
 
-    // shared 2.0 kg dairy: round(2.0 * 7.5) = 15
-    expect(stats.breakdownByType.shared.totalPoints).toBe(15);
+    // shared: 0 (no points for shared)
+    expect(stats.breakdownByType.shared.totalPoints).toBe(0);
 
-    // pointsToday = 0 + 15 = 15
-    expect(stats.pointsToday).toBe(15);
+    // pointsToday = 0
+    expect(stats.pointsToday).toBe(0);
   });
 
   test("computes pointsThisYear correctly (this year vs last year)", async () => {
@@ -809,6 +824,28 @@ describe("getDetailedPointsStats", () => {
 
     // 11 - 50 = -39, but floored at 0
     expect(stats.computedTotalPoints).toBe(0);
+  });
+
+  test("getDetailedPointsStats syncs totalPoints to DB", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Set DB totalPoints to a wrong value
+    await getOrCreateUserPoints(userId);
+    await testDb.update(schema.userPoints)
+      .set({ totalPoints: 999 })
+      .where(eq(schema.userPoints.userId, userId));
+
+    // Earn 11 points from a sold item (dairy, qty=1)
+    await testDb.insert(schema.productSustainabilityMetrics).values([
+      { userId, productId, todayDate: today, quantity: 1, type: "sold" },
+    ]);
+
+    const stats = await getDetailedPointsStats(userId);
+    expect(stats.computedTotalPoints).toBe(11);
+
+    // DB should now be synced to 11
+    const dbPoints = await getOrCreateUserPoints(userId);
+    expect(dbPoints.totalPoints).toBe(11);
   });
 
   test("computedTotalPoints unaffected when user has no redemptions", async () => {

@@ -3,9 +3,8 @@ import { db } from "../db/connection";
 import * as schema from "../db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { getUser } from "../middleware/auth";
-import { getOrCreateUserPoints, getUserMetrics, getDetailedPointsStats, awardPoints } from "../services/gamification-service";
+import { getOrCreateUserPoints, getUserMetrics, getDetailedPointsStats, awardPoints, computeCo2Value, calculatePointsForAction } from "../services/gamification-service";
 import { POINT_VALUES } from "../services/gamification-service";
-import { calculateCo2Saved } from "../utils/co2-factors";
 import { getBadgeProgress } from "../services/badge-service";
 
 export function registerGamificationRoutes(router: Router) {
@@ -29,7 +28,7 @@ export function registerGamificationRoutes(router: Router) {
         limit: 20,
         with: {
           product: {
-            columns: { productName: true, unit: true, category: true },
+            columns: { productName: true, unit: true, category: true, co2Emission: true },
           },
         },
       });
@@ -43,17 +42,9 @@ export function registerGamificationRoutes(router: Router) {
         .map((i) => {
           const normalizedType = (i.type || "").toLowerCase() as keyof typeof POINT_VALUES;
           const category = i.product?.category || "other";
-          // Stored quantity is already in kg
-          const co2Value = calculateCo2Saved(i.quantity ?? 1, "kg", category);
-          let amount: number;
-          if (normalizedType === "sold") {
-            amount = Math.round(co2Value * 1.5);
-          } else if (normalizedType === "wasted") {
-            amount = -Math.round(co2Value);
-          } else {
-            amount = Math.round(co2Value);
-          }
-          if (amount === 0) amount = normalizedType === "wasted" ? -1 : 1;
+          const co2Emission = i.product?.co2Emission ?? null;
+          const co2Value = computeCo2Value(i.quantity ?? 1, co2Emission, category);
+          const amount = calculatePointsForAction(normalizedType, co2Value);
 
           return {
             id: i.id,
@@ -237,6 +228,7 @@ export function registerGamificationRoutes(router: Router) {
     const activeListings = userListings.filter((l) => l.status === "active");
     const soldListings = userListings.filter((l) => l.status === "completed");
 
+    const detailedStats = await getDetailedPointsStats(user.id);
     const points = await getOrCreateUserPoints(user.id);
     const metrics = await getUserMetrics(user.id);
 
@@ -249,7 +241,7 @@ export function registerGamificationRoutes(router: Router) {
         sold: soldListings.length,
       },
       gamification: {
-        points: points.totalPoints,
+        points: detailedStats.computedTotalPoints,
         streak: points.currentStreak,
         wasteReductionRate: metrics.wasteReductionRate,
         co2Saved: metrics.estimatedCo2Saved,

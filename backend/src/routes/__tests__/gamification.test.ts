@@ -5,6 +5,7 @@ import { Router, json } from "../../utils/router";
 import * as schema from "../../db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { calculateCo2Saved } from "../../utils/co2-factors";
+import { computeCo2Value, calculatePointsForAction } from "../../services/gamification-service";
 
 // Set up in-memory test database
 let sqlite: Database;
@@ -13,10 +14,10 @@ let testUserId: number;
 let secondUserId: number;
 
 const POINT_VALUES = {
-  consumed: 5,
-  shared: 10,
+  consumed: 0,
+  shared: 0,
   sold: 8,
-  wasted: -3,
+  wasted: 0,
 } as const;
 
 // Simplified route registration for testing
@@ -63,21 +64,14 @@ function registerTestGamificationRoutes(
     const transactions = recentInteractions
       .filter((i) => {
         const t = (i.type || "").toLowerCase();
-        return t !== "add" && t !== "shared";
+        return t !== "add" && t !== "shared" && t !== "consumed" && t !== "wasted";
       })
       .map((i) => {
         const normalizedType = (i.type || "").toLowerCase() as keyof typeof POINT_VALUES;
         const category = i.product?.category || "other";
-        const co2Value = calculateCo2Saved(i.quantity ?? 1, "kg", category);
-        let amount: number;
-        if (normalizedType === "sold") {
-          amount = Math.round(co2Value * 1.5);
-        } else if (normalizedType === "wasted") {
-          amount = -Math.round(co2Value);
-        } else {
-          amount = Math.round(co2Value);
-        }
-        if (amount === 0) amount = normalizedType === "wasted" ? -1 : 1;
+        const co2Emission = (i.product as { co2Emission?: number | null } | null)?.co2Emission ?? null;
+        const co2Value = computeCo2Value(i.quantity ?? 1, co2Emission, category);
+        const amount = calculatePointsForAction(normalizedType, co2Value);
         return {
           id: i.id,
           amount,
@@ -281,37 +275,24 @@ function registerTestGamificationRoutes(
 
       interactionIds.push(interaction.id);
 
-      // Look up product category for CO2-based points
-      let category = "other";
-      const product = await db.query.products.findFirst({
-        where: eq(schema.products.id, ing.productId),
-      });
-      if (product?.category) category = product.category;
+      // No points awarded for consumed actions
 
-      // Award CO2-based points
-      const co2Value = calculateCo2Saved(ing.quantityUsed ?? 1, "kg", category);
-      let amount = Math.round(co2Value);
-      if (amount === 0) amount = 1;
-
+      // Ensure user points record exists
       let points = await db.query.userPoints.findFirst({
         where: eq(schema.userPoints.userId, user.id),
       });
 
       if (!points) {
-        const [created] = await db
+        await db
           .insert(schema.userPoints)
           .values({ userId: user.id })
           .returning();
-        points = created;
       }
 
-      const newTotal = Math.max(0, points.totalPoints + amount);
-      await db
-        .update(schema.userPoints)
-        .set({ totalPoints: newTotal })
-        .where(eq(schema.userPoints.userId, user.id));
-
       // Deduct from product quantity
+      const product = await db.query.products.findFirst({
+        where: eq(schema.products.id, ing.productId),
+      });
       if (product) {
         await db
           .update(schema.products)
@@ -337,7 +318,7 @@ function registerTestGamificationRoutes(
       const wastedQty = waste?.quantityWasted || 0;
 
       if (wastedQty > 0) {
-        // Record wasted interaction
+        // Record wasted interaction (no points awarded/penalized)
         await db.insert(schema.productSustainabilityMetrics).values({
           productId: ing.productId,
           userId: user.id,
@@ -346,35 +327,6 @@ function registerTestGamificationRoutes(
           unit: ing.unit || null,
           type: "wasted",
         });
-
-        // Look up product category for CO2-based penalty
-        let category = "other";
-        const product = await db.query.products.findFirst({
-          where: eq(schema.products.id, ing.productId),
-        });
-        if (product?.category) category = product.category;
-
-        const co2Value = calculateCo2Saved(wastedQty, "kg", category);
-        let amount = -Math.round(co2Value);
-        if (amount === 0) amount = -1;
-
-        let points = await db.query.userPoints.findFirst({
-          where: eq(schema.userPoints.userId, user.id),
-        });
-
-        if (!points) {
-          const [created] = await db
-            .insert(schema.userPoints)
-            .values({ userId: user.id })
-            .returning();
-          points = created;
-        }
-
-        const newTotal = Math.max(0, points.totalPoints + amount);
-        await db
-          .update(schema.userPoints)
-          .set({ totalPoints: newTotal, currentStreak: 0 })
-          .where(eq(schema.userPoints.userId, user.id));
       }
     }
 
@@ -671,13 +623,13 @@ describe("GET /api/v1/gamification/points", () => {
     expect(data.points.currentStreak).toBe(5);
   });
 
-  test("returns recent transactions", async () => {
+  test("consumed and wasted are filtered from transactions", async () => {
     await testDb.insert(schema.userPoints).values({
       userId: testUserId,
       totalPoints: 50,
     });
 
-    // Create some interactions (no productId → "other" category → factor 3.0)
+    // Create some interactions - consumed and wasted should be filtered out
     await testDb.insert(schema.productSustainabilityMetrics).values([
       {
         userId: testUserId,
@@ -698,20 +650,11 @@ describe("GET /api/v1/gamification/points", () => {
 
     expect(res.status).toBe(200);
     const data = res.data as { transactions: Array<{ action: string; amount: number; type: string }> };
-    expect(data.transactions.length).toBe(2);
-
-    // consumed: round(1 * 3.0) = 3
-    const consumedTx = data.transactions.find((t) => t.action === "consumed");
-    expect(consumedTx?.amount).toBe(3);
-    expect(consumedTx?.type).toBe("earned");
-
-    // wasted: -round(1 * 3.0) = -3
-    const wastedTx = data.transactions.find((t) => t.action === "wasted");
-    expect(wastedTx?.amount).toBe(-3);
-    expect(wastedTx?.type).toBe("penalty");
+    // consumed and wasted are now filtered out
+    expect(data.transactions.length).toBe(0);
   });
 
-  test("filters out Add transactions", async () => {
+  test("filters out Add and consumed transactions", async () => {
     await testDb.insert(schema.userPoints).values({
       userId: testUserId,
     });
@@ -729,17 +672,24 @@ describe("GET /api/v1/gamification/points", () => {
         type: "consumed",
         quantity: 1,
       },
+      {
+        userId: testUserId,
+        todayDate: "2025-01-15",
+        type: "sold",
+        quantity: 1,
+      },
     ]);
 
     const router = createRouter();
     const res = await makeRequest(router, "GET", "/api/v1/gamification/points");
 
     const data = res.data as { transactions: Array<{ action: string }> };
+    // Only sold remains (Add and consumed are filtered out)
     expect(data.transactions.length).toBe(1);
-    expect(data.transactions[0].action).toBe("consumed");
+    expect(data.transactions[0].action).toBe("sold");
   });
 
-  test("consumed and wasted appear in points history while Add and shared are filtered out", async () => {
+  test("only sold appears in points history, consumed/wasted/Add/shared are filtered out", async () => {
     await testDb.insert(schema.userPoints).values({
       userId: testUserId,
     });
@@ -749,6 +699,7 @@ describe("GET /api/v1/gamification/points", () => {
       { userId: testUserId, todayDate: "2025-01-14", type: "wasted", quantity: 1 },
       { userId: testUserId, todayDate: "2025-01-13", type: "Add", quantity: 1 },
       { userId: testUserId, todayDate: "2025-01-12", type: "shared", quantity: 1 },
+      { userId: testUserId, todayDate: "2025-01-11", type: "sold", quantity: 1 },
     ]);
 
     const router = createRouter();
@@ -759,32 +710,25 @@ describe("GET /api/v1/gamification/points", () => {
       transactions: Array<{ action: string; amount: number; type: string }>;
     };
 
-    // Only consumed and wasted should appear
-    expect(data.transactions.length).toBe(2);
+    // Only sold should appear
+    expect(data.transactions.length).toBe(1);
 
     const actions = data.transactions.map((t) => t.action);
-    expect(actions).toContain("consumed");
-    expect(actions).toContain("wasted");
+    expect(actions).toContain("sold");
+    expect(actions).not.toContain("consumed");
+    expect(actions).not.toContain("wasted");
     expect(actions).not.toContain("add");
     expect(actions).not.toContain("Add");
     expect(actions).not.toContain("shared");
 
-    // Verify action field is lowercased
-    for (const tx of data.transactions) {
-      expect(tx.action).toBe(tx.action.toLowerCase());
-    }
-
-    // Verify correct CO2-based point values (no product → "other" category, factor 3.0)
-    const consumedTx = data.transactions.find((t) => t.action === "consumed");
-    expect(consumedTx?.amount).toBe(6); // round(2 * 3.0) = 6
-    expect(consumedTx?.type).toBe("earned");
-
-    const wastedTx = data.transactions.find((t) => t.action === "wasted");
-    expect(wastedTx?.amount).toBe(-3); // -round(1 * 3.0) = -3
-    expect(wastedTx?.type).toBe("penalty");
+    // Verify sold amount (no product → "other" category, factor 3.0)
+    // round(1 * 3.0 * 1.5) = round(4.5) = 5
+    const soldTx = data.transactions.find((t) => t.action === "sold");
+    expect(soldTx?.amount).toBe(5);
+    expect(soldTx?.type).toBe("earned");
   });
 
-  test("transactions with fractional qty show scaled values", async () => {
+  test("sold transactions with fractional qty show scaled values", async () => {
     await testDb.insert(schema.userPoints).values({
       userId: testUserId,
       totalPoints: 50,
@@ -792,24 +736,19 @@ describe("GET /api/v1/gamification/points", () => {
 
     // No productId → "other" category → factor 3.0
     await testDb.insert(schema.productSustainabilityMetrics).values([
-      { userId: testUserId, todayDate: "2025-01-15", type: "consumed", quantity: 0.2 },
-      { userId: testUserId, todayDate: "2025-01-15", type: "wasted", quantity: 0.3 },
+      { userId: testUserId, todayDate: "2025-01-15", type: "sold", quantity: 0.5 },
     ]);
 
     const router = createRouter();
     const res = await makeRequest(router, "GET", "/api/v1/gamification/points");
 
     const data = res.data as { transactions: Array<{ action: string; amount: number }> };
-    const consumedTx = data.transactions.find((t) => t.action === "consumed");
-    // round(0.2 * 3.0) = round(0.6) = 1
-    expect(consumedTx?.amount).toBe(1);
-
-    const wastedTx = data.transactions.find((t) => t.action === "wasted");
-    // -round(0.3 * 3.0) = -round(0.9) = -1
-    expect(wastedTx?.amount).toBe(-1);
+    const soldTx = data.transactions.find((t) => t.action === "sold");
+    // round(0.5 * 3.0 * 1.5) = round(2.25) = 2, bumped to minimum 3
+    expect(soldTx?.amount).toBe(3);
   });
 
-  test("transactions for consume, wasted, sold show correct amounts", async () => {
+  test("only sold transactions appear with correct amounts", async () => {
     await testDb.insert(schema.userPoints).values({
       userId: testUserId,
       totalPoints: 100,
@@ -826,15 +765,8 @@ describe("GET /api/v1/gamification/points", () => {
     const res = await makeRequest(router, "GET", "/api/v1/gamification/points");
 
     const data = res.data as { transactions: Array<{ action: string; amount: number; type: string }> };
-    // consumed: round(3 * 3.0) = 9
-    const consumedTx = data.transactions.find((t) => t.action === "consumed");
-    expect(consumedTx?.amount).toBe(9);
-    expect(consumedTx?.type).toBe("earned");
-
-    // wasted: -round(5 * 3.0) = -15
-    const wastedTx = data.transactions.find((t) => t.action === "wasted");
-    expect(wastedTx?.amount).toBe(-15);
-    expect(wastedTx?.type).toBe("penalty");
+    // consumed and wasted are filtered out
+    expect(data.transactions.length).toBe(1);
 
     // sold: round(1 * 3.0 * 1.5) = round(4.5) = 5
     const soldTx = data.transactions.find((t) => t.action === "sold");
@@ -1285,10 +1217,10 @@ describe("GET /api/v1/gamification/dashboard", () => {
 });
 
 describe("Consumption → Points History integration", () => {
-  test("confirm-ingredients records consumed interaction and awards points visible in points history", async () => {
+  test("confirm-ingredients records consumed interaction but does not award points", async () => {
     const router = createRouter();
 
-    // Add a product to the fridge (category "meat" → CO2 factor 20.0 + 0.5 = 20.5)
+    // Add a product to the fridge
     const [product] = await testDb
       .insert(schema.products)
       .values({ userId: testUserId, productName: "Chicken Breast", quantity: 5, unit: "kg", category: "meat" })
@@ -1320,18 +1252,14 @@ describe("Consumption → Points History integration", () => {
       transactions: Array<{ action: string; amount: number; type: string; quantity: number }>;
     };
 
-    // CO2-based: round(2 * 20.5) = 41
-    expect(pointsData.points.total).toBe(41);
+    // No points awarded for consumed
+    expect(pointsData.points.total).toBe(0);
 
-    // Transaction should appear in history
-    expect(pointsData.transactions.length).toBe(1);
-    expect(pointsData.transactions[0].action).toBe("consumed");
-    expect(pointsData.transactions[0].amount).toBe(41);
-    expect(pointsData.transactions[0].type).toBe("earned");
-    expect(pointsData.transactions[0].quantity).toBe(2);
+    // Consumed transactions are filtered from history
+    expect(pointsData.transactions.length).toBe(0);
   });
 
-  test("confirm-waste records wasted interaction and deducts points visible in points history", async () => {
+  test("confirm-waste records wasted interaction but does not deduct points", async () => {
     const router = createRouter();
 
     // Seed initial points
@@ -1341,7 +1269,6 @@ describe("Consumption → Points History integration", () => {
       currentStreak: 3,
     });
 
-    // "pantry" category → CO2 factor 2.0 + 0.5 = 2.5
     const [product] = await testDb
       .insert(schema.products)
       .values({ userId: testUserId, productName: "Rice", quantity: 3, unit: "kg", category: "pantry" })
@@ -1374,29 +1301,24 @@ describe("Consumption → Points History integration", () => {
       transactions: Array<{ action: string; amount: number; type: string }>;
     };
 
-    // CO2-based: -round(1 * 2.5) = -3 (Math.round(2.5) = 3)
-    expect(pointsData.points.total).toBe(47); // 50 - 3
+    // Points unchanged (wasted no longer penalizes)
+    expect(pointsData.points.total).toBe(50);
 
-    // Streak should reset to 0 on waste
-    expect(pointsData.points.currentStreak).toBe(0);
+    // Streak preserved (wasted no longer resets streak)
+    expect(pointsData.points.currentStreak).toBe(3);
 
-    // Transaction should appear in history as penalty
-    expect(pointsData.transactions.length).toBe(1);
-    expect(pointsData.transactions[0].action).toBe("wasted");
-    expect(pointsData.transactions[0].amount).toBe(-3);
-    expect(pointsData.transactions[0].type).toBe("penalty");
+    // Wasted transactions are filtered from history
+    expect(pointsData.transactions.length).toBe(0);
   });
 
-  test("full meal flow: consume then waste, both reflected in points history", async () => {
+  test("full meal flow: consume then waste, no points change", async () => {
     const router = createRouter();
 
-    // meat category → CO2 factor 20.0 + 0.5 = 20.5
     const [chicken] = await testDb
       .insert(schema.products)
       .values({ userId: testUserId, productName: "Chicken", quantity: 5, unit: "kg", category: "meat" })
       .returning();
 
-    // produce category → CO2 factor 1.0 + 0.5 = 1.5
     const [veggies] = await testDb
       .insert(schema.products)
       .values({ userId: testUserId, productName: "Vegetables", quantity: 3, unit: "kg", category: "produce" })
@@ -1427,32 +1349,11 @@ describe("Consumption → Points History integration", () => {
       transactions: Array<{ action: string; amount: number; type: string }>;
     };
 
-    // Points:
-    //   consumed chicken: round(2 * 20.5) = 41
-    //   consumed veggies: round(1 * 1.5) = 2
-    //   wasted chicken:  -round(0.5 * 20.5) = -round(10.25) = -10
-    // Total: 41 + 2 - 10 = 33
-    expect(pointsData.points.total).toBe(33);
+    // No points for consumed or wasted
+    expect(pointsData.points.total).toBe(0);
 
-    // Should have 3 transactions: 2 consumed + 1 wasted
-    expect(pointsData.transactions.length).toBe(3);
-
-    const consumedTxs = pointsData.transactions.filter((t) => t.action === "consumed");
-    const wastedTxs = pointsData.transactions.filter((t) => t.action === "wasted");
-
-    expect(consumedTxs.length).toBe(2);
-    expect(wastedTxs.length).toBe(1);
-
-    // All consumed are "earned", all wasted are "penalty"
-    for (const tx of consumedTxs) {
-      expect(tx.type).toBe("earned");
-    }
-    for (const tx of wastedTxs) {
-      expect(tx.type).toBe("penalty");
-    }
-
-    // wasted chicken: -round(0.5 * 20.5) = -10
-    expect(wastedTxs[0].amount).toBe(-10);
+    // consumed and wasted are filtered from transactions
+    expect(pointsData.transactions.length).toBe(0);
   });
 
   test("confirm-ingredients deducts from product inventory", async () => {
@@ -1551,7 +1452,7 @@ describe("Consumption → Points History integration", () => {
     expect(pointsData.transactions.length).toBe(0);
   });
 
-  test("sold/consumed/wasted transactions are separable from redeemed transactions", async () => {
+  test("sold transactions are separable from redeemed transactions", async () => {
     const router = createRouter();
 
     await testDb.insert(schema.userPoints).values({
@@ -1593,12 +1494,9 @@ describe("Consumption → Points History integration", () => {
     const soldGroup = data.transactions.filter((tx) => tx.action !== "redeemed");
     const redeemGroup = data.transactions.filter((tx) => tx.action === "redeemed");
 
-    // Sold group should contain sold, consumed, wasted — no redeemed
-    expect(soldGroup.length).toBe(3);
-    for (const tx of soldGroup) {
-      expect(tx.action).not.toBe("redeemed");
-      expect(["sold", "consumed", "wasted"]).toContain(tx.action);
-    }
+    // Sold group should only contain sold (consumed/wasted are now filtered out)
+    expect(soldGroup.length).toBe(1);
+    expect(soldGroup[0].action).toBe("sold");
 
     // Redeem group should only contain redeemed
     expect(redeemGroup.length).toBe(2);
@@ -1608,7 +1506,7 @@ describe("Consumption → Points History integration", () => {
     }
   });
 
-  test("points never go below zero from waste penalties", async () => {
+  test("waste does not change points (no penalty)", async () => {
     const router = createRouter();
 
     // Start with only 2 points
@@ -1617,13 +1515,12 @@ describe("Consumption → Points History integration", () => {
       totalPoints: 2,
     });
 
-    // dairy category → CO2 factor 7.0 + 0.5 = 7.5
     const [product] = await testDb
       .insert(schema.products)
       .values({ userId: testUserId, productName: "Milk", quantity: 5, unit: "l", category: "dairy" })
       .returning();
 
-    // Waste 3 units: penalty = -round(3 * 7.5) = -23, but total should clamp to 0
+    // Waste 3 units: no penalty
     await makeRequest(router, "POST", "/api/v1/consumption/confirm-waste", {
       ingredients: [
         { productId: product.id, productName: "Milk", quantityUsed: 3, unit: "l", category: "dairy", unitPrice: 3 },
@@ -1636,7 +1533,7 @@ describe("Consumption → Points History integration", () => {
     const pointsRes = await makeRequest(router, "GET", "/api/v1/gamification/points");
     const pointsData = pointsRes.data as { points: { total: number } };
 
-    // Should be clamped to 0, not negative
-    expect(pointsData.points.total).toBe(0);
+    // Points unchanged (waste doesn't penalize anymore)
+    expect(pointsData.points.total).toBe(2);
   });
 });

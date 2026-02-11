@@ -7,7 +7,6 @@ import {
   getEmissionFactor,
   DISPOSAL_EMISSION_FACTORS,
 } from "../utils/co2-factors";
-import { awardPoints } from "./gamification-service";
 
 // Re-export from co2-factors for backwards compatibility with tests
 export {
@@ -199,12 +198,6 @@ export async function confirmIngredients(
 
     interactionIds.push(interaction.id);
 
-    try {
-      await awardPoints(userId, "consumed", ing.productId, quantityInKg, true);
-    } catch (pointsError) {
-      console.error(`[Points] Failed to award points for user ${userId} on product ${ing.productId}:`, pointsError);
-    }
-
     if (product) {
       await db.update(products)
         .set({ quantity: Math.max(0, product.quantity - ing.quantityUsed) })
@@ -254,12 +247,6 @@ export async function confirmWaste(
         unit: ing.unit || null,
         type: "wasted",
       });
-
-      try {
-        await awardPoints(userId, "wasted", ing.productId, wastedInKg, true);
-      } catch (pointsError) {
-        console.error(`[Points] Failed to penalize points for user ${userId} on product ${ing.productId}:`, pointsError);
-      }
     }
   }
 

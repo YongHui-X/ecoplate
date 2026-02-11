@@ -110,7 +110,7 @@ export default function ConversationPage() {
         conversation.listingId,
         conversation.buyer.id
       );
-      addToast(`Listing marked as sold! +${result.points.earned} points`, "success");
+      addToast("Listing marked as sold!", "success");
       await loadConversation();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to mark as sold";
