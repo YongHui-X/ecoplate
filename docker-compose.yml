@@ -28,7 +28,7 @@ services:
     networks:
       - ecoplate-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      test: ["CMD", "wget", "-qO/dev/null", "http://localhost:3000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
