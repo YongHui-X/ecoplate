@@ -3,7 +3,7 @@ import * as schema from "../db/schema";
 import { eq, and, inArray, desc, sql } from "drizzle-orm";
 
 import { notifyStreakMilestone } from "./notification-service";
-import { calculateCo2Saved, DISPOSAL_EMISSION_FACTORS } from "../utils/co2-factors";
+import { calculateCo2Saved } from "../utils/co2-factors";
 
 // Point values for different actions (only sold earns points)
 export const POINT_VALUES = {
@@ -19,7 +19,7 @@ export const POINT_VALUES = {
  */
 export function computeCo2Value(quantity: number, co2Emission: number | null, category: string): number {
   return co2Emission != null
-    ? Math.round(quantity * (co2Emission + DISPOSAL_EMISSION_FACTORS.landfill) * 100) / 100
+    ? Math.round(quantity * co2Emission * 100) / 100
     : calculateCo2Saved(quantity, "kg", category);
 }
 

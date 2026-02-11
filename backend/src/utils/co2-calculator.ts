@@ -93,9 +93,7 @@ export function calculateCo2Saved(
 ): number {
   const weightKg = convertToKg(quantity, unit);
   const categoryFactor = getCo2Factor(category);
-  const totalFactor = categoryFactor + DISPOSAL_EMISSION_FACTOR;
-
-  const co2Saved = weightKg * totalFactor;
+  const co2Saved = weightKg * categoryFactor;
 
   // Round to 2 decimal places
   return Math.round(co2Saved * 100) / 100;
@@ -105,7 +103,7 @@ export function calculateCo2Saved(
  * Get the CO2 factor for a category (for frontend preview)
  */
 export function getCategoryFactor(category: string | null | undefined): number {
-  return getCo2Factor(category) + DISPOSAL_EMISSION_FACTOR;
+  return getCo2Factor(category);
 }
 
 /**

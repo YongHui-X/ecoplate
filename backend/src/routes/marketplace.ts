@@ -526,13 +526,10 @@ export function registerMarketplaceRoutes(router: Router) {
       }
 
       // Calculate CO2 saved using product's stored emission factor (if from MyFridge) or title/category lookup
-      // This ensures consistency with MyFridge's CO2 calculation
       let co2Saved: number;
       if (productCo2Emission != null) {
-        // Use the same formula as MyFridge: weight × (emission + disposal)
         const weightKg = convertToKg(data.quantity, data.unit);
-        const DISPOSAL_FACTOR = 0.5; // landfill disposal factor
-        co2Saved = Math.round(weightKg * (productCo2Emission + DISPOSAL_FACTOR) * 100) / 100;
+        co2Saved = Math.round(weightKg * productCo2Emission * 100) / 100;
       } else {
         // Fallback to title/category-based calculation for listings not from MyFridge
         co2Saved = calculateCo2Saved(data.quantity, data.unit, data.category, data.title);

@@ -210,15 +210,13 @@ export function calculateCo2Saved(
     ? getEmissionFactor(productName, category || undefined)
     : getCo2Factor(category);
 
-  const totalFactor = emissionFactor + DISPOSAL_EMISSION_FACTORS.landfill;
-
-  const co2Saved = weightKg * totalFactor;
+  const co2Saved = weightKg * emissionFactor;
 
   return Math.round(co2Saved * 100) / 100;
 }
 
 export function getCategoryFactor(category: string | null | undefined): number {
-  return getCo2Factor(category) + DISPOSAL_EMISSION_FACTORS.landfill;
+  return getCo2Factor(category);
 }
 
 // ==================== Category Classification ====================

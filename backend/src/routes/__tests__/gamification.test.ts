@@ -739,10 +739,10 @@ describe("GET /api/v1/gamification/points", () => {
     expect(actions).not.toContain("Add");
     expect(actions).not.toContain("shared");
 
-    // Verify sold amount (no product → "other" category, factor 3.0)
-    // round(1 * 3.0 * 1.5) = round(4.5) = 5
+    // Verify sold amount (no product → "other" category, factor 2.5)
+    // round(1 * 2.5 * 1.5) = round(3.75) = 4
     const soldTx = data.transactions.find((t) => t.action === "sold");
-    expect(soldTx?.amount).toBe(5);
+    expect(soldTx?.amount).toBe(4);
     expect(soldTx?.type).toBe("earned");
   });
 
@@ -752,7 +752,7 @@ describe("GET /api/v1/gamification/points", () => {
       totalPoints: 50,
     });
 
-    // No productId → "other" category → factor 3.0
+    // No productId → "other" category → factor 2.5
     await testDb.insert(schema.productSustainabilityMetrics).values([
       { userId: testUserId, todayDate: "2025-01-15", type: "sold", quantity: 0.5 },
     ]);
@@ -762,7 +762,7 @@ describe("GET /api/v1/gamification/points", () => {
 
     const data = res.data as { transactions: Array<{ action: string; amount: number }> };
     const soldTx = data.transactions.find((t) => t.action === "sold");
-    // round(0.5 * 3.0 * 1.5) = round(2.25) = 2, bumped to minimum 3
+    // round(0.5 * 2.5 * 1.5) = round(1.875) = 2, bumped to minimum 3
     expect(soldTx?.amount).toBe(3);
   });
 
@@ -772,7 +772,7 @@ describe("GET /api/v1/gamification/points", () => {
       totalPoints: 100,
     });
 
-    // No productId → "other" category → factor 3.0
+    // No productId → "other" category → factor 2.5
     await testDb.insert(schema.productSustainabilityMetrics).values([
       { userId: testUserId, todayDate: "2025-01-15", type: "consumed", quantity: 3 },
       { userId: testUserId, todayDate: "2025-01-15", type: "wasted", quantity: 5 },
@@ -786,9 +786,9 @@ describe("GET /api/v1/gamification/points", () => {
     // consumed and wasted are filtered out
     expect(data.transactions.length).toBe(1);
 
-    // sold: round(1 * 3.0 * 1.5) = round(4.5) = 5
+    // sold: round(1 * 2.5 * 1.5) = round(3.75) = 4
     const soldTx = data.transactions.find((t) => t.action === "sold");
-    expect(soldTx?.amount).toBe(5);
+    expect(soldTx?.amount).toBe(4);
     expect(soldTx?.type).toBe("earned");
   });
 
