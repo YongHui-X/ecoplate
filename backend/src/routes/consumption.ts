@@ -105,6 +105,7 @@ export function registerConsumptionRoutes(
         name: p.productName,
         category: p.category,
         quantity: p.quantity,
+        unit: p.unit || "kg",
         unitPrice: p.unitPrice,
         co2Emission: p.co2Emission,
       }));
@@ -157,6 +158,7 @@ FOR EACH INGREDIENT RETURN:
 - name: What you see in the image (e.g., "chopped onion")
 - matchedProductName: The fridge item name it matches (or "Unknown" if no match)
 - percentageUsed: Estimated percentage of fridge item (0-100)
+- unit: The unit of measurement (use the fridge item's unit if matched, or estimate for unmatched items e.g. "pcs" for eggs, "kg" for vegetables)
 - confidence: "high", "medium", or "low"
 
 EXAMPLE:
@@ -196,6 +198,11 @@ Return an empty ingredients array if no food ingredients are visible.`,
                       name: { type: "string", description: "What you see in the image" },
                       matchedProductName: { type: "string", description: "Fridge item name or 'Unknown'" },
                       percentageUsed: { type: "number", description: "Percentage of fridge item being used (0-100)" },
+                      unit: {
+                        type: "string",
+                        enum: ["pcs", "kg", "g", "L", "ml", "pack", "bottle", "can", "loaf", "dozen"],
+                        description: "Unit of measurement",
+                      },
                       confidence: {
                         type: "string",
                         enum: ["high", "medium", "low"],
@@ -207,6 +214,7 @@ Return an empty ingredients array if no food ingredients are visible.`,
                       "name",
                       "matchedProductName",
                       "percentageUsed",
+                      "unit",
                       "confidence",
                     ],
                     additionalProperties: false,
@@ -233,6 +241,7 @@ Return an empty ingredients array if no food ingredients are visible.`,
           name: string;
           matchedProductName: string;
           percentageUsed: number;
+          unit: string;
           confidence: "high" | "medium" | "low";
         }>;
       };
@@ -249,7 +258,7 @@ Return an empty ingredients array if no food ingredients are visible.`,
           name: ing.name,
           matchedProductName: ing.matchedProductName,
           estimatedQuantity: Math.round(estimatedQuantity * 100) / 100,
-          unit: fridgeProduct?.unit || null,
+          unit: fridgeProduct?.unit || ing.unit || "kg",
           category: fridgeProduct?.category || classifyCategory(ing.name),
           unitPrice: fridgeProduct?.unitPrice || 0,
           co2Emission: fridgeProduct?.co2Emission || getCO2Emission(ing.name, fridgeProduct?.category || undefined),
