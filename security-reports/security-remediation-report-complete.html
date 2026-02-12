@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EcoPlate Complete Security Remediation Report</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 20mm 18mm;
+    @bottom-center {
+      content: "EcoPlate Complete Security Remediation Report — Page " counter(page) " of " counter(pages);
+      font-size: 8pt;
+      color: #94a3b8;
+    }
+  }
+  :root {
+    --primary: #1e3a5f;
+    --accent: #2563eb;
+    --bg: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --critical: #dc2626;
+    --high: #ea580c;
+    --medium: #ca8a04;
+    --low: #2563eb;
+    --pass: #16a34a;
+    --fail: #dc2626;
+    --warn: #ca8a04;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    font-size: 10pt;
+    line-height: 1.5;
+  }
+
+  /* ── Cover Page ── */
+  .cover {
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    text-align: center;
+    background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 40%, #2563eb 100%);
+    color: #fff;
+    margin: -20mm -18mm;
+    padding: 40mm 30mm;
+  }
+  .cover h1 {
+    font-size: 32pt;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 8pt;
+  }
+  .cover .subtitle {
+    font-size: 16pt;
+    font-weight: 300;
+    opacity: 0.9;
+    margin-bottom: 40pt;
+  }
+  .cover .meta-box {
+    background: rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 20pt 36pt;
+    display: inline-block;
+    text-align: left;
+    font-size: 11pt;
+    line-height: 2;
+    backdrop-filter: blur(4px);
+  }
+  .cover .meta-box strong { color: #93c5fd; }
+  .cover .result-badge {
+    margin-top: 36pt;
+    display: inline-block;
+    padding: 10pt 40pt;
+    border-radius: 9999px;
+    font-size: 18pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .badge-pass { background: var(--pass); color: #fff; }
+  .badge-fail { background: var(--fail); color: #fff; }
+
+  /* ── TOC ── */
+  .toc {
+    page-break-after: always;
+    padding-top: 10pt;
+  }
+  .toc h2 {
+    font-size: 18pt;
+    color: var(--primary);
+    margin-bottom: 16pt;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 6pt;
+  }
+  .toc ul { list-style: none; }
+  .toc li {
+    padding: 5pt 0;
+    border-bottom: 1px dotted var(--border);
+    font-size: 10.5pt;
+  }
+  .toc li span.num { color: var(--accent); font-weight: 700; margin-right: 8pt; }
+
+  /* ── Section Headers ── */
+  h2.section-title {
+    font-size: 16pt;
+    color: var(--primary);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 4pt;
+    margin: 24pt 0 12pt 0;
+  }
+  h2.zap-section-title {
+    font-size: 16pt;
+    color: #fff;
+    background: var(--primary);
+    padding: 8pt 14pt;
+    border-radius: 8px 8px 0 0;
+    margin: 24pt 0 0 0;
+    border-bottom: 3px solid var(--accent);
+  }
+  h3.sub-title {
+    font-size: 12pt;
+    color: var(--primary);
+    margin: 14pt 0 8pt 0;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8pt 0 14pt 0;
+    font-size: 9pt;
+  }
+  th {
+    background: #f1f5f9;
+    text-align: left;
+    padding: 6pt 8pt;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border);
+    color: var(--primary);
+  }
+  td {
+    padding: 5pt 8pt;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) { background: #fafbfc; }
+
+  /* ── Severity Badges ── */
+  .sev {
+    display: inline-block;
+    padding: 1pt 6pt;
+    border-radius: 4px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .sev-critical { background: var(--critical); }
+  .sev-high { background: var(--high); }
+  .sev-medium { background: var(--medium); }
+  .sev-low { background: var(--low); }
+  .sev-info { background: #6b7280; }
+
+  .status-badge {
+    display: inline-block;
+    padding: 1pt 8pt;
+    border-radius: 9999px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+  }
+  .status-pass { background: var(--pass); }
+  .status-fail { background: var(--fail); }
+  .status-warn { background: var(--warn); }
+  .status-skip { background: #9ca3b8; }
+
+  /* ── Summary Cards ── */
+  .summary-cards {
+    display: flex;
+    gap: 10pt;
+    margin: 12pt 0 18pt 0;
+    flex-wrap: wrap;
+  }
+  .s-card {
+    flex: 1;
+    min-width: 80pt;
+    border-radius: 8px;
+    padding: 12pt 10pt;
+    text-align: center;
+    border-left: 4px solid var(--border);
+  }
+  .s-card .num {
+    font-size: 22pt;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+  .s-card .lbl {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-top: 2pt;
+  }
+
+  /* ── Comparison ── */
+  .compare-row {
+    display: flex;
+    align-items: center;
+    gap: 12pt;
+    margin: 16pt 0;
+  }
+  .compare-box {
+    flex: 1;
+    border-radius: 10px;
+    padding: 14pt;
+    text-align: center;
+  }
+  .compare-box.before {
+    background: #fef2f2;
+    border: 1.5px solid #fecaca;
+  }
+  .compare-box.after {
+    background: #f0fdf4;
+    border: 1.5px solid #bbf7d0;
+  }
+  .compare-box .big-num {
+    font-size: 36pt;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .compare-box .tag {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-top: 4pt;
+  }
+  .arrow-col {
+    font-size: 28pt;
+    color: var(--pass);
+    font-weight: 700;
+  }
+
+  /* ── Info Box ── */
+  .info-box {
+    background: #eff6ff;
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 10pt 14pt;
+    margin: 10pt 0;
+    font-size: 9pt;
+    color: #1e40af;
+  }
+  .warn-box {
+    background: #fffbeb;
+    border-left: 4px solid var(--medium);
+    border-radius: 0 8px 8px 0;
+    padding: 10pt 14pt;
+    margin: 10pt 0;
+    font-size: 9pt;
+    color: #92400e;
+  }
+  .success-box {
+    background: #f0fdf4;
+    border-left: 4px solid var(--pass);
+    border-radius: 0 8px 8px 0;
+    padding: 10pt 14pt;
+    margin: 10pt 0;
+    font-size: 9pt;
+    color: #166534;
+  }
+
+  /* ── Progress Bar ── */
+  .progress-bar-bg {
+    background: #e2e8f0;
+    border-radius: 6px;
+    height: 18pt;
+    width: 100%;
+    margin: 6pt 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8pt;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* ── ZAP Section Banner ── */
+  .zap-banner {
+    background: linear-gradient(135deg, #1e3a5f, #2563eb);
+    color: #fff;
+    padding: 16pt 20pt;
+    border-radius: 10px;
+    margin: 20pt 0 16pt 0;
+    text-align: center;
+  }
+  .zap-banner h2 {
+    font-size: 20pt;
+    font-weight: 800;
+    margin-bottom: 4pt;
+  }
+  .zap-banner p {
+    font-size: 10pt;
+    opacity: 0.85;
+  }
+
+  /* ── Misc ── */
+  .page-break { page-break-before: always; }
+  p { margin-bottom: 6pt; }
+  code {
+    background: #f1f5f9;
+    padding: 1pt 4pt;
+    border-radius: 3px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 8.5pt;
+  }
+  ul, ol { margin-left: 16pt; margin-bottom: 8pt; }
+  li { margin-bottom: 3pt; }
+  .text-center { text-align: center; }
+  .text-muted { color: var(--muted); font-size: 9pt; }
+  .mt-1 { margin-top: 8pt; }
+  .mb-1 { margin-bottom: 8pt; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- COVER PAGE                                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <h1>Complete Security Remediation Report</h1>
+  <div class="subtitle">EcoPlate DevSecOps Pipeline &mdash; Full Journey</div>
+  <div class="meta-box">
+    Project: <strong>EcoPlate</strong> &mdash; GDIPSA-Team2/ecoplate<br>
+    Date: <strong>2026-02-02 &rarr; 2026-02-11</strong><br>
+    Scope: <strong>7 Phases over 10 Days</strong> &mdash; Baseline Remediation (R1&ndash;R5) + Full Scan Transition (2 Reports)<br>
+    Initial Commit: <strong>eacf4fd1</strong> (main) &nbsp;|&nbsp; Final Commit: <strong>82c4d062</strong> (dev)<br>
+    Tools: <strong>13 scanners</strong> (SAST, SCA, Secrets, IaC, Container, DAST, SBOM, License)<br>
+    ZAP Mode: <strong>Baseline &rarr; Full Scan</strong> (upgraded after first presentation)
+  </div>
+  <div>
+    <span class="result-badge badge-fail">Initial: 92 Findings</span>
+    &nbsp;&nbsp;&rarr;&nbsp;&nbsp;
+    <span class="result-badge badge-pass">Final: 5 Findings</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TABLE OF CONTENTS                                                     -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="toc">
+  <h2>Table of Contents</h2>
+  <ul>
+    <li><strong>Part I &mdash; Overall Security Analysis</strong></li>
+    <li><span class="num">1</span> Executive Summary</li>
+    <li><span class="num">2</span> Before vs After &mdash; At a Glance</li>
+    <li><span class="num">3</span> Initial Scan Results (Before Fix)</li>
+    <li><span class="num">4</span> Remediation Journey</li>
+    <li style="padding-left: 20pt;"><span class="num">4.1</span> Phase 1: Baseline Remediation (Rounds 1&ndash;5)</li>
+    <li style="padding-left: 20pt;"><span class="num">4.2</span> Phase 2: Full Scan Transition (Report 1)</li>
+    <li style="padding-left: 20pt;"><span class="num">4.3</span> Phase 3: Full Scan Remediation (Report 2)</li>
+    <li><span class="num">5</span> Final Scan Results (After All Fixes)</li>
+    <li><span class="num">6</span> Progress Across All Phases</li>
+    <li><span class="num">7</span> Remaining Findings &amp; Accepted Risks</li>
+    <li>&nbsp;</li>
+    <li><strong>Part II &mdash; ZAP DAST Dedicated Analysis</strong></li>
+    <li><span class="num">8</span> ZAP Executive Summary</li>
+    <li><span class="num">9</span> ZAP Before vs After &mdash; At a Glance</li>
+    <li><span class="num">10</span> ZAP Initial Findings</li>
+    <li><span class="num">11</span> ZAP Scan Mode Transition: Baseline &rarr; Full Scan</li>
+    <li><span class="num">12</span> ZAP Remediation Steps</li>
+    <li><span class="num">13</span> ZAP Full Scan Results (Report 1 vs Report 2)</li>
+    <li><span class="num">14</span> ZAP Progress Across All Phases</li>
+    <li><span class="num">15</span> ZAP Remaining Findings &amp; Accepted Risks</li>
+    <li><span class="num">16</span> ZAP Key Observations</li>
+    <li>&nbsp;</li>
+    <li><span class="num">17</span> Files Modified</li>
+    <li><span class="num">18</span> Key Lessons Learned</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  PART I: OVERALL SECURITY ANALYSIS                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- ── 1. EXECUTIVE SUMMARY ── -->
+<h2 class="section-title">1. Executive Summary</h2>
+
+<p>Over <strong>7 iterative phases</strong> spanning 10 days (February 2&ndash;11, 2026), the EcoPlate project's security posture was comprehensively hardened. The journey began with a <strong>ZAP Baseline scan</strong> that identified 92 findings, progressed through 5 rounds of baseline remediation, and then <strong>transitioned to ZAP Full Scan mode</strong> (active scanning) for deeper analysis. Two additional rounds of Full Scan remediation reduced findings to just <strong>5</strong>, achieving a <strong>94.6% total reduction</strong>.</p>
+
+<div class="compare-row">
+  <div class="compare-box before">
+    <div class="big-num" style="color:var(--critical)">92</div>
+    <div class="tag">Total Findings (Initial)</div>
+    <div style="margin-top:6pt; font-size:9pt;">
+      <span class="sev sev-critical">5 Critical</span>
+      <span class="sev sev-high">20 High</span>
+      <span class="sev sev-medium">66 Medium</span>
+      <span class="sev sev-low">1 Low</span>
+    </div>
+  </div>
+  <div class="arrow-col">&rarr;</div>
+  <div class="compare-box after">
+    <div class="big-num" style="color:var(--pass)">5</div>
+    <div class="tag">Total Findings (Final)</div>
+    <div style="margin-top:6pt; font-size:9pt;">
+      <span class="sev sev-critical">0 Critical</span>
+      <span class="sev sev-high">0 High</span>
+      <span class="sev sev-medium">3 Medium</span>
+      <span class="sev sev-low">2 Low</span>
+    </div>
+  </div>
+</div>
+
+<div class="summary-cards">
+  <div class="s-card" style="border-left-color:var(--pass); background:#f0fdf4;">
+    <div class="num" style="color:var(--pass)">94.6%</div>
+    <div class="lbl">Total Reduction</div>
+  </div>
+  <div class="s-card" style="border-left-color:var(--critical); background:#fef2f2;">
+    <div class="num" style="color:var(--pass)">100%</div>
+    <div class="lbl">Critical Eliminated</div>
+  </div>
+  <div class="s-card" style="border-left-color:var(--high); background:#fff7ed;">
+    <div class="num" style="color:var(--pass)">100%</div>
+    <div class="lbl">High Eliminated</div>
+  </div>
+  <div class="s-card" style="border-left-color:var(--accent); background:#eff6ff;">
+    <div class="num" style="color:var(--accent)">7</div>
+    <div class="lbl">Phases</div>
+  </div>
+  <div class="s-card" style="border-left-color:var(--muted); background:#f8fafc;">
+    <div class="num" style="color:var(--text)">15+</div>
+    <div class="lbl">Files Modified</div>
+  </div>
+</div>
+
+<div class="success-box">
+  <strong>Final Status: Minimal Risk.</strong> All Critical and High severity vulnerabilities have been eliminated. The remaining 5 findings (3 Medium + 2 Low) are accepted risks with documented justifications. All 10 E2E tests pass. All 318 infrastructure checks pass.
+</div>
+
+<!-- ── 2. BEFORE vs AFTER ── -->
+<div class="page-break"></div>
+<h2 class="section-title">2. Before vs After &mdash; At a Glance</h2>
+
+<table>
+  <thead>
+    <tr><th>Metric</th><th style="text-align:center">Initial (Feb 2)</th><th style="text-align:center">After Baseline R5 (Feb 8)</th><th style="text-align:center">After Full Scan (Feb 11)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Overall Status</strong></td><td style="text-align:center"><span class="status-badge status-fail">FAIL</span></td><td style="text-align:center"><span class="status-badge status-warn">WARN</span></td><td style="text-align:center"><span class="status-badge status-pass">MINIMAL RISK</span></td></tr>
+    <tr><td><strong>Total Findings</strong></td><td style="text-align:center; font-weight:700;">92</td><td style="text-align:center;">21</td><td style="text-align:center; color:var(--pass); font-weight:700;">5</td></tr>
+    <tr><td>Critical</td><td style="text-align:center; color:var(--critical); font-weight:700;">5</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center; color:var(--pass);">0</td></tr>
+    <tr><td>High</td><td style="text-align:center; color:var(--high); font-weight:700;">20</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center; color:var(--pass);">0</td></tr>
+    <tr><td>Medium</td><td style="text-align:center; color:var(--medium);">66</td><td style="text-align:center;">17</td><td style="text-align:center; color:var(--pass);">3</td></tr>
+    <tr><td>Low</td><td style="text-align:center;">1</td><td style="text-align:center;">4</td><td style="text-align:center;">2</td></tr>
+    <tr><td><strong>ZAP Scan Mode</strong></td><td style="text-align:center">Baseline</td><td style="text-align:center">Baseline</td><td style="text-align:center; font-weight:700; color:var(--accent);">Full Scan</td></tr>
+    <tr><td><strong>E2E Tests</strong></td><td style="text-align:center">N/A</td><td style="text-align:center">N/A</td><td style="text-align:center; color:var(--pass);">10/10 Pass</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">Reduction Progress Bars</h3>
+
+<div style="display:flex; gap:8pt; align-items:center; margin:4pt 0;">
+  <span style="font-size:8pt; width:50pt; color:var(--critical); font-weight:600;">Critical</span>
+  <div class="progress-bar-bg" style="flex:1;">
+    <div class="progress-bar-fill" style="width:100%; background: var(--pass);">5 &rarr; 0 (100%)</div>
+  </div>
+</div>
+<div style="display:flex; gap:8pt; align-items:center; margin:4pt 0;">
+  <span style="font-size:8pt; width:50pt; color:var(--high); font-weight:600;">High</span>
+  <div class="progress-bar-bg" style="flex:1;">
+    <div class="progress-bar-fill" style="width:100%; background: var(--pass);">20 &rarr; 0 (100%)</div>
+  </div>
+</div>
+<div style="display:flex; gap:8pt; align-items:center; margin:4pt 0;">
+  <span style="font-size:8pt; width:50pt; color:var(--medium); font-weight:600;">Medium</span>
+  <div class="progress-bar-bg" style="flex:1;">
+    <div class="progress-bar-fill" style="width:95%; background: var(--pass);">66 &rarr; 3 (95.5%)</div>
+  </div>
+</div>
+
+<!-- ── 3. INITIAL SCAN RESULTS ── -->
+<div class="page-break"></div>
+<h2 class="section-title">3. Initial Scan Results (Before Fix)</h2>
+
+<p class="text-muted">Branch: <code>main</code> | Commit: <code>eacf4fd1</code> | Date: 2026-02-02 UTC | ZAP Mode: Baseline</p>
+
+<table>
+  <thead>
+    <tr><th>Tool</th><th>Category</th><th style="text-align:center">Status</th><th style="text-align:center">C</th><th style="text-align:center">H</th><th style="text-align:center">M</th><th style="text-align:center">L</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Semgrep</td><td>SAST</td><td style="text-align:center"><span class="status-badge status-warn">WARN</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center; font-weight:700;">12</td><td style="text-align:center">-</td></tr>
+    <tr><td>Bandit</td><td>SAST</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Trufflehog</td><td>Secrets</td><td style="text-align:center"><span class="status-badge status-fail">FAIL</span></td><td style="text-align:center; color:var(--critical); font-weight:700;">3</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>pip-audit</td><td>SCA</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>npm audit</td><td>SCA</td><td style="text-align:center"><span class="status-badge status-fail">FAIL</span></td><td style="text-align:center">-</td><td style="text-align:center; color:var(--high); font-weight:700;">2</td><td style="text-align:center">2</td><td style="text-align:center">-</td></tr>
+    <tr><td>Checkov</td><td>IaC</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>pip-licenses</td><td>License</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Syft (Source)</td><td>SBOM</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Trivy (App Image)</td><td>Container</td><td style="text-align:center"><span class="status-badge status-fail">FAIL</span></td><td style="text-align:center; color:var(--critical); font-weight:700;">2</td><td style="text-align:center; color:var(--high); font-weight:700;">2</td><td style="text-align:center; font-weight:700;">46</td><td style="text-align:center">-</td></tr>
+    <tr><td>Trivy (Rec Image)</td><td>Container</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Syft (Container)</td><td>SBOM</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>ZAP Baseline</td><td>DAST</td><td style="text-align:center"><span class="status-badge status-fail">FAIL</span></td><td style="text-align:center">-</td><td style="text-align:center; color:var(--high); font-weight:700;">9</td><td style="text-align:center">5</td><td style="text-align:center">1</td></tr>
+    <tr><td>ZAP API Scan</td><td>DAST</td><td style="text-align:center"><span class="status-badge status-fail">FAIL</span></td><td style="text-align:center">-</td><td style="text-align:center; color:var(--high); font-weight:700;">7</td><td style="text-align:center">1</td><td style="text-align:center">-</td></tr>
+  </tbody>
+  <tfoot>
+    <tr style="font-weight:700; background:#fef2f2;">
+      <td colspan="3">Total</td>
+      <td style="text-align:center; color:var(--critical);">5</td>
+      <td style="text-align:center; color:var(--high);">20</td>
+      <td style="text-align:center; color:var(--medium);">66</td>
+      <td style="text-align:center; color:var(--low);">1</td>
+    </tr>
+  </tfoot>
+</table>
+
+<!-- ── 4. REMEDIATION JOURNEY ── -->
+<div class="page-break"></div>
+<h2 class="section-title">4. Remediation Journey</h2>
+
+<h3 class="sub-title">4.1 Phase 1: Baseline Remediation (Rounds 1&ndash;5)</h3>
+
+<p>A total of <strong>34 fixes</strong> were applied across 5 scan-fix-verify cycles over 7 days (Feb 2&ndash;8), addressing container vulnerabilities, secret detection false positives, dependency upgrades, CSP hardening, server header leaks, API error handling, and nginx infrastructure. Key actions included:</p>
+
+<table>
+  <thead><tr><th>Category</th><th>Fixes</th><th>Severity Resolved</th><th>Key Action</th></tr></thead>
+  <tbody>
+    <tr><td>Container (Trivy)</td><td>6</td><td><span class="sev sev-critical">5C</span> <span class="sev sev-high">2H</span> 46M</td><td>Removed esbuild Go binaries from Docker image + Bun cache</td></tr>
+    <tr><td>Secrets (Trufflehog)</td><td>1</td><td><span class="sev sev-critical">3C</span> (false pos.)</td><td>Fixed report generator parser for log lines</td></tr>
+    <tr><td>SCA (npm audit)</td><td>4</td><td><span class="sev sev-high">2H</span> 2M</td><td>Upgraded @capacitor/cli, drizzle-kit; added --omit=dev</td></tr>
+    <tr><td>DAST &mdash; CSP</td><td>4</td><td><span class="sev sev-high">4H</span></td><td>Added missing directives, replaced wildcards, removed duplicates</td></tr>
+    <tr><td>DAST &mdash; Server Leak</td><td>4</td><td><span class="sev sev-high">2H</span></td><td>proxy_hide_header, server_tokens off, Server header override</td></tr>
+    <tr><td>DAST &mdash; API Errors</td><td>2</td><td><span class="sev sev-high">2H</span></td><td>JSON error handlers for 404/5xx via nginx</td></tr>
+    <tr><td>Nginx Infrastructure</td><td>5</td><td><span class="sev sev-high">3H</span></td><td>Containerized nginx after host module failure</td></tr>
+    <tr><td>Report Generator</td><td>4</td><td><span class="sev sev-high">8H</span> (false pos.)</td><td>Fixed ZAP severity mapping + Sec-Fetch suppression</td></tr>
+    <tr><td>CI/CD Pipeline</td><td>4</td><td>Operational</td><td>HEALTHCHECK, ZAP upgrade, metadata artifacts</td></tr>
+  </tbody>
+  <tfoot>
+    <tr style="font-weight:700; background:#f0fdf4;">
+      <td>Total</td><td>34</td><td colspan="2">92 &rarr; 21 findings (77% reduction)</td>
+    </tr>
+  </tfoot>
+</table>
+
+<h3 class="sub-title">4.2 Phase 2: Full Scan Transition (Report 1 &mdash; Feb 10)</h3>
+
+<p class="text-muted">Branch: <code>dev</code> | Commit: <code>a90aa35b</code> | ZAP Mode: <strong>Full Scan</strong></p>
+
+<p>After the first presentation, the ZAP scan mode was upgraded from <strong>Baseline (passive)</strong> to <strong>Full Scan (active)</strong>. Full Scan performs active attacks including TRACE/OPTIONS probing, User Agent fuzzing, and injection testing. This revealed <strong>10 new issues</strong> not detectable by passive scanning:</p>
+
+<table>
+  <thead><tr><th>Severity</th><th>Finding</th><th>Source</th><th>Why New</th></tr></thead>
+  <tbody>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>JWT token detected in source code (x2)</td><td>Semgrep</td><td>New Semgrep rules added</td></tr>
+    <tr><td><span class="sev sev-medium">MEDIUM</span></td><td>Proxy Disclosure &mdash; nginx identified via TRACE/OPTIONS</td><td>ZAP Full</td><td>Active probing (not in Baseline)</td></tr>
+    <tr><td><span class="sev sev-low">LOW</span></td><td>Insufficient Site Isolation (Spectre)</td><td>ZAP Full</td><td>Full Scan deeper header analysis</td></tr>
+    <tr><td><span class="sev sev-low">LOW</span></td><td>Private IP Disclosure (10.0.2.2:3000)</td><td>ZAP Full</td><td>JS bundle content analysis</td></tr>
+    <tr><td><span class="sev sev-medium">MEDIUM</span></td><td>Additional Semgrep patterns (x5)</td><td>Semgrep</td><td>Expanded rule coverage</td></tr>
+  </tbody>
+</table>
+
+<p>Total findings at this stage: <strong>32</strong> (0C, 3H, 26M, 3L). E2E tests: 0/1 failed.</p>
+
+<h3 class="sub-title">4.3 Phase 3: Full Scan Remediation (Report 2 &mdash; Feb 11)</h3>
+
+<p class="text-muted">Branch: <code>dev</code> | Commit: <code>82c4d062</code> | ZAP Mode: <strong>Full Scan</strong></p>
+
+<p>Between Report 1 and Report 2, <strong>27 findings were resolved</strong>:</p>
+
+<table>
+  <thead><tr><th>Category</th><th>Before</th><th>After</th><th>Key Action</th></tr></thead>
+  <tbody>
+    <tr><td>Semgrep</td><td>2H + 25M = 27</td><td>1M = 1</td><td>Resolved JWT tokens, suppressed false positives, code fixes</td></tr>
+    <tr><td>E2E Tests</td><td>1H (failed)</td><td>Clean (10/10 pass)</td><td>Fixed test infrastructure and test cases</td></tr>
+    <tr><td>ZAP Full Scan</td><td>1M + 2L = 3</td><td>2M + 1L = 3</td><td>Removed Private IP; CSP unsafe-inline now flagged</td></tr>
+    <tr><td>ZAP API</td><td>1L = 1</td><td>1L = 1</td><td>No change (accepted risk)</td></tr>
+    <tr><td>Checkov</td><td>Clean (274 checks)</td><td>Clean (318 checks)</td><td>Added more IaC checks, all passing</td></tr>
+  </tbody>
+  <tfoot>
+    <tr style="font-weight:700; background:#f0fdf4;">
+      <td>Result</td><td>32 findings</td><td>5 findings</td><td>84.4% reduction in this phase</td>
+    </tr>
+  </tfoot>
+</table>
+
+<!-- ── 5. FINAL SCAN RESULTS ── -->
+<div class="page-break"></div>
+<h2 class="section-title">5. Final Scan Results (After All Fixes)</h2>
+
+<p class="text-muted">Branch: <code>dev</code> | Commit: <code>82c4d062</code> | Date: 2026-02-11 17:01 UTC | ZAP Mode: Full Scan</p>
+
+<table>
+  <thead>
+    <tr><th>Tool</th><th>Category</th><th style="text-align:center">Status</th><th style="text-align:center">C</th><th style="text-align:center">H</th><th style="text-align:center">M</th><th style="text-align:center">L</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Semgrep</td><td>SAST</td><td style="text-align:center"><span class="status-badge status-warn">WARN</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">1</td><td style="text-align:center">-</td></tr>
+    <tr><td>Bandit</td><td>SAST</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Trufflehog</td><td>Secrets</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>pip-audit</td><td>SCA</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>npm audit</td><td>SCA</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Checkov</td><td>IaC</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>pip-licenses</td><td>License</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Syft (Source)</td><td>SBOM</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Trivy (App Image)</td><td>Container</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Trivy (Rec Image)</td><td>Container</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>Syft (Container)</td><td>SBOM</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+    <tr><td>ZAP Full Scan</td><td>DAST</td><td style="text-align:center"><span class="status-badge status-warn">WARN</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">2</td><td style="text-align:center">1</td></tr>
+    <tr><td>ZAP API Scan</td><td>DAST</td><td style="text-align:center"><span class="status-badge status-warn">WARN</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">1</td></tr>
+    <tr><td>E2E Tests</td><td>Testing</td><td style="text-align:center"><span class="status-badge status-pass">PASS</span></td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td><td style="text-align:center">-</td></tr>
+  </tbody>
+  <tfoot>
+    <tr style="font-weight:700; background:#f0fdf4;">
+      <td colspan="3">Total</td>
+      <td style="text-align:center; color:var(--pass);">0</td>
+      <td style="text-align:center; color:var(--pass);">0</td>
+      <td style="text-align:center; color:var(--medium);">3</td>
+      <td style="text-align:center; color:var(--low);">2</td>
+    </tr>
+  </tfoot>
+</table>
+
+<div class="success-box">
+  <strong>All 14 security scanners report Clean or Warn (no Fail).</strong> All 10 E2E tests pass. All 318 Checkov IaC checks pass. 3,989 container components catalogued via SBOM. Zero Critical or High vulnerabilities remain.
+</div>
+
+<!-- ── 6. PROGRESS ACROSS ALL PHASES ── -->
+<h2 class="section-title">6. Progress Across All Phases</h2>
+
+<table>
+  <thead>
+    <tr><th>Phase</th><th>Date</th><th>Commit</th><th>ZAP Mode</th><th style="text-align:center">C</th><th style="text-align:center">H</th><th style="text-align:center">M</th><th style="text-align:center">L</th><th style="text-align:center">Total</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>R1 (Initial)</strong></td><td>Feb 2</td><td><code>eacf4fd1</code></td><td>Baseline</td><td style="text-align:center; color:var(--critical);">5</td><td style="text-align:center; color:var(--high);">20</td><td style="text-align:center;">66</td><td style="text-align:center;">1</td><td style="text-align:center; font-weight:700;">92</td></tr>
+    <tr><td><strong>R2</strong></td><td>Feb 3</td><td><code>eacf4fd1</code></td><td>Baseline</td><td style="text-align:center;">4</td><td style="text-align:center;">18</td><td style="text-align:center;">43</td><td style="text-align:center;">1</td><td style="text-align:center;">66</td></tr>
+    <tr><td><strong>R3</strong></td><td>Feb 5</td><td><code>eacf4fd1</code></td><td>Baseline</td><td style="text-align:center;">4</td><td style="text-align:center;">18</td><td style="text-align:center;">32</td><td style="text-align:center;">1</td><td style="text-align:center;">55</td></tr>
+    <tr><td><strong>R4</strong></td><td>Feb 6</td><td><code>ff5bd03b</code></td><td>Baseline</td><td style="text-align:center;">4</td><td style="text-align:center;">18</td><td style="text-align:center;">37</td><td style="text-align:center;">2</td><td style="text-align:center;">61</td></tr>
+    <tr><td><strong>R5</strong></td><td>Feb 8</td><td><code>1539f9f</code></td><td>Baseline</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center;">17</td><td style="text-align:center;">4</td><td style="text-align:center;">21</td></tr>
+    <tr style="background:#fffbeb;"><td><strong>Report 1</strong></td><td>Feb 10</td><td><code>a90aa35b</code></td><td style="font-weight:700; color:var(--accent);">Full Scan</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center; color:var(--high);">3</td><td style="text-align:center;">26</td><td style="text-align:center;">3</td><td style="text-align:center; font-weight:700;">32</td></tr>
+    <tr style="background:#f0fdf4;"><td><strong>Report 2 (Final)</strong></td><td>Feb 11</td><td><code>82c4d062</code></td><td style="font-weight:700; color:var(--accent);">Full Scan</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center;">3</td><td style="text-align:center;">2</td><td style="text-align:center; font-weight:700; color:var(--pass);">5</td></tr>
+  </tbody>
+</table>
+
+<div class="info-box">
+  <strong>Note:</strong> Report 1 shows an increase from 21 to 32 findings. This is expected &mdash; the transition from Baseline to Full Scan mode introduced active attack testing and new Semgrep rules, uncovering issues invisible to passive scanning. These were then resolved in Report 2.
+</div>
+
+<!-- ── 7. REMAINING FINDINGS ── -->
+<div class="page-break"></div>
+<h2 class="section-title">7. Remaining Findings &amp; Accepted Risks</h2>
+
+<p>All 5 remaining findings are Medium or Low severity with documented justifications.</p>
+
+<table>
+  <thead><tr><th>Scanner</th><th>Sev.</th><th>Finding</th><th>Justification</th></tr></thead>
+  <tbody>
+    <tr><td>Semgrep</td><td><span class="sev sev-medium">M</span></td><td>Flask <code>host=0.0.0.0</code></td><td>Runs inside Docker container, not exposed directly</td></tr>
+    <tr><td>ZAP Full</td><td><span class="sev sev-medium">M</span></td><td>CSP: style-src <code>unsafe-inline</code></td><td>Vite framework requirement; nonce-based CSP used for scripts</td></tr>
+    <tr><td>ZAP Full</td><td><span class="sev sev-medium">M</span></td><td>Proxy Disclosure</td><td>Proxy identified as "Unknown"; CORS requires OPTIONS method</td></tr>
+    <tr><td>ZAP Full</td><td><span class="sev sev-low">L</span></td><td>Insufficient Site Isolation (Spectre)</td><td>COEP: require-corp would break Google Maps cross-origin resources</td></tr>
+    <tr><td>ZAP API</td><td><span class="sev sev-low">L</span></td><td>Unexpected Content-Type</td><td>SPA architecture serves HTML for non-API routes by design</td></tr>
+  </tbody>
+</table>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  PART II: ZAP DAST DEDICATED ANALYSIS                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<div class="page-break"></div>
+<div class="zap-banner">
+  <h2>Part II &mdash; ZAP DAST Dedicated Analysis</h2>
+  <p>Comprehensive analysis of ZAP (Zed Attack Proxy) Dynamic Application Security Testing results across all phases</p>
+</div>
+
+<!-- ── 8. ZAP EXECUTIVE SUMMARY ── -->
+<h2 class="section-title">8. ZAP Executive Summary</h2>
+
+<p>ZAP (Zed Attack Proxy) was used as the primary DAST tool throughout the project. Two scan types were employed: <strong>ZAP Full Scan</strong> (initially Baseline, later upgraded) for the web application, and <strong>ZAP API Scan</strong> for the backend REST API. The scan mode was upgraded from <strong>Baseline (passive-only)</strong> to <strong>Full Scan (active + passive)</strong> after the first security presentation, significantly increasing scan depth.</p>
+
+<div class="compare-row">
+  <div class="compare-box before">
+    <div class="big-num" style="color:var(--high)">23</div>
+    <div class="tag">ZAP Findings (Initial)</div>
+    <div style="margin-top:6pt; font-size:9pt;">
+      <span class="sev sev-high">16 High</span>
+      <span class="sev sev-medium">6 Medium</span>
+      <span class="sev sev-low">1 Low</span>
+    </div>
+    <div style="margin-top:4pt; font-size:8pt; color:var(--muted);">Baseline + API Scan</div>
+  </div>
+  <div class="arrow-col">&rarr;</div>
+  <div class="compare-box after">
+    <div class="big-num" style="color:var(--pass)">4</div>
+    <div class="tag">ZAP Findings (Final)</div>
+    <div style="margin-top:6pt; font-size:9pt;">
+      <span class="sev sev-high">0 High</span>
+      <span class="sev sev-medium">2 Medium</span>
+      <span class="sev sev-low">2 Low</span>
+    </div>
+    <div style="margin-top:4pt; font-size:8pt; color:var(--muted);">Full Scan + API Scan</div>
+  </div>
+</div>
+
+<div class="summary-cards">
+  <div class="s-card" style="border-left-color:var(--pass); background:#f0fdf4;">
+    <div class="num" style="color:var(--pass)">82.6%</div>
+    <div class="lbl">ZAP Reduction</div>
+  </div>
+  <div class="s-card" style="border-left-color:var(--high); background:#fff7ed;">
+    <div class="num" style="color:var(--pass)">100%</div>
+    <div class="lbl">High Eliminated</div>
+  </div>
+  <div class="s-card" style="border-left-color:var(--accent); background:#eff6ff;">
+    <div class="num" style="color:var(--accent)">15</div>
+    <div class="lbl">ZAP-Specific Fixes</div>
+  </div>
+  <div class="s-card" style="border-left-color:var(--muted); background:#f8fafc;">
+    <div class="num" style="color:var(--text)">2</div>
+    <div class="lbl">Scan Modes Used</div>
+  </div>
+</div>
+
+<div class="warn-box">
+  <strong>Important Context:</strong> 8 of the initial 16 HIGH findings were <strong>false positives</strong> caused by a report generator bug that confused ZAP confidence level "High" with severity "HIGH" (Sec-Fetch-* headers are Informational alerts). After correcting this, the real initial HIGH count was <strong>8</strong> (CSP issues, Server leak, API errors).
+</div>
+
+<!-- ── 9. ZAP BEFORE vs AFTER ── -->
+<div class="page-break"></div>
+<h2 class="section-title">9. ZAP Before vs After &mdash; At a Glance</h2>
+
+<table>
+  <thead>
+    <tr><th>Metric</th><th style="text-align:center">Initial (Baseline)</th><th style="text-align:center">After Baseline R5</th><th style="text-align:center">Full Scan Report 1</th><th style="text-align:center">Full Scan Report 2</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Scan Mode</strong></td><td style="text-align:center">Baseline + API</td><td style="text-align:center">Baseline + API</td><td style="text-align:center; color:var(--accent); font-weight:700;">Full + API</td><td style="text-align:center; color:var(--accent); font-weight:700;">Full + API</td></tr>
+    <tr><td><strong>Total ZAP Findings</strong></td><td style="text-align:center; font-weight:700; color:var(--high);">23</td><td style="text-align:center;">5</td><td style="text-align:center;">4</td><td style="text-align:center; font-weight:700; color:var(--pass);">4</td></tr>
+    <tr><td>High</td><td style="text-align:center; color:var(--high); font-weight:700;">16</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center; color:var(--pass);">0</td></tr>
+    <tr><td>Medium</td><td style="text-align:center;">6</td><td style="text-align:center;">2</td><td style="text-align:center;">1</td><td style="text-align:center;">2</td></tr>
+    <tr><td>Low</td><td style="text-align:center;">1</td><td style="text-align:center;">3</td><td style="text-align:center;">3</td><td style="text-align:center;">2</td></tr>
+    <tr><td>Informational</td><td style="text-align:center; color:var(--muted);">~10</td><td style="text-align:center; color:var(--muted);">~10</td><td style="text-align:center; color:var(--muted);">10</td><td style="text-align:center; color:var(--muted);">10</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">ZAP Severity Reduction</h3>
+
+<div style="display:flex; gap:8pt; align-items:center; margin:4pt 0;">
+  <span style="font-size:8pt; width:50pt; color:var(--high); font-weight:600;">High</span>
+  <div class="progress-bar-bg" style="flex:1;">
+    <div class="progress-bar-fill" style="width:100%; background: var(--pass);">16 &rarr; 0 (100%)</div>
+  </div>
+</div>
+<div style="display:flex; gap:8pt; align-items:center; margin:4pt 0;">
+  <span style="font-size:8pt; width:50pt; color:var(--medium); font-weight:600;">Medium</span>
+  <div class="progress-bar-bg" style="flex:1;">
+    <div class="progress-bar-fill" style="width:67%; background: var(--medium);">6 &rarr; 2 (67%)</div>
+  </div>
+</div>
+<div style="display:flex; gap:8pt; align-items:center; margin:4pt 0;">
+  <span style="font-size:8pt; width:50pt; color:var(--low); font-weight:600;">Low</span>
+  <div class="progress-bar-bg" style="flex:1;">
+    <div class="progress-bar-fill" style="width:50%; background: var(--low);">1 &rarr; 2 (some reclassified; Private IP removed)</div>
+  </div>
+</div>
+
+<!-- ── 10. ZAP INITIAL FINDINGS ── -->
+<h2 class="section-title">10. ZAP Initial Findings</h2>
+
+<p class="text-muted">ZAP Mode: Baseline + API | Branch: <code>main</code> | Commit: <code>eacf4fd1</code></p>
+
+<h3 class="sub-title">10.1 ZAP Baseline Scan &mdash; Initial (9H, 5M, 1L)</h3>
+
+<table>
+  <thead><tr><th>Severity</th><th>Alert Name</th><th>Instances</th><th>Real Issue?</th></tr></thead>
+  <tbody>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>CSP: Missing directives (form-action, base-uri, object-src, worker-src, manifest-src)</td><td>Systemic</td><td>Yes &mdash; Fixed R1</td></tr>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>CSP: Wildcard sources (<code>https:</code> in img-src, connect-src)</td><td>Systemic</td><td>Yes &mdash; Fixed R1</td></tr>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>CSP: <code>unsafe-inline</code> in script-src and style-src</td><td>Systemic</td><td>Partial &mdash; script-src fixed with nonce; style-src accepted risk</td></tr>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>Server Leaks Version Information (Bun/1.x)</td><td>2</td><td>Yes &mdash; Fixed R1&ndash;R4</td></tr>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>Sec-Fetch-Dest/Mode/Site/User Headers Missing</td><td>8</td><td style="color:var(--fail); font-weight:700;">No &mdash; False positive (Informational misclassified as HIGH by report generator)</td></tr>
+    <tr><td><span class="sev sev-medium">MEDIUM</span></td><td>Cross-Origin-Resource-Policy not set</td><td>Systemic</td><td>Yes &mdash; Fixed R1</td></tr>
+    <tr><td><span class="sev sev-medium">MEDIUM</span></td><td>Cache-Control directives missing</td><td>4</td><td>Informational &mdash; static assets intentionally cacheable</td></tr>
+    <tr><td><span class="sev sev-low">LOW</span></td><td>Insufficient Site Isolation (Spectre)</td><td>8</td><td>Low risk &mdash; Accepted (COEP would break Google Maps)</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">10.2 ZAP API Scan &mdash; Initial (7H, 1M)</h3>
+
+<table>
+  <thead><tr><th>Severity</th><th>Alert Name</th><th>Real Issue?</th></tr></thead>
+  <tbody>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>CSP issues (same as Baseline, applied to API endpoints)</td><td>Yes &mdash; Fixed R1&ndash;R2</td></tr>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>Server header leak on API responses</td><td>Yes &mdash; Fixed R1&ndash;R4</td></tr>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>API 404 returns HTML instead of JSON</td><td>Yes &mdash; Fixed R2</td></tr>
+    <tr><td><span class="sev sev-high">HIGH</span></td><td>Sec-Fetch-* headers missing (x4)</td><td style="color:var(--fail);">No &mdash; False positive</td></tr>
+    <tr><td><span class="sev sev-medium">MEDIUM</span></td><td>Client Error (4xx) status codes on API</td><td>Expected behavior for invalid requests</td></tr>
+  </tbody>
+</table>
+
+<!-- ── 11. ZAP SCAN MODE TRANSITION ── -->
+<div class="page-break"></div>
+<h2 class="section-title">11. ZAP Scan Mode Transition: Baseline &rarr; Full Scan</h2>
+
+<p>After the first security presentation, the instructor recommended upgrading from <strong>ZAP Baseline Scan</strong> to <strong>ZAP Full Scan</strong> for more comprehensive DAST coverage.</p>
+
+<table>
+  <thead><tr><th>Aspect</th><th>Baseline Scan</th><th>Full Scan</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Scan Type</strong></td><td>Passive only (spider + passive rules)</td><td>Active + Passive (spider + passive + active attack)</td></tr>
+    <tr><td><strong>Attack Testing</strong></td><td>None &mdash; only observes responses</td><td>Active probing: TRACE, OPTIONS, TRACK methods; injection testing; fuzzing</td></tr>
+    <tr><td><strong>Duration</strong></td><td>~2&ndash;5 minutes</td><td>~15&ndash;30 minutes</td></tr>
+    <tr><td><strong>Coverage</strong></td><td>Headers, cookies, basic misconfigurations</td><td>All Baseline checks + proxy detection, SQL injection, XSS, path traversal, etc.</td></tr>
+    <tr><td><strong>New Findings</strong></td><td>&mdash;</td><td>Proxy Disclosure, deeper CSP analysis, enhanced content analysis</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">Impact of Transition</h3>
+
+<p>The Full Scan uncovered findings that Baseline could not detect:</p>
+
+<table>
+  <thead><tr><th>Alert</th><th>Risk</th><th>Why Baseline Missed It</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Proxy Disclosure</strong></td><td><span class="sev sev-medium">M</span></td><td>Requires active TRACE/OPTIONS probing to fingerprint proxy servers</td></tr>
+    <tr><td><strong>User Agent Fuzzer</strong></td><td><span class="sev sev-info">INFO</span></td><td>Requires sending multiple requests with different User-Agent headers</td></tr>
+    <tr><td><strong>CSP: style-src unsafe-inline</strong></td><td><span class="sev sev-medium">M</span></td><td>Baseline flagged broader CSP issues; Full Scan provides per-directive granularity</td></tr>
+  </tbody>
+</table>
+
+<div class="info-box">
+  <strong>Key Insight:</strong> Switching to Full Scan temporarily increased the finding count but provided a more accurate picture of the application's security posture. Full Scan's active testing capability is essential for detecting server-side misconfigurations that passive scanning cannot identify.
+</div>
+
+<!-- ── 12. ZAP REMEDIATION STEPS ── -->
+<h2 class="section-title">12. ZAP Remediation Steps</h2>
+
+<p>A total of <strong>15 ZAP-specific fixes</strong> were applied across all phases.</p>
+
+<table>
+  <thead><tr><th style="width:20pt">#</th><th>Fix Description</th><th style="width:70pt">Resolved</th><th style="width:40pt">Phase</th><th style="width:100pt">File</th></tr></thead>
+  <tbody>
+    <tr style="background:#eff6ff;"><td colspan="5" style="font-weight:700; color:var(--primary);">Content Security Policy (CSP)</td></tr>
+    <tr><td>1</td><td>Added missing CSP directives: <code>form-action 'self'</code>, <code>base-uri 'self'</code>, <code>object-src 'none'</code>, <code>worker-src 'self'</code>, <code>manifest-src 'self'</code></td><td><span class="sev sev-high">1H</span></td><td>R1</td><td><code>backend/src/index.ts</code></td></tr>
+    <tr><td>2</td><td>Replaced CSP wildcards (<code>https:</code>) with explicit Google Maps domains in <code>img-src</code> and <code>connect-src</code></td><td><span class="sev sev-high">1H</span></td><td>R1</td><td><code>backend/src/index.ts</code></td></tr>
+    <tr><td>3</td><td>Removed <code>wss:</code> protocol wildcard from <code>connect-src</code> &mdash; <code>'self'</code> covers same-origin WebSocket</td><td><span class="sev sev-high">1H</span></td><td>R2</td><td><code>backend/src/index.ts</code></td></tr>
+    <tr><td>4</td><td>Removed duplicate CSP header from nginx (backend handles context-aware CSP for API vs SPA)</td><td>Prevents conflicts</td><td>R1</td><td><code>deploy/nginx.conf</code></td></tr>
+    <tr><td>5</td><td>Implemented <strong>per-request nonce generation</strong> for <code>script-src</code>, eliminating <code>unsafe-inline</code> for JavaScript</td><td><span class="sev sev-high">1H</span></td><td>R1</td><td><code>backend/src/index.ts</code></td></tr>
+
+    <tr style="background:#eff6ff;"><td colspan="5" style="font-weight:700; color:var(--primary);">Server Information Leak</td></tr>
+    <tr><td>6</td><td>Added <code>headers.delete("Server")</code> in backend &mdash; Bun re-adds after delete, changed to <code>headers.set("Server", "")</code></td><td>Backend fix</td><td>R1&ndash;R2</td><td><code>backend/src/index.ts</code></td></tr>
+    <tr><td>7</td><td>Added <code>proxy_hide_header Server</code> and <code>proxy_hide_header X-Powered-By</code> to nginx</td><td><span class="sev sev-high">2H</span></td><td>R1</td><td><code>deploy/nginx.conf</code></td></tr>
+    <tr><td>8</td><td>Added <code>server_tokens off</code> to nginx to suppress version numbers</td><td>Info leak fix</td><td>R1</td><td><code>deploy/nginx.conf</code></td></tr>
+
+    <tr style="background:#eff6ff;"><td colspan="5" style="font-weight:700; color:var(--primary);">API Error Handling</td></tr>
+    <tr><td>9</td><td>Added <code>proxy_intercept_errors on</code> in nginx API location block</td><td><span class="sev sev-high">1H</span></td><td>R2</td><td><code>deploy/nginx.conf</code></td></tr>
+    <tr><td>10</td><td>Created JSON error handlers: <code>@api_404</code> returns <code>{"error":"Not found"}</code>, <code>@api_error</code> returns <code>{"error":"Service unavailable"}</code></td><td><span class="sev sev-high">1H</span></td><td>R2</td><td><code>deploy/nginx.conf</code></td></tr>
+
+    <tr style="background:#eff6ff;"><td colspan="5" style="font-weight:700; color:var(--primary);">Infrastructure &amp; Deployment</td></tr>
+    <tr><td>11</td><td><strong>Containerized nginx</strong> &mdash; host nginx lacked <code>headers-more</code> module, causing all prior nginx config changes to silently fail</td><td><span class="sev sev-high">3H+</span></td><td>R4</td><td><code>deploy/docker-compose.prod.yml</code>, <code>deploy/Dockerfile.nginx</code></td></tr>
+    <tr><td>12</td><td>Replaced <code>more_clear_headers Server</code> with built-in <code>proxy_hide_header Server</code> for module compatibility</td><td>Compatibility</td><td>R5</td><td><code>deploy/nginx.conf</code></td></tr>
+
+    <tr style="background:#eff6ff;"><td colspan="5" style="font-weight:700; color:var(--primary);">Full Scan Specific Fixes</td></tr>
+    <tr><td>13</td><td>Improved server fingerprint hiding &mdash; Proxy Disclosure now identifies server as "Unknown" instead of "nginx"</td><td>Reduced info leak</td><td>Report 2</td><td><code>deploy/nginx.conf</code></td></tr>
+    <tr><td>14</td><td>Removed Private IP address (<code>10.0.2.2:3000</code>) from JavaScript bundle (Android emulator default)</td><td><span class="sev sev-low">1L</span></td><td>Report 2</td><td>Frontend config</td></tr>
+
+    <tr style="background:#eff6ff;"><td colspan="5" style="font-weight:700; color:var(--primary);">Report Generator &amp; False Positives</td></tr>
+    <tr><td>15</td><td>Fixed ZAP severity mapping: changed from <code>riskdesc</code> text parsing to <code>riskcode</code> numeric mapping; added <code>ZAP_SUPPRESSED_ALERTS</code> for Sec-Fetch-* noise</td><td><span class="sev sev-high">8H</span> (false)</td><td>R5</td><td><code>.github/scripts/generate-security-report.py</code></td></tr>
+  </tbody>
+</table>
+
+<!-- ── 13. ZAP FULL SCAN RESULTS ── -->
+<div class="page-break"></div>
+<h2 class="section-title">13. ZAP Full Scan Results &mdash; Report 1 vs Report 2</h2>
+
+<h3 class="sub-title">13.1 ZAP Full Scan &mdash; Report 1 (Feb 10, Commit a90aa35b)</h3>
+
+<table>
+  <thead><tr><th>Alert</th><th>Risk</th><th>Instances</th><th>Details</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Proxy Disclosure</strong></td><td><span class="sev sev-medium">M</span></td><td>Systemic (5 URLs)</td><td>Proxy identified as <strong>"nginx"</strong> via TRACE/OPTIONS probing</td></tr>
+    <tr><td><strong>Insufficient Site Isolation (Spectre)</strong></td><td><span class="sev sev-low">L</span></td><td>8</td><td>Missing <code>Cross-Origin-Embedder-Policy</code> and <code>Cross-Origin-Opener-Policy</code> headers</td></tr>
+    <tr><td><strong>Private IP Disclosure</strong></td><td><span class="sev sev-low">L</span></td><td>1</td><td><code>10.0.2.2:3000</code> found in <code>index-B8WB50Kz.js</code> (Android emulator default)</td></tr>
+    <tr style="color:var(--muted);"><td>Base64 Disclosure</td><td><span class="sev sev-info">INFO</span></td><td>1</td><td>nanoid character set (not sensitive)</td></tr>
+    <tr style="color:var(--muted);"><td>Suspicious Comments</td><td><span class="sev sev-info">INFO</span></td><td>1</td><td>False positive: "select" matched in SVG namespace URL</td></tr>
+    <tr style="color:var(--muted);"><td>Modern Web Application</td><td><span class="sev sev-info">INFO</span></td><td>Systemic</td><td>Expected &mdash; SPA with no traditional links</td></tr>
+    <tr style="color:var(--muted);"><td>Re-examine Cache-control</td><td><span class="sev sev-info">INFO</span></td><td>4</td><td>HTML pages lack explicit cache-control</td></tr>
+    <tr style="color:var(--muted);"><td>Sec-Fetch-* Headers Missing (x4)</td><td><span class="sev sev-info">INFO</span></td><td>2 each</td><td>Scanner-side headers, not server-side issue</td></tr>
+    <tr style="color:var(--muted);"><td>Storable and Cacheable Content</td><td><span class="sev sev-info">INFO</span></td><td>Systemic</td><td>Public static assets &mdash; expected</td></tr>
+    <tr style="color:var(--muted);"><td>User Agent Fuzzer</td><td><span class="sev sev-info">INFO</span></td><td>Systemic</td><td>No anomalous behavior detected</td></tr>
+  </tbody>
+  <tfoot>
+    <tr style="font-weight:700;">
+      <td colspan="2">Summary</td><td colspan="2">H: 0 | M: 1 | L: 2 | Info: 10</td>
+    </tr>
+  </tfoot>
+</table>
+
+<h3 class="sub-title">13.2 ZAP Full Scan &mdash; Report 2 (Feb 11, Commit 82c4d062)</h3>
+
+<table>
+  <thead><tr><th>Alert</th><th>Risk</th><th>Instances</th><th>Details</th></tr></thead>
+  <tbody>
+    <tr><td><strong>CSP: style-src unsafe-inline</strong></td><td><span class="sev sev-medium">M</span></td><td>Systemic (5 URLs)</td><td><code>style-src 'self' 'unsafe-inline'</code> &mdash; Vite framework requirement</td></tr>
+    <tr><td><strong>Proxy Disclosure</strong></td><td><span class="sev sev-medium">M</span></td><td>Systemic (5 URLs)</td><td>Proxy identified as <strong>"Unknown"</strong> (improved from "nginx")</td></tr>
+    <tr><td><strong>Insufficient Site Isolation (Spectre)</strong></td><td><span class="sev sev-low">L</span></td><td>8</td><td>Same as Report 1 (accepted risk)</td></tr>
+    <tr style="color:var(--muted);"><td>Base64 Disclosure</td><td><span class="sev sev-info">INFO</span></td><td>1</td><td>Same nanoid character set</td></tr>
+    <tr style="color:var(--muted);"><td>Suspicious Comments</td><td><span class="sev sev-info">INFO</span></td><td>1</td><td>Same SVG namespace false positive</td></tr>
+    <tr style="color:var(--muted);"><td>Modern Web Application</td><td><span class="sev sev-info">INFO</span></td><td>Systemic</td><td>Expected</td></tr>
+    <tr style="color:var(--muted);"><td>Re-examine Cache-control</td><td><span class="sev sev-info">INFO</span></td><td>4</td><td>Same as Report 1</td></tr>
+    <tr style="color:var(--muted);"><td>Sec-Fetch-* Headers Missing (x4)</td><td><span class="sev sev-info">INFO</span></td><td>5 each</td><td>Scanner-side headers</td></tr>
+    <tr style="color:var(--muted);"><td>Storable and Cacheable Content</td><td><span class="sev sev-info">INFO</span></td><td>Systemic</td><td>Public static assets</td></tr>
+    <tr style="color:var(--muted);"><td>User Agent Fuzzer</td><td><span class="sev sev-info">INFO</span></td><td>Systemic</td><td>No anomalous behavior</td></tr>
+  </tbody>
+  <tfoot>
+    <tr style="font-weight:700;">
+      <td colspan="2">Summary</td><td colspan="2">H: 0 | M: 2 | L: 1 | Info: 10</td>
+    </tr>
+  </tfoot>
+</table>
+
+<h3 class="sub-title">13.3 Comparison: Report 1 vs Report 2</h3>
+
+<table>
+  <thead><tr><th>Alert</th><th style="text-align:center">Report 1</th><th style="text-align:center">Report 2</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>CSP: style-src unsafe-inline</td><td style="text-align:center">&mdash;</td><td style="text-align:center"><span class="sev sev-medium">M</span></td><td>Newly flagged by Full Scan (always present; now explicitly reported)</td></tr>
+    <tr><td>Proxy Disclosure</td><td style="text-align:center"><span class="sev sev-medium">M</span> ("nginx")</td><td style="text-align:center"><span class="sev sev-medium">M</span> ("Unknown")</td><td style="color:var(--pass); font-weight:700;">Improved &mdash; server identity hidden</td></tr>
+    <tr><td>Insufficient Site Isolation</td><td style="text-align:center"><span class="sev sev-low">L</span></td><td style="text-align:center"><span class="sev sev-low">L</span></td><td>Unchanged (accepted risk)</td></tr>
+    <tr><td>Private IP Disclosure</td><td style="text-align:center"><span class="sev sev-low">L</span></td><td style="text-align:center">&mdash;</td><td style="color:var(--pass); font-weight:700;">Fixed &mdash; removed from JS bundle</td></tr>
+  </tbody>
+</table>
+
+<div class="success-box">
+  <strong>Key Improvement:</strong> The Proxy Disclosure alert now identifies the server as "Unknown" rather than "nginx", confirming that <code>server_tokens off</code>, <code>proxy_hide_header</code>, and containerized nginx configuration changes are working correctly. The Private IP Disclosure was also resolved.
+</div>
+
+<h3 class="sub-title">13.4 CSP Evidence &mdash; Nonce-Based Security</h3>
+
+<p>The final CSP header demonstrates strong security practices:</p>
+
+<div style="background:#f1f5f9; padding:10pt; border-radius:6px; font-family:monospace; font-size:8pt; margin:8pt 0; word-break:break-all;">
+  default-src 'self';<br>
+  script-src 'self' <strong>'nonce-[per-request-random]'</strong> https://maps.googleapis.com;<br>
+  style-src 'self' <strong>'unsafe-inline'</strong> https://fonts.googleapis.com;<br>
+  img-src 'self' data: blob: https://maps.googleapis.com https://maps.gstatic.com;<br>
+  connect-src 'self' https://maps.googleapis.com;<br>
+  font-src 'self' https://fonts.gstatic.com;<br>
+  form-action 'self'; base-uri 'self'; object-src 'none';<br>
+  worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'
+</div>
+
+<div class="info-box">
+  <strong>Note:</strong> Each response includes a unique nonce (e.g., <code>nonce-HT/bacYKewrItuKqwdymTw==</code>), preventing inline script injection even without a strict CSP. Only <code>style-src</code> retains <code>unsafe-inline</code> due to Vite's CSS injection mechanism.
+</div>
+
+<!-- ── 14. ZAP PROGRESS ACROSS ALL PHASES ── -->
+<div class="page-break"></div>
+<h2 class="section-title">14. ZAP Progress Across All Phases</h2>
+
+<table>
+  <thead>
+    <tr><th>Phase</th><th>Date</th><th>ZAP Mode</th><th style="text-align:center">H</th><th style="text-align:center">M</th><th style="text-align:center">L</th><th style="text-align:center">Total</th><th>Key ZAP Action</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Initial</strong></td><td>Feb 2</td><td>Baseline + API</td><td style="text-align:center; color:var(--high); font-weight:700;">16</td><td style="text-align:center;">6</td><td style="text-align:center;">1</td><td style="text-align:center; font-weight:700;">23</td><td>Baseline scan (includes 8H false positives)</td></tr>
+    <tr><td><strong>After R5</strong></td><td>Feb 8</td><td>Baseline + API</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center;">2</td><td style="text-align:center;">3</td><td style="text-align:center;">5</td><td>All Baseline HIGH eliminated; CSP, headers, API fixed</td></tr>
+    <tr style="background:#fffbeb;"><td><strong>Report 1</strong></td><td>Feb 10</td><td style="font-weight:700; color:var(--accent);">Full + API</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center;">1</td><td style="text-align:center;">3</td><td style="text-align:center;">4</td><td>Full Scan mode; Proxy Disclosure found</td></tr>
+    <tr style="background:#f0fdf4;"><td><strong>Report 2</strong></td><td>Feb 11</td><td style="font-weight:700; color:var(--accent);">Full + API</td><td style="text-align:center; color:var(--pass);">0</td><td style="text-align:center;">2</td><td style="text-align:center;">2</td><td style="text-align:center; font-weight:700; color:var(--pass);">4</td><td>Private IP fixed; server identity hidden</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">ZAP-Specific Finding Flow</h3>
+
+<table>
+  <thead><tr><th>Finding</th><th style="text-align:center">Initial</th><th style="text-align:center">After R5</th><th style="text-align:center">Report 1</th><th style="text-align:center">Report 2</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>CSP: Missing directives</td><td style="text-align:center; color:var(--high);">H</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="color:var(--pass); font-weight:700;">FIXED</td></tr>
+    <tr><td>CSP: Wildcard sources</td><td style="text-align:center; color:var(--high);">H</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="color:var(--pass); font-weight:700;">FIXED</td></tr>
+    <tr><td>CSP: unsafe-inline (script-src)</td><td style="text-align:center; color:var(--high);">H</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="color:var(--pass); font-weight:700;">FIXED (nonce)</td></tr>
+    <tr><td>CSP: unsafe-inline (style-src)</td><td style="text-align:center; color:var(--high);">H</td><td style="text-align:center; color:var(--medium);">M</td><td style="text-align:center; color:var(--muted);">&mdash;</td><td style="text-align:center; color:var(--medium);">M</td><td style="color:var(--warn);">ACCEPTED RISK</td></tr>
+    <tr><td>Server header leak (Bun version)</td><td style="text-align:center; color:var(--high);">H</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="color:var(--pass); font-weight:700;">FIXED</td></tr>
+    <tr><td>Sec-Fetch-* missing (false pos.)</td><td style="text-align:center; color:var(--high);">8H</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--muted);">Info</td><td style="text-align:center; color:var(--muted);">Info</td><td style="color:var(--pass); font-weight:700;">RECLASSIFIED</td></tr>
+    <tr><td>API 404 returns HTML</td><td style="text-align:center; color:var(--high);">H</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="color:var(--pass); font-weight:700;">FIXED</td></tr>
+    <tr><td>Proxy Disclosure</td><td style="text-align:center; color:var(--muted);">&mdash;</td><td style="text-align:center; color:var(--muted);">&mdash;</td><td style="text-align:center; color:var(--medium);">M (nginx)</td><td style="text-align:center; color:var(--medium);">M (Unknown)</td><td style="color:var(--warn);">IMPROVED / ACCEPTED</td></tr>
+    <tr><td>Insufficient Site Isolation</td><td style="text-align:center; color:var(--low);">L</td><td style="text-align:center; color:var(--low);">L</td><td style="text-align:center; color:var(--low);">L</td><td style="text-align:center; color:var(--low);">L</td><td style="color:var(--warn);">ACCEPTED RISK</td></tr>
+    <tr><td>Private IP Disclosure</td><td style="text-align:center; color:var(--muted);">&mdash;</td><td style="text-align:center; color:var(--low);">L</td><td style="text-align:center; color:var(--low);">L</td><td style="text-align:center; color:var(--pass);">&mdash;</td><td style="color:var(--pass); font-weight:700;">FIXED</td></tr>
+    <tr><td>Unexpected Content-Type (API)</td><td style="text-align:center; color:var(--muted);">&mdash;</td><td style="text-align:center; color:var(--low);">L</td><td style="text-align:center; color:var(--low);">L</td><td style="text-align:center; color:var(--low);">L</td><td style="color:var(--warn);">ACCEPTED RISK</td></tr>
+  </tbody>
+</table>
+
+<!-- ── 15. ZAP REMAINING FINDINGS ── -->
+<h2 class="section-title">15. ZAP Remaining Findings &amp; Accepted Risks</h2>
+
+<p>All 4 remaining ZAP findings are Medium or Low severity with documented justifications.</p>
+
+<table>
+  <thead><tr><th>Scan</th><th>Sev.</th><th>Finding</th><th>CWE</th><th>Justification</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Full</td>
+      <td><span class="sev sev-medium">M</span></td>
+      <td><strong>CSP: style-src unsafe-inline</strong></td>
+      <td>CWE-693</td>
+      <td>Vite framework injects CSS via <code>&lt;style&gt;</code> tags at build time. Removing <code>unsafe-inline</code> would require server-side rendering with nonce injection for every stylesheet. <code>script-src</code> uses per-request nonces, which is the higher-priority mitigation.</td>
+    </tr>
+    <tr>
+      <td>Full</td>
+      <td><span class="sev sev-medium">M</span></td>
+      <td><strong>Proxy Disclosure</strong></td>
+      <td>CWE-204</td>
+      <td>A reverse proxy is architecturally required. Server identity is now "Unknown" (improved from "nginx"). TRACE method is handled by nginx returning 405. OPTIONS method is needed for CORS preflight requests.</td>
+    </tr>
+    <tr>
+      <td>Full</td>
+      <td><span class="sev sev-low">L</span></td>
+      <td><strong>Insufficient Site Isolation (Spectre)</strong></td>
+      <td>CWE-693</td>
+      <td>Setting <code>Cross-Origin-Embedder-Policy: require-corp</code> would block Google Maps API tiles, fonts, and scripts that lack CORP headers. The application uses <code>Cross-Origin-Resource-Policy: same-origin</code> as a partial mitigation.</td>
+    </tr>
+    <tr>
+      <td>API</td>
+      <td><span class="sev sev-low">L</span></td>
+      <td><strong>Unexpected Content-Type</strong></td>
+      <td>N/A</td>
+      <td>SPA architecture: non-API routes (e.g., <code>/favicon.ico</code>) return HTML from the SPA's <code>index.html</code> fallback. This is standard behavior for single-page applications behind a reverse proxy.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ── 16. ZAP KEY OBSERVATIONS ── -->
+<div class="page-break"></div>
+<h2 class="section-title">16. ZAP Key Observations</h2>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>1. Full Scan provides significantly deeper coverage than Baseline.</strong><br>
+  Baseline mode (passive-only) missed the Proxy Disclosure vulnerability entirely because it requires active TRACE/OPTIONS probing. Organizations should use Full Scan for production security assessments and Baseline for CI/CD pipeline quick checks.
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>2. Report generator accuracy is critical for ZAP findings.</strong><br>
+  The initial ZAP report inflated findings by 12 HIGH alerts due to two bugs: (a) parsing <code>riskdesc</code> string "Informational (High)" matched "High" as severity, and (b) Sec-Fetch-* Informational alerts were not suppressed. Using numeric <code>riskcode</code> mapping eliminated false inflation.
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>3. Nonce-based CSP is effective even with partial unsafe-inline.</strong><br>
+  ZAP confirmed that each HTML response contains a unique, unpredictable nonce in the <code>&lt;script&gt;</code> tag. This prevents script injection even though <code>style-src</code> allows <code>unsafe-inline</code>. The per-request nonce generation is a strong mitigation.
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>4. Proxy Disclosure is inherent to reverse-proxy architectures.</strong><br>
+  Any application using nginx, Apache, or a load balancer as a reverse proxy will trigger this alert. The mitigation is to minimize information leakage (server identity, version numbers), not to eliminate the proxy. The improvement from "nginx" to "Unknown" demonstrates effective configuration hardening.
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>5. Switching scan modes mid-project requires careful expectation management.</strong><br>
+  The transition from Baseline to Full Scan temporarily increased the finding count from 21 to 32, which could be alarming. Teams should communicate that this reflects deeper scanning, not security regression. The final result of 5 findings validates the approach.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 17. FILES MODIFIED                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 class="section-title">17. Files Modified</h2>
+
+<table>
+  <thead><tr><th>File</th><th>Phases</th><th>Summary of Changes</th></tr></thead>
+  <tbody>
+    <tr><td><code>Dockerfile</code></td><td>R1&ndash;R5</td><td>Production-only install, pinned base image, Go binary cleanup across all paths including Bun cache</td></tr>
+    <tr><td><code>backend/src/index.ts</code></td><td>R1, R2</td><td>Enhanced CSP with per-request nonces, Server header override, CORP header</td></tr>
+    <tr><td><code>deploy/nginx.conf</code></td><td>R1&ndash;R5, Report 2</td><td>Security headers, CSP delegation, H2C protection, JSON error pages, proxy_hide_header, server identity hiding</td></tr>
+    <tr><td><code>deploy/docker-compose.prod.yml</code></td><td>R4</td><td>Added containerized nginx service, app expose-only</td></tr>
+    <tr><td><code>deploy/Dockerfile.nginx</code></td><td>R4, R5</td><td>Created for containerized nginx, added HEALTHCHECK</td></tr>
+    <tr><td><code>deploy/deploy.sh</code></td><td>R2, R4</td><td>Stop host nginx, containerized nginx deployment</td></tr>
+    <tr><td><code>deploy/nginx-upstream.conf</code></td><td>R4</td><td>Changed from <code>127.0.0.1:3000</code> to <code>ecoplate-app:3000</code> (Docker DNS)</td></tr>
+    <tr><td><code>frontend/package.json</code></td><td>R1</td><td>@capacitor packages ^6.x &rarr; ^7.0.0</td></tr>
+    <tr><td><code>frontend/bun.lockb</code></td><td>R2</td><td>Regenerated with updated @capacitor/cli</td></tr>
+    <tr><td><code>backend/package.json</code></td><td>R2</td><td>drizzle-kit ^0.12.8 &rarr; ^0.31.0</td></tr>
+    <tr><td><code>backend/bun.lockb</code></td><td>R2</td><td>Regenerated with updated drizzle-kit</td></tr>
+    <tr><td><code>.github/workflows/ci.yml</code></td><td>R4</td><td>npm audit <code>--omit=dev</code></td></tr>
+    <tr><td><code>.github/workflows/cd.yml</code></td><td>R4, R5</td><td>Pipeline metadata artifact, ZAP action upgrade, Full Scan mode</td></tr>
+    <tr><td><code>.github/workflows/security-report.yml</code></td><td>R4</td><td>Metadata-based branch resolution</td></tr>
+    <tr><td><code>.github/scripts/generate-security-report.py</code></td><td>R5</td><td>Fixed ZAP severity mapping, Trufflehog parser, alert suppression</td></tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 18. KEY LESSONS LEARNED                                               -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 class="section-title">18. Key Lessons Learned</h2>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>1. Use Full Scan mode for production security assessments.</strong><br>
+  ZAP Baseline (passive-only) missed the Proxy Disclosure vulnerability that Full Scan detected via active TRACE/OPTIONS probing. Reserve Baseline for CI/CD pipeline quick checks; use Full Scan for comprehensive security validation.
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>2. Floating Docker tags cause non-deterministic builds.</strong><br>
+  <code>oven/bun:1.2-alpine</code> resolved to different images between builds, introducing new CVEs. Always pin to specific versions (e.g., <code>oven/bun:1.2.5-alpine</code>).
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>3. Nginx config changes require end-to-end deployment verification.</strong><br>
+  Four rounds of nginx fixes were silently dropped because the host nginx lacked a required module. Containerizing nginx eliminated this class of deployment failures and ensured configuration consistency.
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>4. Security report generators can inflate severity counts.</strong><br>
+  The ZAP <code>riskdesc</code> field format <code>"Informational (High)"</code> caused 12 false HIGH findings when parsed as text. Using numeric <code>riskcode</code> is the correct approach. Always validate report generator output against raw scan data.
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>5. Nonce-based CSP is worth the implementation effort.</strong><br>
+  Per-request nonce generation for <code>script-src</code> eliminated the need for <code>unsafe-inline</code> in JavaScript, significantly reducing XSS attack surface. This was confirmed by ZAP's CSP analysis showing nonce values changing with every response.
+</div>
+
+<div class="info-box" style="margin-bottom:10pt;">
+  <strong>6. Switching scan modes mid-project provides valuable insights.</strong><br>
+  The Baseline &rarr; Full Scan transition temporarily increased findings from 21 to 32, but this exposed real issues (Proxy Disclosure, Private IP) that passive scanning could never detect. The final reduction to 5 validates the iterative approach.
+</div>
+
+<div style="margin-top:24pt; padding-top:12pt; border-top:2px solid var(--border); text-align:center; color:var(--muted); font-size:8.5pt;">
+  EcoPlate Complete Security Remediation Report &mdash; Generated 2026-02-12 &mdash; GDIPSA-Team2/ecoplate<br>
+  Covering: Initial Scan (Feb 2) &rarr; Baseline Remediation R1&ndash;R5 (Feb 2&ndash;8) &rarr; Full Scan Report 1 (Feb 10) &rarr; Full Scan Report 2 (Feb 11)
+</div>
+
+</body>
+</html>

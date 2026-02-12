@@ -1,0 +1,260 @@
+<html><head><meta charset="utf-8"/><title>EcoPlate E2E Test Report</title><style type="text/css">html,
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1rem;
+  margin: 0;
+  padding: 0;
+  color: #333;
+}
+body {
+  padding: 2rem 1rem;
+  font-size: 0.85rem;
+}
+.jesthtml-content {
+  margin: 0 auto;
+  max-width: 70rem;
+}
+header {
+  display: flex;
+  align-items: center;
+}
+#title {
+  margin: 0;
+  flex-grow: 1;
+}
+#logo {
+  height: 4rem;
+}
+#timestamp {
+  color: #777;
+  margin-top: 0.5rem;
+}
+
+/** SUMMARY */
+#summary {
+  color: #333;
+  margin: 2rem 0;
+  display: flex;
+  font-family: monospace;
+  font-size: 1rem;
+}
+#summary > div {
+  margin-right: 2rem;
+  background: #eee;
+  padding: 1rem;
+  min-width: 15rem;
+}
+#summary > div:last-child {
+  margin-right: 0;
+}
+@media only screen and (max-width: 720px) {
+  #summary {
+    flex-direction: column;
+  }
+  #summary > div {
+    margin-right: 0;
+    margin-top: 2rem;
+  }
+  #summary > div:first-child {
+    margin-top: 0;
+  }
+}
+
+.summary-total {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+.summary-passed {
+  color: #4f8a10;
+  border-left: 0.4rem solid #4f8a10;
+  padding-left: 0.5rem;
+}
+.summary-failed,
+.summary-obsolete-snapshots {
+  color: #d8000c;
+  border-left: 0.4rem solid #d8000c;
+  padding-left: 0.5rem;
+}
+.summary-pending {
+  color: #9f6000;
+  border-left: 0.4rem solid #9f6000;
+  padding-left: 0.5rem;
+}
+.summary-empty {
+  color: #999;
+  border-left: 0.4rem solid #999;
+}
+
+.test-result {
+  padding: 1rem;
+  margin-bottom: 0.25rem;
+}
+.test-result:last-child {
+  border: 0;
+}
+.test-result.passed {
+  background-color: #dff2bf;
+  color: #4f8a10;
+}
+.test-result.failed {
+  background-color: #ffbaba;
+  color: #d8000c;
+}
+.test-result.pending {
+  background-color: #ffdf61;
+  color: #9f6000;
+}
+
+.test-info {
+  display: flex;
+  justify-content: space-between;
+}
+.test-suitename {
+  width: 20%;
+  text-align: left;
+  font-weight: bold;
+  word-break: break-word;
+}
+.test-title {
+  width: 40%;
+  text-align: left;
+  font-style: italic;
+}
+.test-status {
+  width: 20%;
+  text-align: right;
+}
+.test-duration {
+  width: 10%;
+  text-align: right;
+  font-size: 0.75rem;
+}
+
+.failureMessages {
+  padding: 0 1rem;
+  margin-top: 1rem;
+  border-top: 1px dashed #d8000c;
+}
+.failureMessages.suiteFailure {
+  border-top: none;
+}
+.failureMsg {
+  white-space: pre-wrap;
+  white-space: -moz-pre-wrap;
+  white-space: -pre-wrap;
+  white-space: -o-pre-wrap;
+  word-wrap: break-word;
+}
+
+.suite-container {
+  margin-bottom: 2rem;
+}
+.suite-container > input[type="checkbox"] {
+  position: absolute;
+  left: -100vw;
+}
+.suite-container label {
+  display: block;
+}
+.suite-container .suite-tests {
+  overflow-y: hidden;
+  height: 0;
+}
+.suite-container > input[type="checkbox"]:checked ~ .suite-tests {
+  height: auto;
+  overflow: visible;
+}
+.suite-info {
+  padding: 1rem;
+  background-color: #eee;
+  color: #777;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+.suite-info:hover {
+  background-color: #ddd;
+  cursor: pointer;
+}
+.suite-info .suite-path {
+  word-break: break-all;
+  flex-grow: 1;
+  font-family: monospace;
+  font-size: 1rem;
+}
+.suite-info .suite-time {
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.3rem;
+  font-size: 0.75rem;
+}
+.suite-info .suite-time.warn {
+  background-color: #d8000c;
+  color: #fff;
+}
+.suite-info:before {
+  content: "\2303";
+  display: inline-block;
+  margin-right: 0.5rem;
+  transform: rotate(0deg);
+}
+.suite-container > input[type="checkbox"]:checked ~ label .suite-info:before {
+  transform: rotate(180deg);
+}
+
+/* CONSOLE LOGS */
+.suite-consolelog {
+  margin-bottom: 0.25rem;
+  padding: 1rem;
+  background-color: #efefef;
+}
+.suite-consolelog-header {
+  font-weight: bold;
+}
+.suite-consolelog-item {
+  padding: 0.5rem;
+}
+.suite-consolelog-item pre {
+  margin: 0.5rem 0;
+  white-space: pre-wrap;
+  white-space: -moz-pre-wrap;
+  white-space: -pre-wrap;
+  white-space: -o-pre-wrap;
+  word-wrap: break-word;
+}
+.suite-consolelog-item-origin {
+  color: #777;
+  font-weight: bold;
+}
+.suite-consolelog-item-message {
+  color: #000;
+  font-size: 1rem;
+  padding: 0 0.5rem;
+}
+
+/* OBSOLETE SNAPSHOTS */
+.suite-obsolete-snapshots {
+  margin-bottom: 0.25rem;
+  padding: 1rem;
+  background-color: #ffbaba;
+  color: #d8000c;
+}
+.suite-obsolete-snapshots-header {
+  font-weight: bold;
+}
+.suite-obsolete-snapshots-item {
+  padding: 0.5rem;
+}
+.suite-obsolete-snapshots-item pre {
+  margin: 0.5rem 0;
+  white-space: pre-wrap;
+  white-space: -moz-pre-wrap;
+  white-space: -pre-wrap;
+  white-space: -o-pre-wrap;
+  word-wrap: break-word;
+}
+.suite-obsolete-snapshots-item-message {
+  color: #000;
+  font-size: 1rem;
+  padding: 0 0.5rem;
+}
+</style></head><body><div class="jesthtml-content"><header><h1 id="title">EcoPlate E2E Test Report</h1></header><div id="metadata-container"><div id="timestamp">Started: 2026-02-11 16:56:40</div><div id="summary"><div id="suite-summary"><div class="summary-total">Suites (10)</div><div class="summary-passed ">10 passed</div><div class="summary-failed  summary-empty">0 failed</div><div class="summary-pending  summary-empty">0 pending</div></div><div id="test-summary"><div class="summary-total">Tests (37)</div><div class="summary-passed ">37 passed</div><div class="summary-failed  summary-empty">0 failed</div><div class="summary-pending  summary-empty">0 pending</div></div></div></div><div id="suite-1" class="suite-container"><input id="collapsible-0" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-0"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/rewards/rewards.spec.ts</div><div class="suite-time warn">71.951s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards</div><div class="test-title">should navigate to rewards page</div><div class="test-status">passed</div><div class="test-duration">0.701s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards</div><div class="test-title">should display page title</div><div class="test-status">passed</div><div class="test-duration">1.285s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards</div><div class="test-title">should display balance card</div><div class="test-status">passed</div><div class="test-duration">0.706s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards</div><div class="test-title">should display My Redemptions button</div><div class="test-status">passed</div><div class="test-duration">1.234s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards</div><div class="test-title">should display filter tabs</div><div class="test-status">passed</div><div class="test-duration">1.243s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards</div><div class="test-title">should show rewards or empty state</div><div class="test-status">passed</div><div class="test-duration">11.221s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards</div><div class="test-title">should navigate to My Redemptions when button clicked</div><div class="test-status">passed</div><div class="test-duration">0.557s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards - Filter Functionality</div><div class="test-title">should filter by apparel rewards</div><div class="test-status">passed</div><div class="test-duration">1.646s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards - Filter Functionality</div><div class="test-title">should filter by food rewards</div><div class="test-status">passed</div><div class="test-duration">1.116s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Rewards - Filter Functionality</div><div class="test-title">should show all rewards when All filter clicked</div><div class="test-status">passed</div><div class="test-duration">1.517s</div></div></div></div></div><div id="suite-2" class="suite-container"><input id="collapsible-1" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-1"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/auth/login.spec.ts</div><div class="suite-time warn">10.875s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">Login</div><div class="test-title">should display the login form</div><div class="test-status">passed</div><div class="test-duration">1.968s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Login</div><div class="test-title">should show register link</div><div class="test-status">passed</div><div class="test-duration">1.365s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Login</div><div class="test-title">should login with valid credentials</div><div class="test-status">passed</div><div class="test-duration">1.78s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Login</div><div class="test-title">should show error with invalid credentials</div><div class="test-status">passed</div><div class="test-duration">2.303s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Login</div><div class="test-title">should navigate to register page</div><div class="test-status">passed</div><div class="test-duration">0.916s</div></div></div></div></div><div id="suite-3" class="suite-container"><input id="collapsible-2" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-2"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/ecolocker/orders.spec.ts</div><div class="suite-time warn">18.369s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">EcoLocker Orders</div><div class="test-title">should display "My Orders" page title</div><div class="test-status">passed</div><div class="test-duration">0.641s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">EcoLocker Orders</div><div class="test-title">should show Buying and Selling tabs</div><div class="test-status">passed</div><div class="test-duration">0.446s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">EcoLocker Orders</div><div class="test-title">should switch between tabs</div><div class="test-status">passed</div><div class="test-duration">2.577s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">EcoLocker Orders</div><div class="test-title">should show orders or empty state</div><div class="test-status">passed</div><div class="test-duration">10.442s</div></div></div></div></div><div id="suite-4" class="suite-container"><input id="collapsible-3" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-3"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/myfridge/view-products.spec.ts</div><div class="suite-time warn">17.358s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">MyFridge - View Products</div><div class="test-title">should navigate to My Fridge page</div><div class="test-status">passed</div><div class="test-duration">4.828s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">MyFridge - View Products</div><div class="test-title">should display scan receipt button</div><div class="test-status">passed</div><div class="test-duration">2.344s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">MyFridge - View Products</div><div class="test-title">should display add item button</div><div class="test-status">passed</div><div class="test-duration">2.248s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">MyFridge - View Products</div><div class="test-title">should show products or empty state</div><div class="test-status">passed</div><div class="test-duration">3.237s</div></div></div></div></div><div id="suite-5" class="suite-container"><input id="collapsible-4" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-4"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/ecolocker/notifications.spec.ts</div><div class="suite-time warn">25.576s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">EcoLocker Notifications</div><div class="test-title">should display Notifications page title</div><div class="test-status">passed</div><div class="test-duration">0.456s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">EcoLocker Notifications</div><div class="test-title">should show notifications or empty state</div><div class="test-status">passed</div><div class="test-duration">10.435s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">EcoLocker Notifications</div><div class="test-title">should navigate to order detail when clicking a notification</div><div class="test-status">passed</div><div class="test-duration">10.45s</div></div></div></div></div><div id="suite-6" class="suite-container"><input id="collapsible-5" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-5"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/auth/logout.spec.ts</div><div class="suite-time warn">7.13s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">Logout</div><div class="test-title">should be logged in after login</div><div class="test-status">passed</div><div class="test-duration">2.528s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Logout</div><div class="test-title">should logout and redirect to login</div><div class="test-status">passed</div><div class="test-duration">2.234s</div></div></div></div></div><div id="suite-7" class="suite-container"><input id="collapsible-6" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-6"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/marketplace/create-listing.spec.ts</div><div class="suite-time warn">6.701s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">Marketplace - Create Listing</div><div class="test-title">should navigate to create listing page from marketplace</div><div class="test-status">passed</div><div class="test-duration">1.317s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Marketplace - Create Listing</div><div class="test-title">should display listing form</div><div class="test-status">passed</div><div class="test-duration">0.694s</div></div></div></div></div><div id="suite-8" class="suite-container"><input id="collapsible-7" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-7"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/marketplace/browse.spec.ts</div><div class="suite-time warn">27.123s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">Marketplace - Browse</div><div class="test-title">should navigate to marketplace page</div><div class="test-status">passed</div><div class="test-duration">0.525s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Marketplace - Browse</div><div class="test-title">should display create listing button</div><div class="test-status">passed</div><div class="test-duration">1.223s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Marketplace - Browse</div><div class="test-title">should show listings or empty state</div><div class="test-status">passed</div><div class="test-duration">20.717s</div></div></div></div></div><div id="suite-9" class="suite-container"><input id="collapsible-8" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-8"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/auth/register.spec.ts</div><div class="suite-time warn">5.071s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">Register</div><div class="test-title">should display the registration form</div><div class="test-status">passed</div><div class="test-duration">1.598s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Register</div><div class="test-title">should show login link</div><div class="test-status">passed</div><div class="test-duration">0.345s</div></div></div><div class="test-result passed"><div class="test-info"><div class="test-suitename">Register</div><div class="test-title">should navigate to login page</div><div class="test-status">passed</div><div class="test-duration">0.757s</div></div></div></div></div><div id="suite-10" class="suite-container"><input id="collapsible-9" type="checkbox" class="toggle" checked="checked"/><label for="collapsible-9"><div class="suite-info"><div class="suite-path">/home/runner/work/ecoplate/ecoplate/e2e/specs/gamification/ecopoints.spec.ts</div><div class="suite-time warn">5.186s</div></div></label><div class="suite-tests"><div class="test-result passed"><div class="test-info"><div class="test-suitename">Gamification - EcoPoints</div><div class="test-title">should navigate to ecopoints page</div><div class="test-status">passed</div><div class="test-duration">0.511s</div></div></div></div></div></div></body></html>

@@ -1,0 +1,395 @@
+{
+  "generated": "2026-02-10T02:37:28.677368+00:00",
+  "findings": [
+    {
+      "title": "javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal",
+      "severity": "medium",
+      "description": "Detected possible user input going into a `path.join` or `path.resolve` function. This could possibly lead to a path traversal vulnerability,  where the attacker can access arbitrary files stored in the file system. Instead, be sure to sanitize or validate user input first.",
+      "location": "backend/src/index.ts:123",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "bf690ff56e79"
+    },
+    {
+      "title": "javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal",
+      "severity": "medium",
+      "description": "Detected possible user input going into a `path.join` or `path.resolve` function. This could possibly lead to a path traversal vulnerability,  where the attacker can access arbitrary files stored in the file system. Instead, be sure to sanitize or validate user input first.",
+      "location": "backend/src/index.ts:125",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "1435c3243bf6"
+    },
+    {
+      "title": "javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp",
+      "severity": "medium",
+      "description": "RegExp() called with a `path` function argument, this might allow an attacker to cause a Regular Expression Denial-of-Service (ReDoS) within your application as RegExP blocks the main thread. For this reason, it is recommended to use hardcoded regexes instead. If your regex is run on user-controlled input, consider performing input validation or use a regex checking/sanitization library such as https://www.npmjs.com/package/recheck to verify that the regex does not appear vulnerable to ReDoS.",
+      "location": "backend/src/utils/router.ts:40",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "0e309fe7f702"
+    },
+    {
+      "title": "javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal",
+      "severity": "medium",
+      "description": "Detected possible user input going into a `path.join` or `path.resolve` function. This could possibly lead to a path traversal vulnerability,  where the attacker can access arbitrary files stored in the file system. Instead, be sure to sanitize or validate user input first.",
+      "location": "e2e/helpers/driver.ts:78",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "f6fa8810e4e2"
+    },
+    {
+      "title": "python.flask.security.audit.app-run-param-config.avoid_app_run_with_bad_host",
+      "severity": "medium",
+      "description": "Running flask app with host 0.0.0.0 could expose the server publicly.",
+      "location": "recommendation-engine/app.py:552",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "f8943dd9b691"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:567",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "10bc0dc137e5"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:603",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "05f28a551d5d"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:639",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "49b5a6f61734"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:675",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "2b2d3753efce"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:711",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "e847f8f2286a"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:747",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "453d9dd28591"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:783",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "590178f36433"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:819",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "94f2ac88635e"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:855",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "0c02623e77cd"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:946",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "afdc87eeae6d"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:982",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "f3f0c8028fed"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1018",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "1339e81a0dfa"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1054",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "0c08a75762f9"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1090",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "65d601b2e98b"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1126",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "e4815fea0f6e"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1212",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "71bccb703548"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1304",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "1405287c7e4b"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1396",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "9a24760ecc54"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1488",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "85e9c67777ed"
+    },
+    {
+      "title": "html.security.plaintext-http-link.plaintext-http-link",
+      "severity": "medium",
+      "description": "This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.",
+      "location": "security/report5/local-test/zap-api/report_html.html:1580",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "4605ae3b81bd"
+    },
+    {
+      "title": "generic.secrets.security.detected-jwt-token.detected-jwt-token",
+      "severity": "high",
+      "description": "JWT token detected",
+      "location": "security/report6/remediation-report6.md:24",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "f5a71fe0975d"
+    },
+    {
+      "title": "generic.secrets.security.detected-jwt-token.detected-jwt-token",
+      "severity": "high",
+      "description": "JWT token detected",
+      "location": "security/report6/remediation-report6.md:25",
+      "cve_id": "",
+      "recommendation": "",
+      "tool": "Semgrep",
+      "fingerprint": "38ad38504610"
+    },
+    {
+      "title": "Proxy Disclosure",
+      "severity": "medium",
+      "description": "<p>1 proxy server(s) were detected or fingerprinted. This information helps a potential attacker to determine</p><p>- A list of targets for an attack against the application.</p><p> - Potential vulner",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "<p>Disable the 'TRACE' method on the proxy servers, as well as the origin web/application server.</p><p>Disable the 'OPTIONS' method on the proxy servers, as well as the origin web/application server,",
+      "tool": "ZAP-Full Scan",
+      "fingerprint": "d19aaf60e984"
+    },
+    {
+      "title": "Insufficient Site Isolation Against Spectre Vulnerability",
+      "severity": "low",
+      "description": "<p>Cross-Origin-Embedder-Policy header is a response header that prevents a document from loading any cross-origin resources that don't explicitly grant the document permission (using CORP or CORS).</",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "<p>Ensure that the application/web server sets the Cross-Origin-Embedder-Policy header appropriately, and that it sets the Cross-Origin-Embedder-Policy header to 'require-corp' for documents.</p><p>If",
+      "tool": "ZAP-Full Scan",
+      "fingerprint": "1bd36e41b284"
+    },
+    {
+      "title": "Private IP Disclosure",
+      "severity": "low",
+      "description": "<p>A private IP (such as 10.x.x.x, 172.x.x.x, 192.168.x.x) or an Amazon EC2 private hostname (for example, ip-10-0-56-78) has been found in the HTTP response body. This information might be helpful fo",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "<p>Remove the private IP address from the HTTP response body. For comments, use JSP/ASP/PHP comment instead of HTML/JavaScript comment which can be seen by client browsers.</p>",
+      "tool": "ZAP-Full Scan",
+      "fingerprint": "ec814fc31bfd"
+    },
+    {
+      "title": "Base64 Disclosure",
+      "severity": "info",
+      "description": "<p>Base64 encoded data was disclosed by the application/web server. Note: in the interests of performance not all base64 strings in the response were analyzed individually, the entire response should ",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "<p>Manually confirm that the Base64 data does not leak sensitive information, and that the data cannot be aggregated/used to exploit other vulnerabilities.</p>",
+      "tool": "ZAP-Full Scan",
+      "fingerprint": "1dd4435c4695"
+    },
+    {
+      "title": "Information Disclosure - Suspicious Comments",
+      "severity": "info",
+      "description": "<p>The response appears to contain suspicious comments which may help an attacker.</p>",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "<p>Remove all comments that return information that may help an attacker and fix any underlying problems they refer to.</p>",
+      "tool": "ZAP-Full Scan",
+      "fingerprint": "27e070d1e038"
+    },
+    {
+      "title": "Re-examine Cache-control Directives",
+      "severity": "info",
+      "description": "<p>The cache-control header has not been set properly or is missing, allowing the browser and proxies to cache content. For static assets like css, js, or image files this might be intended, however, ",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "<p>For secure content, ensure the cache-control HTTP header is set with \"no-cache, no-store, must-revalidate\". If an asset should be cached consider setting the directives \"public, max-age, immutable\"",
+      "tool": "ZAP-Full Scan",
+      "fingerprint": "6c3225c275f1"
+    },
+    {
+      "title": "Storable and Cacheable Content",
+      "severity": "info",
+      "description": "<p>The response contents are storable by caching components such as proxy servers, and may be retrieved directly from the cache, rather than from the origin server by the caching servers, in response ",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "<p>Validate that the response does not contain sensitive, personal or user-specific information. If it does, consider the use of the following HTTP response headers, to limit, or prevent the content b",
+      "tool": "ZAP-Full Scan",
+      "fingerprint": "d355c7131fc7"
+    },
+    {
+      "title": "User Agent Fuzzer",
+      "severity": "info",
+      "description": "<p>Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the o",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "Review the ZAP report for remediation steps",
+      "tool": "ZAP-Full Scan",
+      "fingerprint": "9beefc63f2d1"
+    },
+    {
+      "title": "Unexpected Content-Type was returned",
+      "severity": "low",
+      "description": "<p>A Content-Type of text/html was returned by the server.</p><p>This is not one of the types expected to be returned by an API.</p><p>Raised by the 'Alert on Unexpected Content Types' script</p>",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "Review the ZAP report for remediation steps",
+      "tool": "ZAP-API",
+      "fingerprint": "6c718a89035a"
+    },
+    {
+      "title": "A Client Error response code was returned by the server",
+      "severity": "info",
+      "description": "<p>A response code of 404 was returned by the server.</p><p>This may indicate that the application is failing to handle unexpected input correctly.</p><p>Raised by the 'Alert on HTTP Response Code Err",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "Review the ZAP report for remediation steps",
+      "tool": "ZAP-API",
+      "fingerprint": "a5ac7bb3ce4a"
+    },
+    {
+      "title": "Storable and Cacheable Content",
+      "severity": "info",
+      "description": "<p>The response contents are storable by caching components such as proxy servers, and may be retrieved directly from the cache, rather than from the origin server by the caching servers, in response ",
+      "location": "",
+      "cve_id": "",
+      "recommendation": "<p>Validate that the response does not contain sensitive, personal or user-specific information. If it does, consider the use of the following HTTP response headers, to limit, or prevent the content b",
+      "tool": "ZAP-API",
+      "fingerprint": "75aebdf4c9ac"
+    },
+    {
+      "title": "Test failed: Test execution failed - see workflow logs for details",
+      "severity": "high",
+      "description": "This end-to-end test is failing",
+      "location": "e2e/specs/",
+      "cve_id": "",
+      "recommendation": "Check the test screenshots and logs to debug this failure",
+      "tool": "E2E-Tests",
+      "fingerprint": "c3a2d87935b2"
+    }
+  ]
+}

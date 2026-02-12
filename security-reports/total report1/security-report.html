@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Report - EcoPlate</title>
+<style>
+:root { --bg: #f8fafc; --card: #fff; --text: #1e293b; --muted: #64748b; --border: #e2e8f0; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; max-width: 1100px; margin: 0 auto; line-height: 1.6; }
+header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: #fff; padding: 2rem; border-radius: 12px; margin-bottom: 1.5rem; }
+header h1 { font-size: 1.5rem; margin-bottom: 0.25rem; font-weight: 600; }
+header .subtitle { opacity: 0.9; font-size: 0.95rem; margin-bottom: 1rem; }
+header .meta { display: flex; flex-wrap: wrap; gap: 1.5rem; font-size: 0.85rem; opacity: 0.85; }
+header .meta-item { display: flex; align-items: center; gap: 0.4rem; }
+
+.executive-summary { background: var(--card); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border-left: 4px solid; }
+.executive-summary h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+.executive-summary .risk-level { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.executive-summary p { color: var(--muted); font-size: 0.95rem; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--card); border-radius: 10px; padding: 1rem; text-align: center; border-bottom: 3px solid var(--border); }
+.stat-card .number { font-size: 1.75rem; font-weight: 700; }
+.stat-card .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+
+.section { background: var(--card); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+.section h2 { font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+.section h3 { font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0.5rem 0; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.scan-item { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+.scan-item:last-child { border-bottom: none; }
+.scan-item .info { display: flex; align-items: center; gap: 0.75rem; }
+.scan-item .icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #fff; font-size: 0.9rem; }
+.scan-item .name { font-weight: 500; }
+.scan-item .summary { font-size: 0.85rem; color: var(--muted); }
+.scan-item .counts { display: flex; gap: 0.5rem; font-size: 0.8rem; }
+.scan-item .count { padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 500; }
+
+.findings-section { margin-top: 1rem; }
+.finding { background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; border-left: 3px solid; }
+.finding .title { font-weight: 500; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
+.finding .sev { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; color: #fff; text-transform: uppercase; font-weight: 600; }
+.finding .location { font-size: 0.8rem; color: var(--muted); font-family: monospace; margin-bottom: 0.25rem; }
+.finding .desc { font-size: 0.85rem; color: var(--text); }
+.finding .recommendation { font-size: 0.85rem; color: #16a34a; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border); }
+.finding .recommendation::before { content: "→ "; }
+
+details { margin-top: 0.5rem; }
+details summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); padding: 0.5rem; border-radius: 6px; }
+details summary:hover { background: #f1f5f9; }
+
+.progress-section { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.progress-section h3 { margin-bottom: 0.75rem; }
+.progress-bar { background: #e2e8f0; border-radius: 9999px; height: 8px; overflow: hidden; margin: 0.5rem 0; }
+.progress-bar .fill { height: 100%; border-radius: 9999px; transition: width 0.3s; }
+
+footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 2rem 0; }
+@media (max-width: 640px) { body { padding: 1rem; } .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+@media print { body { padding: 0; } .section { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<header>
+    <h1>Security & Quality Report</h1>
+    <div class="subtitle">EcoPlate DevSecOps Pipeline Results</div>
+    <div class="meta">
+        <div class="meta-item">📁 Branch: <strong>dev</strong></div>
+        <div class="meta-item">🔗 Commit: <strong>a90aa35b</strong></div>
+        <div class="meta-item">📅 February 10, 2026 at 02:37 UTC</div>
+    </div>
+</header>
+
+<div class="executive-summary" style="border-left-color:#ca8a04">
+    <h2>What You Need to Know</h2>
+    <div class="risk-level" style="color:#ca8a04">Moderate Risk</div>
+    <p>A few high-severity issues need attention, but the overall security posture is reasonable.</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card" style="border-bottom-color:#6b7280">
+        <div class="number">32</div>
+        <div class="label">Total Findings</div>
+    </div>
+    <div class="stat-card" style="border-bottom-color:#dc2626">
+        <div class="number" style="color:#dc2626">0</div>
+        <div class="label">Critical</div>
+    </div>
+    <div class="stat-card" style="border-bottom-color:#ea580c">
+        <div class="number" style="color:#ea580c">3</div>
+        <div class="label">High</div>
+    </div>
+    <div class="stat-card" style="border-bottom-color:#ca8a04">
+        <div class="number" style="color:#ca8a04">26</div>
+        <div class="label">Medium</div>
+    </div>
+    <div class="stat-card" style="border-bottom-color:#2563eb">
+        <div class="number" style="color:#2563eb">3</div>
+        <div class="label">Low</div>
+    </div>
+    <div class="stat-card" style="border-bottom-color:#16a34a">
+        <div class="number">10/14</div>
+        <div class="label">Scans Passed</div>
+    </div>
+</div>
+
+
+<div class="section" style="border-left: 4px solid #6366f1; margin-bottom: 1.5rem;">
+    <h2 style="color: #6366f1;">Changes Since February 10, 2026</h2>
+    <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.9rem;">
+        Comparing current scan against the previous baseline.
+    </p>
+    <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 1rem;">
+        <div class="stat-card" style="border-bottom-color: #dc2626;">
+            <div class="number" style="color: #dc2626;">10</div>
+            <div class="label">New Issues</div>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #16a34a;">
+            <div class="number" style="color: #16a34a;">0</div>
+            <div class="label">Fixed</div>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #6b7280;">
+            <div class="number">29</div>
+            <div class="label">Unchanged</div>
+        </div>
+    </div>
+    <details open>
+        <summary style="color: #dc2626; font-weight: 500;">New Issues (need attention)</summary>
+        <div class="findings-section" style="margin-top: 0.5rem;">
+            <div class="finding" style="border-left-color: #ea580c; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #ea580c;">high</span>
+                    generic.secrets.security.detected-jwt-token.detected-jwt-token
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(Semgrep)</span>
+                </div>
+                <div class="location">security/report6/remediation-report6.md:24</div>
+            </div>
+            <div class="finding" style="border-left-color: #ea580c; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #ea580c;">high</span>
+                    generic.secrets.security.detected-jwt-token.detected-jwt-token
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(Semgrep)</span>
+                </div>
+                <div class="location">security/report6/remediation-report6.md:25</div>
+            </div>
+            <div class="finding" style="border-left-color: #ca8a04; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #ca8a04;">medium</span>
+                    Proxy Disclosure
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(ZAP-Full Scan)</span>
+                </div>
+                
+            </div>
+            <div class="finding" style="border-left-color: #2563eb; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #2563eb;">low</span>
+                    Insufficient Site Isolation Against Spectre Vulnerability
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(ZAP-Full Scan)</span>
+                </div>
+                
+            </div>
+            <div class="finding" style="border-left-color: #2563eb; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #2563eb;">low</span>
+                    Private IP Disclosure
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(ZAP-Full Scan)</span>
+                </div>
+                
+            </div>
+            <div class="finding" style="border-left-color: #6b7280; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #6b7280;">info</span>
+                    Base64 Disclosure
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(ZAP-Full Scan)</span>
+                </div>
+                
+            </div>
+            <div class="finding" style="border-left-color: #6b7280; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #6b7280;">info</span>
+                    Information Disclosure - Suspicious Comments
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(ZAP-Full Scan)</span>
+                </div>
+                
+            </div>
+            <div class="finding" style="border-left-color: #6b7280; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #6b7280;">info</span>
+                    Re-examine Cache-control Directives
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(ZAP-Full Scan)</span>
+                </div>
+                
+            </div>
+            <div class="finding" style="border-left-color: #6b7280; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #6b7280;">info</span>
+                    Storable and Cacheable Content
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(ZAP-Full Scan)</span>
+                </div>
+                
+            </div>
+            <div class="finding" style="border-left-color: #6b7280; background: #fef2f2;">
+                <div class="title">
+                    <span class="sev" style="background: #6b7280;">info</span>
+                    User Agent Fuzzer
+                    <span style="font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem;">(ZAP-Full Scan)</span>
+                </div>
+                
+            </div>
+        </div>
+    </details>
+</div>
+
+
+        <div class="section">
+            <h2>SAST</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#dc2626">✗</div>
+                    <div>
+                        <div class="name">Semgrep</div>
+                        <div class="summary">Found 27 potential issues</div>
+                    </div>
+                </div>
+                <div class="counts"><span class="count" style="background:#fff7ed;color:#ea580c">2 high</span><span class="count" style="background:#fefce8;color:#ca8a04">25 medium</span></div>
+            </div>
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">Bandit</div>
+                        <div class="summary">Python code passed security checks</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>Secrets</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">Trufflehog</div>
+                        <div class="summary">No hardcoded secrets detected - nice work keeping credentials safe</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>SCA</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">pip-audit</div>
+                        <div class="summary">All Python dependencies are up to date</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">npm audit</div>
+                        <div class="summary">All JavaScript dependencies look secure</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>IaC</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">Checkov</div>
+                        <div class="summary">All 274 infrastructure checks passed</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>Compliance</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">License Check</div>
+                        <div class="summary">Scanned 32 packages, all licenses look compatible</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>Inventory</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">SBOM (Source)</div>
+                        <div class="summary">Catalogued 334 components in the codebase</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">SBOM (Containers)</div>
+                        <div class="summary">Catalogued 3633 components across container images</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>Container</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">Trivy (App)</div>
+                        <div class="summary">Container image looks secure</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#16a34a">✓</div>
+                    <div>
+                        <div class="name">Trivy (Recommendation)</div>
+                        <div class="summary">Container image looks secure</div>
+                    </div>
+                </div>
+                <div class="counts"><span style="color:#16a34a">✓ Clean</span></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>DAST</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#ca8a04">⚠</div>
+                    <div>
+                        <div class="name">ZAP Full Scan</div>
+                        <div class="summary">Found 8 security issues in live application</div>
+                    </div>
+                </div>
+                <div class="counts"><span class="count" style="background:#fefce8;color:#ca8a04">1 medium</span><span class="count" style="background:#eff6ff;color:#2563eb">2 low</span></div>
+            </div>
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#ca8a04">⚠</div>
+                    <div>
+                        <div class="name">ZAP API</div>
+                        <div class="summary">Found 3 security issues in live application</div>
+                    </div>
+                </div>
+                <div class="counts"><span class="count" style="background:#eff6ff;color:#2563eb">1 low</span></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>Functional</h2>
+            
+            <div class="scan-item">
+                <div class="info">
+                    <div class="icon" style="background:#dc2626">✗</div>
+                    <div>
+                        <div class="name">E2E Tests</div>
+                        <div class="summary">0 passed, 1 failed - needs attention</div>
+                    </div>
+                </div>
+                <div class="counts"><span class="count" style="background:#fff7ed;color:#ea580c">1 high</span></div>
+            </div>
+        </div>
+
+
+        <div class="section">
+            <h2 style="color:#dc2626">Semgrep Findings</h2>
+            <p style="color:var(--muted);margin-bottom:1rem;font-size:0.9rem">Found 27 potential issues (12 more not shown)</p>
+            <div class="findings-section">
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+                </div>
+                <div class="location">backend/src/index.ts:123</div>
+                <div class="desc">Detected possible user input going into a `path.join` or `path.resolve` function. This could possibly lead to a path traversal vulnerability,  where the attacker can access arbitrary files stored in t</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+                </div>
+                <div class="location">backend/src/index.ts:125</div>
+                <div class="desc">Detected possible user input going into a `path.join` or `path.resolve` function. This could possibly lead to a path traversal vulnerability,  where the attacker can access arbitrary files stored in t</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+                </div>
+                <div class="location">backend/src/utils/router.ts:40</div>
+                <div class="desc">RegExp() called with a `path` function argument, this might allow an attacker to cause a Regular Expression Denial-of-Service (ReDoS) within your application as RegExP blocks the main thread. For this</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+                </div>
+                <div class="location">e2e/helpers/driver.ts:78</div>
+                <div class="desc">Detected possible user input going into a `path.join` or `path.resolve` function. This could possibly lead to a path traversal vulnerability,  where the attacker can access arbitrary files stored in t</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    python.flask.security.audit.app-run-param-config.avoid_app_run_with_bad_host
+                </div>
+                <div class="location">recommendation-engine/app.py:552</div>
+                <div class="desc">Running flask app with host 0.0.0.0 could expose the server publicly.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:567</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:603</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:639</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:675</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:711</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:747</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:783</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:819</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:855</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div>
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    html.security.plaintext-http-link.plaintext-http-link
+                </div>
+                <div class="location">security/report5/local-test/zap-api/report_html.html:946</div>
+                <div class="desc">This link points to a plaintext HTTP URL. Prefer an encrypted HTTPS URL if possible.</div>
+                
+            </div></div>
+        </div>
+        <div class="section">
+            <h2 style="color:#ca8a04">ZAP Full Scan Findings</h2>
+            <p style="color:var(--muted);margin-bottom:1rem;font-size:0.9rem">Found 8 security issues in live application</p>
+            <div class="findings-section">
+            <div class="finding" style="border-left-color:#ca8a04">
+                <div class="title">
+                    <span class="sev" style="background:#ca8a04">medium</span>
+                    Proxy Disclosure
+                </div>
+                
+                <div class="desc">&lt;p&gt;1 proxy server(s) were detected or fingerprinted. This information helps a potential attacker to determine&lt;/p&gt;&lt;p&gt;- A list of targets for an attack against the application.&lt;/p&gt;&lt;p&gt; - Potential vulner</div>
+                <div class="recommendation">&lt;p&gt;Disable the &#x27;TRACE&#x27; method on the proxy servers, as well as the origin web/application server.&lt;/p&gt;&lt;p&gt;Disable the &#x27;OPTIONS&#x27; method on the proxy servers, as well as the origin web/application server,</div>
+            </div>
+            <div class="finding" style="border-left-color:#2563eb">
+                <div class="title">
+                    <span class="sev" style="background:#2563eb">low</span>
+                    Insufficient Site Isolation Against Spectre Vulnerability
+                </div>
+                
+                <div class="desc">&lt;p&gt;Cross-Origin-Embedder-Policy header is a response header that prevents a document from loading any cross-origin resources that don&#x27;t explicitly grant the document permission (using CORP or CORS).&lt;/</div>
+                <div class="recommendation">&lt;p&gt;Ensure that the application/web server sets the Cross-Origin-Embedder-Policy header appropriately, and that it sets the Cross-Origin-Embedder-Policy header to &#x27;require-corp&#x27; for documents.&lt;/p&gt;&lt;p&gt;If</div>
+            </div>
+            <div class="finding" style="border-left-color:#2563eb">
+                <div class="title">
+                    <span class="sev" style="background:#2563eb">low</span>
+                    Private IP Disclosure
+                </div>
+                
+                <div class="desc">&lt;p&gt;A private IP (such as 10.x.x.x, 172.x.x.x, 192.168.x.x) or an Amazon EC2 private hostname (for example, ip-10-0-56-78) has been found in the HTTP response body. This information might be helpful fo</div>
+                <div class="recommendation">&lt;p&gt;Remove the private IP address from the HTTP response body. For comments, use JSP/ASP/PHP comment instead of HTML/JavaScript comment which can be seen by client browsers.&lt;/p&gt;</div>
+            </div>
+            <div class="finding" style="border-left-color:#6b7280">
+                <div class="title">
+                    <span class="sev" style="background:#6b7280">info</span>
+                    Base64 Disclosure
+                </div>
+                
+                <div class="desc">&lt;p&gt;Base64 encoded data was disclosed by the application/web server. Note: in the interests of performance not all base64 strings in the response were analyzed individually, the entire response should </div>
+                <div class="recommendation">&lt;p&gt;Manually confirm that the Base64 data does not leak sensitive information, and that the data cannot be aggregated/used to exploit other vulnerabilities.&lt;/p&gt;</div>
+            </div>
+            <div class="finding" style="border-left-color:#6b7280">
+                <div class="title">
+                    <span class="sev" style="background:#6b7280">info</span>
+                    Information Disclosure - Suspicious Comments
+                </div>
+                
+                <div class="desc">&lt;p&gt;The response appears to contain suspicious comments which may help an attacker.&lt;/p&gt;</div>
+                <div class="recommendation">&lt;p&gt;Remove all comments that return information that may help an attacker and fix any underlying problems they refer to.&lt;/p&gt;</div>
+            </div>
+            <div class="finding" style="border-left-color:#6b7280">
+                <div class="title">
+                    <span class="sev" style="background:#6b7280">info</span>
+                    Re-examine Cache-control Directives
+                </div>
+                
+                <div class="desc">&lt;p&gt;The cache-control header has not been set properly or is missing, allowing the browser and proxies to cache content. For static assets like css, js, or image files this might be intended, however, </div>
+                <div class="recommendation">&lt;p&gt;For secure content, ensure the cache-control HTTP header is set with &quot;no-cache, no-store, must-revalidate&quot;. If an asset should be cached consider setting the directives &quot;public, max-age, immutable&quot;</div>
+            </div>
+            <div class="finding" style="border-left-color:#6b7280">
+                <div class="title">
+                    <span class="sev" style="background:#6b7280">info</span>
+                    Storable and Cacheable Content
+                </div>
+                
+                <div class="desc">&lt;p&gt;The response contents are storable by caching components such as proxy servers, and may be retrieved directly from the cache, rather than from the origin server by the caching servers, in response </div>
+                <div class="recommendation">&lt;p&gt;Validate that the response does not contain sensitive, personal or user-specific information. If it does, consider the use of the following HTTP response headers, to limit, or prevent the content b</div>
+            </div>
+            <div class="finding" style="border-left-color:#6b7280">
+                <div class="title">
+                    <span class="sev" style="background:#6b7280">info</span>
+                    User Agent Fuzzer
+                </div>
+                
+                <div class="desc">&lt;p&gt;Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the o</div>
+                <div class="recommendation">Review the ZAP report for remediation steps</div>
+            </div></div>
+        </div>
+        <div class="section">
+            <h2 style="color:#ca8a04">ZAP API Findings</h2>
+            <p style="color:var(--muted);margin-bottom:1rem;font-size:0.9rem">Found 3 security issues in live application</p>
+            <div class="findings-section">
+            <div class="finding" style="border-left-color:#2563eb">
+                <div class="title">
+                    <span class="sev" style="background:#2563eb">low</span>
+                    Unexpected Content-Type was returned
+                </div>
+                
+                <div class="desc">&lt;p&gt;A Content-Type of text/html was returned by the server.&lt;/p&gt;&lt;p&gt;This is not one of the types expected to be returned by an API.&lt;/p&gt;&lt;p&gt;Raised by the &#x27;Alert on Unexpected Content Types&#x27; script&lt;/p&gt;</div>
+                <div class="recommendation">Review the ZAP report for remediation steps</div>
+            </div>
+            <div class="finding" style="border-left-color:#6b7280">
+                <div class="title">
+                    <span class="sev" style="background:#6b7280">info</span>
+                    A Client Error response code was returned by the server
+                </div>
+                
+                <div class="desc">&lt;p&gt;A response code of 404 was returned by the server.&lt;/p&gt;&lt;p&gt;This may indicate that the application is failing to handle unexpected input correctly.&lt;/p&gt;&lt;p&gt;Raised by the &#x27;Alert on HTTP Response Code Err</div>
+                <div class="recommendation">Review the ZAP report for remediation steps</div>
+            </div>
+            <div class="finding" style="border-left-color:#6b7280">
+                <div class="title">
+                    <span class="sev" style="background:#6b7280">info</span>
+                    Storable and Cacheable Content
+                </div>
+                
+                <div class="desc">&lt;p&gt;The response contents are storable by caching components such as proxy servers, and may be retrieved directly from the cache, rather than from the origin server by the caching servers, in response </div>
+                <div class="recommendation">&lt;p&gt;Validate that the response does not contain sensitive, personal or user-specific information. If it does, consider the use of the following HTTP response headers, to limit, or prevent the content b</div>
+            </div></div>
+        </div>
+        <div class="section">
+            <h2 style="color:#dc2626">E2E Tests Findings</h2>
+            <p style="color:var(--muted);margin-bottom:1rem;font-size:0.9rem">0 passed, 1 failed - needs attention</p>
+            <div class="findings-section">
+            <div class="finding" style="border-left-color:#ea580c">
+                <div class="title">
+                    <span class="sev" style="background:#ea580c">high</span>
+                    Test failed: Test execution failed - see workflow logs for details
+                </div>
+                <div class="location">e2e/specs/</div>
+                <div class="desc">This end-to-end test is failing</div>
+                <div class="recommendation">Check the test screenshots and logs to debug this failure</div>
+            </div></div>
+        </div>
+
+<footer>
+    Report generated by EcoPlate DevSecOps Pipeline<br>
+    February 10, 2026 at 02:37 UTC
+</footer>
+</body>
+</html>
