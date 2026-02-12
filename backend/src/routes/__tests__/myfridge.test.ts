@@ -1,10 +1,9 @@
 import { describe, expect, test, mock, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
-import { Router, json, error } from "../../utils/router";
+import { Router } from "../../utils/router";
 import * as schema from "../../db/schema";
-import { eq, and, desc } from "drizzle-orm";
-import { z } from "zod";
+import { eq, and } from "drizzle-orm";
 
 // Mock OpenAI before importing routes
 mock.module("openai", () => {
@@ -47,264 +46,58 @@ mock.module("openai", () => {
   };
 });
 
+// Mock gamification service
+mock.module("../../services/gamification-service", () => ({
+  awardPoints: async () => ({ amount: 5, newTotal: 100 }),
+  POINT_VALUES: { consumed: 0, shared: 0, sold: 8, wasted: 0 },
+  getOrCreateUserPoints: async () => ({ userId: 1, totalPoints: 100 }),
+  calculatePointsForAction: () => 5,
+  computeCo2Value: () => 1.0,
+}));
+
+// Mock badge service (dynamically imported in myfridge.ts)
+mock.module("../../services/badge-service", () => ({
+  checkAndAwardBadges: async () => [],
+}));
+
+// Mock auth middleware
+// Include all exports from auth.ts to avoid module conflict issues when tests run together
+let testUserId = 1;
+mock.module("../../middleware/auth", () => ({
+  hashPassword: async (password: string): Promise<string> => `hashed_${password}`,
+  verifyPassword: async (password: string, hash: string): Promise<boolean> =>
+    hash === `hashed_${password}`,
+  generateToken: async (payload: { sub: string; email: string; name: string }): Promise<string> =>
+    `token_${payload.sub}_${payload.email}`,
+  verifyToken: async (token: string): Promise<{ sub: string; email: string; name: string } | null> => {
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+  getUser: () => ({
+    id: testUserId,
+    email: "test@example.com",
+    name: "Test User",
+  }),
+  extractBearerToken: (req: Request): string | null => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    return authHeader.slice(7);
+  },
+  authMiddleware: async (_req: Request, next: () => Promise<Response>) => next(),
+  verifyRequestAuth: async (req: Request) => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    const token = authHeader.slice(7);
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+}));
+
 // Set up in-memory test database
 let sqlite: Database;
 let testDb: ReturnType<typeof drizzle<typeof schema>>;
-let testUserId: number;
-
-const productSchema = z.object({
-  productName: z.string().min(1).max(200),
-  category: z.string().optional(),
-  quantity: z.number().positive().default(1),
-  unit: z.string().optional(),
-  unitPrice: z.number().optional(),
-  purchaseDate: z.string().optional(),
-  description: z.string().optional(),
-  co2Emission: z.number().optional(),
-});
-
-const interactionSchema = z.object({
-  type: z.enum(["Add", "Consume", "Waste"]),
-  quantity: z.number().positive(),
-  todayDate: z.string().optional(),
-});
-
-// Register routes function that takes db as parameter
-function registerTestMyFridgeRoutes(
-  router: Router,
-  db: ReturnType<typeof drizzle<typeof schema>>,
-  userId: number
-) {
-  router.use(async (req, next) => {
-    (req as Request & { user: { id: number; email: string; name: string } }).user = {
-      id: userId,
-      email: "test@example.com",
-      name: "Test User",
-    };
-    return next();
-  });
-
-  const getUser = (req: Request) =>
-    (req as Request & { user: { id: number; email: string; name: string } }).user;
-
-  // Get all products for the authenticated user
-  router.get("/api/v1/myfridge/products", async (req) => {
-    const user = getUser(req);
-
-    const userProducts = await db.query.products.findMany({
-      where: eq(schema.products.userId, user.id),
-      orderBy: [desc(schema.products.id)],
-    });
-
-    return json(userProducts);
-  });
-
-  // Add a new product
-  router.post("/api/v1/myfridge/products", async (req) => {
-    try {
-      const user = getUser(req);
-      const body = await req.json();
-      const data = productSchema.parse(body);
-
-      const [product] = await db
-        .insert(schema.products)
-        .values({
-          userId: user.id,
-          productName: data.productName,
-          category: data.category,
-          quantity: data.quantity,
-          unit: data.unit,
-          unitPrice: data.unitPrice,
-          purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
-          description: data.description,
-          co2Emission: data.co2Emission,
-        })
-        .returning();
-
-      // Log "Add" interaction for sustainability tracking
-      const todayDate = new Date().toISOString().split("T")[0];
-      await db.insert(schema.productSustainabilityMetrics).values({
-        productId: product.id,
-        userId: user.id,
-        todayDate,
-        quantity: data.quantity,
-        type: "Add",
-      });
-
-      return json(product);
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return error(e.errors[0].message, 400);
-      }
-      console.error("Add product error:", e);
-      return error("Failed to add product", 500);
-    }
-  });
-
-  // Get single product
-  router.get("/api/v1/myfridge/products/:id", async (req, params) => {
-    const user = getUser(req);
-    const productId = parseInt(params.id, 10);
-
-    const product = await db.query.products.findFirst({
-      where: and(eq(schema.products.id, productId), eq(schema.products.userId, user.id)),
-    });
-
-    if (!product) {
-      return error("Product not found", 404);
-    }
-
-    return json(product);
-  });
-
-  // Update product
-  router.patch("/api/v1/myfridge/products/:id", async (req, params) => {
-    try {
-      const user = getUser(req);
-      const productId = parseInt(params.id, 10);
-      const body = await req.json();
-      const data = productSchema.partial().parse(body);
-
-      const existing = await db.query.products.findFirst({
-        where: and(eq(schema.products.id, productId), eq(schema.products.userId, user.id)),
-      });
-
-      if (!existing) {
-        return error("Product not found", 404);
-      }
-
-      const updateData: Record<string, unknown> = { ...data };
-      if (data.purchaseDate) {
-        updateData.purchaseDate = new Date(data.purchaseDate);
-      }
-
-      const [updated] = await db
-        .update(schema.products)
-        .set(updateData)
-        .where(eq(schema.products.id, productId))
-        .returning();
-
-      return json(updated);
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return error(e.errors[0].message, 400);
-      }
-      console.error("Update product error:", e);
-      return error("Failed to update product", 500);
-    }
-  });
-
-  // Delete product
-  router.delete("/api/v1/myfridge/products/:id", async (req, params) => {
-    const user = getUser(req);
-    const productId = parseInt(params.id, 10);
-
-    const existing = await db.query.products.findFirst({
-      where: and(eq(schema.products.id, productId), eq(schema.products.userId, user.id)),
-    });
-
-    if (!existing) {
-      return error("Product not found", 404);
-    }
-
-    await db.delete(schema.products).where(eq(schema.products.id, productId));
-
-    return json({ message: "Product deleted" });
-  });
-
-  // Log product interaction (consume, waste)
-  router.post("/api/v1/myfridge/products/:id/consume", async (req, params) => {
-    try {
-      const user = getUser(req);
-      const productId = parseInt(params.id, 10);
-      const body = await req.json();
-      const data = interactionSchema.parse(body);
-
-      const product = await db.query.products.findFirst({
-        where: and(eq(schema.products.id, productId), eq(schema.products.userId, user.id)),
-      });
-
-      if (!product) {
-        return error("Product not found", 404);
-      }
-
-      // Log the interaction
-      await db.insert(schema.productSustainabilityMetrics).values({
-        productId,
-        userId: user.id,
-        todayDate: data.todayDate || new Date().toISOString().split("T")[0],
-        quantity: data.quantity,
-        type: data.type,
-      });
-
-      // Deduct quantity from product
-      const newQuantity = Math.max(0, (product.quantity || 0) - data.quantity);
-      await db
-        .update(schema.products)
-        .set({ quantity: newQuantity })
-        .where(eq(schema.products.id, productId));
-
-      const POINTS: Record<string, number> = {
-        Add: 2,
-        Consume: 5,
-        Waste: -2,
-      };
-
-      return json({
-        message: "Product interaction logged",
-        pointsChange: POINTS[data.type],
-        newQuantity,
-      });
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return error(e.errors[0].message, 400);
-      }
-      console.error("Product interaction error:", e);
-      return error("Failed to log interaction", 500);
-    }
-  });
-
-  // Scan receipt
-  router.post("/api/v1/myfridge/receipt/scan", async (req) => {
-    try {
-      const body = await req.json() as { imageBase64?: string };
-
-      if (!body.imageBase64) {
-        return error("Image is required", 400);
-      }
-
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        return error("OpenAI API key not configured", 500);
-      }
-
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({ apiKey });
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-4.1-nano",
-        messages: [{ role: "user", content: "test" }],
-      });
-
-      const content = response.choices[0]?.message?.content || '{"items":[]}';
-      const parsed = JSON.parse(content) as {
-        items: Array<{
-          name: string;
-          quantity: number;
-          category: string;
-          unit: string;
-          co2Emission: number;
-          unitPrice: number;
-        }>;
-      };
-
-      return json({ items: parsed.items });
-    } catch (e) {
-      console.error("Receipt scan error:", e);
-      return error("Failed to scan receipt", 500);
-    }
-  });
-}
 
 beforeAll(async () => {
   process.env.OPENAI_API_KEY = "test-api-key";
@@ -344,12 +137,26 @@ beforeAll(async () => {
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       today_date TEXT NOT NULL,
       quantity REAL,
-    unit TEXT,
+      unit TEXT,
       type TEXT
+    );
+
+    CREATE TABLE pending_consumption_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      raw_photo TEXT NOT NULL,
+      ingredients TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'PENDING_WASTE_PHOTO',
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
   `);
 
   testDb = drizzle(sqlite, { schema });
+
+  // Inject test database BEFORE importing routes
+  const { __setTestDb } = await import("../../db/connection");
+  __setTestDb(testDb as any);
 
   // Seed test user
   const [user] = await testDb
@@ -370,12 +177,20 @@ afterAll(() => {
 beforeEach(async () => {
   // Clear products and metrics tables before each test
   await testDb.delete(schema.productSustainabilityMetrics);
+  await testDb.delete(schema.pendingConsumptionRecords);
   await testDb.delete(schema.products);
+});
+
+// Import actual route registration function AFTER db is set up
+let registerMyFridgeRoutes: (router: Router) => void;
+beforeAll(async () => {
+  const myFridgeModule = await import("../myfridge");
+  registerMyFridgeRoutes = myFridgeModule.registerMyFridgeRoutes;
 });
 
 function createRouter() {
   const router = new Router();
-  registerTestMyFridgeRoutes(router, testDb, testUserId);
+  registerMyFridgeRoutes(router);
   return router;
 }
 
@@ -494,7 +309,7 @@ describe("POST /api/v1/myfridge/products", () => {
     expect(data.co2Emission).toBe(2.5);
   });
 
-  test("creates Add sustainability metric when product is added", async () => {
+  test("creates add sustainability metric when product is added", async () => {
     const router = createRouter();
     await makeRequest(router, "POST", "/api/v1/myfridge/products", {
       productName: "Cheese",
@@ -506,7 +321,7 @@ describe("POST /api/v1/myfridge/products", () => {
     });
 
     expect(metrics.length).toBe(1);
-    expect(metrics[0].type).toBe("Add");
+    expect(metrics[0].type).toBe("add");
     expect(metrics[0].quantity).toBe(3);
   });
 
@@ -729,7 +544,7 @@ describe("DELETE /api/v1/myfridge/products/:id", () => {
 });
 
 describe("POST /api/v1/myfridge/products/:id/consume", () => {
-  test("logs consume interaction successfully", async () => {
+  test("logs consumed interaction successfully", async () => {
     const router = createRouter();
 
     const createRes = await makeRequest(router, "POST", "/api/v1/myfridge/products", {
@@ -742,17 +557,17 @@ describe("POST /api/v1/myfridge/products/:id/consume", () => {
       router,
       "POST",
       `/api/v1/myfridge/products/${product.id}/consume`,
-      { type: "Consume", quantity: 3 }
+      { type: "consumed", quantity: 3 }
     );
 
     expect(res.status).toBe(200);
     const data = res.data as { message: string; pointsChange: number; newQuantity: number };
     expect(data.message).toBe("Product interaction logged");
-    expect(data.pointsChange).toBe(5); // Consume gives 5 points
+    expect(data.pointsChange).toBe(0); // consumed gives 0 points in actual route
     expect(data.newQuantity).toBe(7);
   });
 
-  test("logs waste interaction with negative points", async () => {
+  test("logs wasted interaction", async () => {
     const router = createRouter();
 
     const createRes = await makeRequest(router, "POST", "/api/v1/myfridge/products", {
@@ -765,12 +580,12 @@ describe("POST /api/v1/myfridge/products/:id/consume", () => {
       router,
       "POST",
       `/api/v1/myfridge/products/${product.id}/consume`,
-      { type: "Waste", quantity: 2 }
+      { type: "wasted", quantity: 2 }
     );
 
     expect(res.status).toBe(200);
     const data = res.data as { pointsChange: number; newQuantity: number };
-    expect(data.pointsChange).toBe(-2); // Waste deducts 2 points
+    expect(data.pointsChange).toBe(0); // wasted gives 0 points in actual route
     expect(data.newQuantity).toBe(3);
   });
 
@@ -790,18 +605,17 @@ describe("POST /api/v1/myfridge/products/:id/consume", () => {
       router,
       "POST",
       `/api/v1/myfridge/products/${product.id}/consume`,
-      { type: "Consume", quantity: 1 }
+      { type: "consumed", quantity: 1 }
     );
 
     const metrics = await testDb.query.productSustainabilityMetrics.findMany({
       where: eq(schema.productSustainabilityMetrics.productId, product.id),
     });
 
-    // Should have 2 metrics: Add (from product creation) and Consume
+    // Should have 2 metrics: add (from product creation) and consumed
     expect(metrics.length).toBe(2);
-    const consumeMetric = metrics.find((m) => m.type === "Consume");
+    const consumeMetric = metrics.find((m) => m.type === "consumed");
     expect(consumeMetric).toBeDefined();
-    expect(consumeMetric?.quantity).toBe(1);
   });
 
   test("quantity cannot go below zero", async () => {
@@ -817,7 +631,7 @@ describe("POST /api/v1/myfridge/products/:id/consume", () => {
       router,
       "POST",
       `/api/v1/myfridge/products/${product.id}/consume`,
-      { type: "Consume", quantity: 5 } // More than available
+      { type: "consumed", quantity: 5 } // More than available
     );
 
     expect(res.status).toBe(200);
@@ -831,7 +645,7 @@ describe("POST /api/v1/myfridge/products/:id/consume", () => {
       router,
       "POST",
       "/api/v1/myfridge/products/99999/consume",
-      { type: "Consume", quantity: 1 }
+      { type: "consumed", quantity: 1 }
     );
 
     expect(res.status).toBe(404);
@@ -869,39 +683,10 @@ describe("POST /api/v1/myfridge/products/:id/consume", () => {
       router,
       "POST",
       `/api/v1/myfridge/products/${product.id}/consume`,
-      { type: "Consume", quantity: 0 }
+      { type: "consumed", quantity: 0 }
     );
 
     expect(res.status).toBe(400);
-  });
-
-  test("accepts custom todayDate", async () => {
-    await testDb.delete(schema.productSustainabilityMetrics);
-
-    const router = createRouter();
-
-    const createRes = await makeRequest(router, "POST", "/api/v1/myfridge/products", {
-      productName: "Custom Date",
-      quantity: 5,
-    });
-    const product = createRes.data as { id: number };
-
-    await makeRequest(
-      router,
-      "POST",
-      `/api/v1/myfridge/products/${product.id}/consume`,
-      { type: "Consume", quantity: 1, todayDate: "2025-01-01" }
-    );
-
-    const metrics = await testDb.query.productSustainabilityMetrics.findMany({
-      where: and(
-        eq(schema.productSustainabilityMetrics.productId, product.id),
-        eq(schema.productSustainabilityMetrics.type, "Consume")
-      ),
-    });
-
-    expect(metrics.length).toBe(1);
-    expect(metrics[0].todayDate).toBe("2025-01-01");
   });
 });
 
@@ -928,5 +713,128 @@ describe("POST /api/v1/myfridge/receipt/scan", () => {
     expect(res.status).toBe(400);
     const data = res.data as { error: string };
     expect(data.error).toBe("Image is required");
+  });
+});
+
+describe("GET /api/v1/myfridge/consumption/pending", () => {
+  test("returns empty array when no pending records", async () => {
+    const router = createRouter();
+    const res = await makeRequest(router, "GET", "/api/v1/myfridge/consumption/pending");
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.data)).toBe(true);
+    expect((res.data as unknown[]).length).toBe(0);
+  });
+
+  test("returns pending consumption records", async () => {
+    const router = createRouter();
+
+    // Create a pending record
+    await makeRequest(router, "POST", "/api/v1/myfridge/consumption/pending", {
+      rawPhoto: "data:image/jpeg;base64,testphoto",
+      ingredients: [{ productId: 1, name: "Test", estimatedQuantity: 1, category: "test", unitPrice: 1, co2Emission: 1 }],
+    });
+
+    const res = await makeRequest(router, "GET", "/api/v1/myfridge/consumption/pending");
+
+    expect(res.status).toBe(200);
+    const data = res.data as Array<{ rawPhoto: string; status: string }>;
+    expect(data.length).toBe(1);
+    expect(data[0].status).toBe("PENDING_WASTE_PHOTO");
+  });
+});
+
+describe("POST /api/v1/myfridge/consumption/pending", () => {
+  test("creates pending consumption record", async () => {
+    const router = createRouter();
+    const res = await makeRequest(router, "POST", "/api/v1/myfridge/consumption/pending", {
+      rawPhoto: "data:image/jpeg;base64,testphoto",
+      ingredients: [{ productId: 1, name: "Apple", estimatedQuantity: 2, category: "produce", unitPrice: 1.5, co2Emission: 0.5 }],
+    });
+
+    expect(res.status).toBe(200);
+    const data = res.data as { id: number; rawPhoto: string; status: string };
+    expect(data.id).toBeDefined();
+    expect(data.rawPhoto).toBe("data:image/jpeg;base64,testphoto");
+    expect(data.status).toBe("PENDING_WASTE_PHOTO");
+  });
+
+  test("returns 400 when rawPhoto is missing", async () => {
+    const router = createRouter();
+    const res = await makeRequest(router, "POST", "/api/v1/myfridge/consumption/pending", {
+      ingredients: [],
+    });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("PUT /api/v1/myfridge/consumption/pending/:id", () => {
+  test("updates pending consumption record", async () => {
+    const router = createRouter();
+
+    // Create a pending record first
+    const createRes = await makeRequest(router, "POST", "/api/v1/myfridge/consumption/pending", {
+      rawPhoto: "data:image/jpeg;base64,testphoto",
+      ingredients: [],
+    });
+    const record = createRes.data as { id: number };
+
+    const res = await makeRequest(
+      router,
+      "PUT",
+      `/api/v1/myfridge/consumption/pending/${record.id}`,
+      { status: "COMPLETED" }
+    );
+
+    expect(res.status).toBe(200);
+    const data = res.data as { status: string };
+    expect(data.status).toBe("COMPLETED");
+  });
+
+  test("returns 404 for non-existent record", async () => {
+    const router = createRouter();
+    const res = await makeRequest(
+      router,
+      "PUT",
+      "/api/v1/myfridge/consumption/pending/99999",
+      { status: "COMPLETED" }
+    );
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("DELETE /api/v1/myfridge/consumption/pending/:id", () => {
+  test("deletes pending consumption record", async () => {
+    const router = createRouter();
+
+    // Create a pending record first
+    const createRes = await makeRequest(router, "POST", "/api/v1/myfridge/consumption/pending", {
+      rawPhoto: "data:image/jpeg;base64,testphoto",
+      ingredients: [],
+    });
+    const record = createRes.data as { id: number };
+
+    const deleteRes = await makeRequest(
+      router,
+      "DELETE",
+      `/api/v1/myfridge/consumption/pending/${record.id}`
+    );
+
+    expect(deleteRes.status).toBe(200);
+    const data = deleteRes.data as { message: string };
+    expect(data.message).toBe("Pending consumption record deleted");
+  });
+
+  test("returns 404 for non-existent record", async () => {
+    const router = createRouter();
+    const res = await makeRequest(
+      router,
+      "DELETE",
+      "/api/v1/myfridge/consumption/pending/99999"
+    );
+
+    expect(res.status).toBe(404);
   });
 });

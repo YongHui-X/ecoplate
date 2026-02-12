@@ -1,160 +1,306 @@
-import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
+import { describe, expect, test, mock, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
-import { Router, json, error, parseBody } from "../../utils/router";
+import { Router } from "../../utils/router";
 import * as schema from "../../db/schema";
-import { eq, and, or } from "drizzle-orm";
-import { z } from "zod";
+import { eq } from "drizzle-orm";
+
+// Mock users for auth
+const mockBuyer = { id: 1, email: "buyer@test.com", name: "Test Buyer" };
+const mockSeller = { id: 2, email: "seller@test.com", name: "Test Seller" };
+let currentMockUser = mockBuyer;
+
+// Mock auth middleware
+// Include all exports from auth.ts to avoid module conflict issues when tests run together
+mock.module("../../middleware/auth", () => ({
+  hashPassword: async (password: string): Promise<string> => `hashed_${password}`,
+  verifyPassword: async (password: string, hash: string): Promise<boolean> =>
+    hash === `hashed_${password}`,
+  generateToken: async (payload: { sub: string; email: string; name: string }): Promise<string> =>
+    `token_${payload.sub}_${payload.email}`,
+  verifyToken: async (token: string): Promise<{ sub: string; email: string; name: string } | null> => {
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+  getUser: () => currentMockUser,
+  extractBearerToken: (req: Request): string | null => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    return authHeader.slice(7);
+  },
+  authMiddleware: async (_req: Request, next: () => Promise<Response>) => next(),
+  verifyRequestAuth: async (req: Request) => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    const token = authHeader.slice(7);
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+}));
 
 // Set up in-memory test database
 let sqlite: Database;
 let testDb: ReturnType<typeof drizzle<typeof schema>>;
 
-// Mock user for auth
-const mockUser = { id: 1, email: "buyer@test.com", name: "Test Buyer" };
-const mockSeller = { id: 2, email: "seller@test.com", name: "Test Seller" };
+// Mock locker-service with implementations that use testDb
+mock.module("../../services/locker-service", () => ({
+  getAllLockers: async () => {
+    return testDb.query.lockers.findMany({
+      where: eq(schema.lockers.status, "active"),
+    });
+  },
+  getLockerById: async (lockerId: number) => {
+    return testDb.query.lockers.findFirst({
+      where: eq(schema.lockers.id, lockerId),
+    });
+  },
+  getNearbyLockers: async (lat: number, lng: number, radiusKm: number = 10) => {
+    // For testing, just return all active lockers
+    return testDb.query.lockers.findMany({
+      where: eq(schema.lockers.status, "active"),
+    });
+  },
+  createOrder: async (listingId: number, lockerId: number, buyerId: number) => {
+    // Get the listing
+    const listing = await testDb.query.marketplaceListings.findFirst({
+      where: eq(schema.marketplaceListings.id, listingId),
+    });
 
-// Validation schemas
-const createOrderSchema = z.object({
-  listingId: z.number().int().positive(),
-  lockerId: z.number().int().positive(),
-});
-
-// Register routes with mocked auth
-function registerTestEcoLockerRoutes(
-  router: Router,
-  db: ReturnType<typeof drizzle<typeof schema>>,
-  getUser: () => { id: number; email: string; name: string }
-) {
-  // Get all lockers
-  router.get("/api/v1/ecolocker/lockers", async () => {
-    try {
-      const lockers = await db.query.lockers.findMany({
-        where: eq(schema.lockers.status, "active"),
-      });
-      return json(lockers);
-    } catch (e) {
-      console.error("Get lockers error:", e);
-      return error("Failed to get lockers", 500);
+    if (!listing) {
+      return { success: false, error: "Listing not found" };
     }
-  });
 
-  // Get nearby lockers
-  router.get("/api/v1/ecolocker/lockers/nearby", async (req) => {
-    try {
-      const url = new URL(req.url);
-      const lat = parseFloat(url.searchParams.get("lat") || "");
-      const lng = parseFloat(url.searchParams.get("lng") || "");
-      const radius = parseFloat(url.searchParams.get("radius") || "10");
-
-      if (isNaN(lat) || isNaN(lng)) {
-        return error("Invalid latitude or longitude", 400);
-      }
-
-      if (lat < -90 || lat > 90) {
-        return error("Latitude must be between -90 and 90", 400);
-      }
-
-      if (lng < -180 || lng > 180) {
-        return error("Longitude must be between -180 and 180", 400);
-      }
-
-      if (isNaN(radius) || radius < 0.1 || radius > 100) {
-        return error("Radius must be between 0.1 and 100 km", 400);
-      }
-
-      // For testing, just return all active lockers
-      const lockers = await db.query.lockers.findMany({
-        where: eq(schema.lockers.status, "active"),
-      });
-      return json(lockers);
-    } catch (e) {
-      console.error("Get nearby lockers error:", e);
-      return error("Failed to get nearby lockers", 500);
+    if (listing.status !== "active") {
+      return { success: false, error: "Listing is not available" };
     }
-  });
 
-  // Create order
-  router.post("/api/v1/ecolocker/orders", async (req) => {
-    try {
-      const user = getUser();
-      const body = await parseBody(req);
-      const data = createOrderSchema.parse(body);
-
-      // Get the listing
-      const listing = await db.query.marketplaceListings.findFirst({
-        where: eq(schema.marketplaceListings.id, data.listingId),
-      });
-
-      if (!listing) {
-        return error("Listing not found", 404);
-      }
-
-      if (listing.status !== "active") {
-        return error("Listing is not available", 400);
-      }
-
-      if (listing.sellerId === user.id) {
-        return error("Cannot purchase your own listing", 400);
-      }
-
-      // Get the locker
-      const locker = await db.query.lockers.findFirst({
-        where: eq(schema.lockers.id, data.lockerId),
-      });
-
-      if (!locker) {
-        return error("Locker not found", 404);
-      }
-
-      if (locker.availableCompartments < 1) {
-        return error("No available compartments at this locker", 400);
-      }
-
-      // Calculate prices
-      const itemPrice = listing.price || 0;
-      const deliveryFee = 2.0;
-      const totalPrice = itemPrice + deliveryFee;
-
-      const now = new Date();
-      const paymentDeadline = new Date(now.getTime() + 30 * 60 * 1000);
-
-      // Create the order
-      const [order] = await db
-        .insert(schema.lockerOrders)
-        .values({
-          listingId: data.listingId,
-          lockerId: data.lockerId,
-          buyerId: user.id,
-          sellerId: listing.sellerId,
-          itemPrice,
-          deliveryFee,
-          totalPrice,
-          status: "pending_payment",
-          reservedAt: now,
-          paymentDeadline,
-        })
-        .returning();
-
-      // Update listing status
-      await db
-        .update(schema.marketplaceListings)
-        .set({
-          status: "reserved",
-          buyerId: user.id,
-        })
-        .where(eq(schema.marketplaceListings.id, data.listingId));
-
-      return json(order);
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return error(e.errors[0].message, 400);
-      }
-      console.error("Create order error:", e);
-      return error("Failed to create order", 500);
+    if (listing.sellerId === buyerId) {
+      return { success: false, error: "Cannot purchase your own listing" };
     }
-  });
-}
+
+    // Get the locker
+    const locker = await testDb.query.lockers.findFirst({
+      where: eq(schema.lockers.id, lockerId),
+    });
+
+    if (!locker) {
+      return { success: false, error: "Locker not found" };
+    }
+
+    if (locker.availableCompartments < 1) {
+      return { success: false, error: "No available compartments at this locker" };
+    }
+
+    const itemPrice = listing.price || 0;
+    const deliveryFee = 2.0;
+    const totalPrice = itemPrice + deliveryFee;
+    const now = new Date();
+    const paymentDeadline = new Date(now.getTime() + 30 * 60 * 1000);
+
+    const [order] = await testDb
+      .insert(schema.lockerOrders)
+      .values({
+        listingId,
+        lockerId,
+        buyerId,
+        sellerId: listing.sellerId,
+        itemPrice,
+        deliveryFee,
+        totalPrice,
+        status: "pending_payment",
+        reservedAt: now,
+        paymentDeadline,
+      })
+      .returning();
+
+    await testDb
+      .update(schema.marketplaceListings)
+      .set({ status: "reserved", buyerId })
+      .where(eq(schema.marketplaceListings.id, listingId));
+
+    return { success: true, order };
+  },
+  getBuyerOrders: async (buyerId: number) => {
+    return testDb.query.lockerOrders.findMany({
+      where: eq(schema.lockerOrders.buyerId, buyerId),
+    });
+  },
+  getSellerOrders: async (sellerId: number) => {
+    return testDb.query.lockerOrders.findMany({
+      where: eq(schema.lockerOrders.sellerId, sellerId),
+    });
+  },
+  getOrderById: async (orderId: number, userId: number) => {
+    const order = await testDb.query.lockerOrders.findFirst({
+      where: eq(schema.lockerOrders.id, orderId),
+    });
+    if (order && (order.buyerId === userId || order.sellerId === userId)) {
+      return order;
+    }
+    return null;
+  },
+  processPayment: async (orderId: number, buyerId: number) => {
+    const order = await testDb.query.lockerOrders.findFirst({
+      where: eq(schema.lockerOrders.id, orderId),
+    });
+
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.buyerId !== buyerId) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.status !== "pending_payment") {
+      return { success: false, error: `Cannot pay for order with status: ${order.status}` };
+    }
+
+    const [updated] = await testDb
+      .update(schema.lockerOrders)
+      .set({ status: "paid", paidAt: new Date() })
+      .where(eq(schema.lockerOrders.id, orderId))
+      .returning();
+
+    return { success: true, order: updated };
+  },
+  setPickupTime: async (orderId: number, sellerId: number, pickupTime: Date) => {
+    const order = await testDb.query.lockerOrders.findFirst({
+      where: eq(schema.lockerOrders.id, orderId),
+    });
+
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.sellerId !== sellerId) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.status !== "paid") {
+      return { success: false, error: `Cannot schedule pickup for order with status: ${order.status}` };
+    }
+
+    const [updated] = await testDb
+      .update(schema.lockerOrders)
+      .set({ status: "pickup_scheduled", pickupScheduledAt: pickupTime })
+      .where(eq(schema.lockerOrders.id, orderId))
+      .returning();
+
+    return { success: true, order: updated };
+  },
+  confirmRiderPickup: async (orderId: number, sellerId: number) => {
+    const order = await testDb.query.lockerOrders.findFirst({
+      where: eq(schema.lockerOrders.id, orderId),
+    });
+
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.sellerId !== sellerId) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (!["paid", "pickup_scheduled"].includes(order.status)) {
+      return { success: false, error: `Cannot confirm pickup for order with status: ${order.status}` };
+    }
+
+    const [updated] = await testDb
+      .update(schema.lockerOrders)
+      .set({ status: "in_transit", riderPickedUpAt: new Date() })
+      .where(eq(schema.lockerOrders.id, orderId))
+      .returning();
+
+    return { success: true, order: updated, pointsAwarded: 10 };
+  },
+  verifyPin: async (orderId: number, buyerId: number, pin: string) => {
+    const order = await testDb.query.lockerOrders.findFirst({
+      where: eq(schema.lockerOrders.id, orderId),
+    });
+
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.buyerId !== buyerId) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.status !== "ready_for_pickup") {
+      return { success: false, error: `Cannot verify PIN for order with status: ${order.status}` };
+    }
+
+    if (order.pickupPin !== pin) {
+      return { success: false, error: "Invalid PIN" };
+    }
+
+    const [updated] = await testDb
+      .update(schema.lockerOrders)
+      .set({ status: "collected", pickedUpAt: new Date() })
+      .where(eq(schema.lockerOrders.id, orderId))
+      .returning();
+
+    return { success: true, order: updated };
+  },
+  cancelOrder: async (orderId: number, userId: number, reason: string) => {
+    const order = await testDb.query.lockerOrders.findFirst({
+      where: eq(schema.lockerOrders.id, orderId),
+    });
+
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.buyerId !== userId && order.sellerId !== userId) {
+      return { success: false, error: "You are not authorized to cancel this order" };
+    }
+
+    const cancellableStatuses = ["pending_payment", "paid", "pickup_scheduled", "in_transit", "ready_for_pickup"];
+    if (!cancellableStatuses.includes(order.status)) {
+      return { success: false, error: `Cannot cancel order with status: ${order.status}` };
+    }
+
+    const [updated] = await testDb
+      .update(schema.lockerOrders)
+      .set({ status: "cancelled", cancelReason: reason })
+      .where(eq(schema.lockerOrders.id, orderId))
+      .returning();
+
+    return { success: true, order: updated };
+  },
+  getNotifications: async (userId: number) => {
+    return testDb.query.lockerNotifications.findMany({
+      where: eq(schema.lockerNotifications.userId, userId),
+    });
+  },
+  getUnreadCount: async (userId: number) => {
+    const notifications = await testDb.query.lockerNotifications.findMany({
+      where: eq(schema.lockerNotifications.userId, userId),
+    });
+    return notifications.filter((n) => !n.isRead).length;
+  },
+  markNotificationAsRead: async (notificationId: number, userId: number) => {
+    await testDb
+      .update(schema.lockerNotifications)
+      .set({ isRead: true })
+      .where(eq(schema.lockerNotifications.id, notificationId));
+  },
+  markAllNotificationsAsRead: async (userId: number) => {
+    await testDb
+      .update(schema.lockerNotifications)
+      .set({ isRead: true })
+      .where(eq(schema.lockerNotifications.userId, userId));
+  },
+  markOrderNotificationsAsRead: async (orderId: number, userId: number) => {
+    await testDb
+      .update(schema.lockerNotifications)
+      .set({ isRead: true })
+      .where(eq(schema.lockerNotifications.orderId, orderId));
+  },
+}));
 
 beforeAll(async () => {
   sqlite = new Database(":memory:");
@@ -243,6 +389,17 @@ beforeAll(async () => {
       expires_at INTEGER,
       cancel_reason TEXT
     );
+
+    CREATE TABLE locker_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      order_id INTEGER NOT NULL REFERENCES locker_orders(id),
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
   `);
 
   testDb = drizzle(sqlite, { schema });
@@ -289,6 +446,9 @@ afterAll(() => {
 });
 
 beforeEach(async () => {
+  // Reset to buyer by default
+  currentMockUser = mockBuyer;
+
   // Reset listings and orders before each test
   await testDb.delete(schema.lockerOrders);
   await testDb.delete(schema.marketplaceListings);
@@ -298,9 +458,17 @@ beforeEach(async () => {
   await testDb.update(schema.lockers).set({ availableCompartments: 0 }).where(eq(schema.lockers.id, 2));
 });
 
-function createRouter(getUser: () => { id: number; email: string; name: string }) {
+// Import actual route registration function AFTER mocks are set up
+let registerEcoLockerRoutes: (router: Router) => void;
+beforeAll(async () => {
+  const ecolockerModule = await import("../ecolocker");
+  registerEcoLockerRoutes = ecolockerModule.registerEcoLockerRoutes;
+});
+
+function createRouter(user: { id: number; email: string; name: string } = mockBuyer) {
+  currentMockUser = user;
   const router = new Router();
-  registerTestEcoLockerRoutes(router, testDb, getUser);
+  registerEcoLockerRoutes(router);
   return router;
 }
 
@@ -326,7 +494,7 @@ async function makeRequest(
 
 describe("GET /api/v1/ecolocker/lockers", () => {
   test("returns active lockers", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter();
     const res = await makeRequest(router, "GET", "/api/v1/ecolocker/lockers");
 
     expect(res.status).toBe(200);
@@ -337,7 +505,7 @@ describe("GET /api/v1/ecolocker/lockers", () => {
   });
 
   test("does not return inactive lockers", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter();
     const res = await makeRequest(router, "GET", "/api/v1/ecolocker/lockers");
 
     const data = res.data as { id: number; name: string }[];
@@ -347,7 +515,7 @@ describe("GET /api/v1/ecolocker/lockers", () => {
 
 describe("GET /api/v1/ecolocker/lockers/nearby", () => {
   test("returns lockers with valid coordinates", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter();
     const res = await makeRequest(
       router,
       "GET",
@@ -360,7 +528,7 @@ describe("GET /api/v1/ecolocker/lockers/nearby", () => {
   });
 
   test("returns 400 for missing latitude", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter();
     const res = await makeRequest(
       router,
       "GET",
@@ -373,7 +541,7 @@ describe("GET /api/v1/ecolocker/lockers/nearby", () => {
   });
 
   test("returns 400 for missing longitude", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter();
     const res = await makeRequest(
       router,
       "GET",
@@ -386,7 +554,7 @@ describe("GET /api/v1/ecolocker/lockers/nearby", () => {
   });
 
   test("returns 400 for invalid latitude range", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter();
     const res = await makeRequest(
       router,
       "GET",
@@ -399,7 +567,7 @@ describe("GET /api/v1/ecolocker/lockers/nearby", () => {
   });
 
   test("returns 400 for invalid longitude range", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter();
     const res = await makeRequest(
       router,
       "GET",
@@ -412,7 +580,7 @@ describe("GET /api/v1/ecolocker/lockers/nearby", () => {
   });
 
   test("returns 400 for invalid radius", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter();
     const res = await makeRequest(
       router,
       "GET",
@@ -440,7 +608,7 @@ describe("POST /api/v1/ecolocker/orders", () => {
   });
 
   test("creates order successfully", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
@@ -453,32 +621,32 @@ describe("POST /api/v1/ecolocker/orders", () => {
     expect(data.totalPrice).toBe(12.0); // 10 + 2 delivery fee
   });
 
-  test("returns 404 for non-existent listing", async () => {
-    const router = createRouter(() => mockUser);
+  test("returns 400 for non-existent listing", async () => {
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 999,
       lockerId: 1,
     });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
     const data = res.data as { error: string };
     expect(data.error).toBe("Listing not found");
   });
 
-  test("returns 404 for non-existent locker", async () => {
-    const router = createRouter(() => mockUser);
+  test("returns 400 for non-existent locker", async () => {
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 999,
     });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
     const data = res.data as { error: string };
     expect(data.error).toBe("Locker not found");
   });
 
   test("returns 400 when trying to buy own listing", async () => {
-    const router = createRouter(() => mockSeller);
+    const router = createRouter(mockSeller);
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
@@ -490,7 +658,7 @@ describe("POST /api/v1/ecolocker/orders", () => {
   });
 
   test("returns 400 when locker has no available compartments", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 2, // Locker with 0 available compartments
@@ -503,7 +671,7 @@ describe("POST /api/v1/ecolocker/orders", () => {
 
   test("returns 400 for reserved listing", async () => {
     // First create an order to reserve the listing
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
     await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
@@ -521,7 +689,7 @@ describe("POST /api/v1/ecolocker/orders", () => {
   });
 
   test("returns 400 for invalid listingId", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: -1,
       lockerId: 1,
@@ -531,7 +699,7 @@ describe("POST /api/v1/ecolocker/orders", () => {
   });
 
   test("returns 400 for invalid lockerId", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 0,
@@ -558,16 +726,7 @@ describe("GET /api/v1/ecolocker/orders", () => {
   });
 
   test("returns empty array when no orders", async () => {
-    const router = createRouter(() => mockUser);
-
-    // We need to add this route to the test router
-    router.get("/api/v1/ecolocker/orders", async () => {
-      const orders = await testDb.query.lockerOrders.findMany({
-        where: eq(schema.lockerOrders.buyerId, mockUser.id),
-      });
-      return json(orders);
-    });
-
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "GET", "/api/v1/ecolocker/orders");
 
     expect(res.status).toBe(200);
@@ -578,27 +737,18 @@ describe("GET /api/v1/ecolocker/orders", () => {
 
   test("returns buyer's orders", async () => {
     // First create an order
-    const postRouter = createRouter(() => mockUser);
-    await makeRequest(postRouter, "POST", "/api/v1/ecolocker/orders", {
+    const router = createRouter(mockBuyer);
+    await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
     });
 
-    // Then get orders
-    const getRouter = createRouter(() => mockUser);
-    getRouter.get("/api/v1/ecolocker/orders", async () => {
-      const orders = await testDb.query.lockerOrders.findMany({
-        where: eq(schema.lockerOrders.buyerId, mockUser.id),
-      });
-      return json(orders);
-    });
-
-    const res = await makeRequest(getRouter, "GET", "/api/v1/ecolocker/orders");
+    const res = await makeRequest(router, "GET", "/api/v1/ecolocker/orders");
 
     expect(res.status).toBe(200);
     const data = res.data as { id: number; buyerId: number }[];
     expect(data.length).toBe(1);
-    expect(data[0].buyerId).toBe(mockUser.id);
+    expect(data[0].buyerId).toBe(mockBuyer.id);
   });
 });
 
@@ -617,30 +767,12 @@ describe("GET /api/v1/ecolocker/orders/:id", () => {
 
   test("returns order details for buyer", async () => {
     // Create an order first
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
     });
     const order = createRes.data as { id: number };
-
-    // Add get order route
-    router.get("/api/v1/ecolocker/orders/:id", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: and(
-          eq(schema.lockerOrders.id, orderId),
-          or(
-            eq(schema.lockerOrders.buyerId, mockUser.id),
-            eq(schema.lockerOrders.sellerId, mockUser.id)
-          )
-        ),
-      });
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-      return json(orderData);
-    });
 
     const res = await makeRequest(router, "GET", `/api/v1/ecolocker/orders/${order.id}`);
 
@@ -651,18 +783,7 @@ describe("GET /api/v1/ecolocker/orders/:id", () => {
   });
 
   test("returns 404 for non-existent order", async () => {
-    const router = createRouter(() => mockUser);
-    router.get("/api/v1/ecolocker/orders/:id", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: eq(schema.lockerOrders.id, orderId),
-      });
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-      return json(orderData);
-    });
-
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "GET", "/api/v1/ecolocker/orders/999");
 
     expect(res.status).toBe(404);
@@ -672,7 +793,7 @@ describe("GET /api/v1/ecolocker/orders/:id", () => {
 
   test("returns 404 for order belonging to another user", async () => {
     // Create an order as buyer
-    const buyerRouter = createRouter(() => mockUser);
+    const buyerRouter = createRouter(mockBuyer);
     const createRes = await makeRequest(buyerRouter, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
@@ -681,23 +802,7 @@ describe("GET /api/v1/ecolocker/orders/:id", () => {
 
     // Try to access as a different user (neither buyer nor seller)
     const otherUser = { id: 999, email: "other@test.com", name: "Other User" };
-    const otherRouter = createRouter(() => otherUser);
-    otherRouter.get("/api/v1/ecolocker/orders/:id", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: and(
-          eq(schema.lockerOrders.id, orderId),
-          or(
-            eq(schema.lockerOrders.buyerId, otherUser.id),
-            eq(schema.lockerOrders.sellerId, otherUser.id)
-          )
-        ),
-      });
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-      return json(orderData);
-    });
+    const otherRouter = createRouter(otherUser);
 
     const res = await makeRequest(otherRouter, "GET", `/api/v1/ecolocker/orders/${order.id}`);
 
@@ -719,7 +824,7 @@ describe("POST /api/v1/ecolocker/orders/:id/cancel", () => {
   });
 
   test("buyer can cancel pending_payment order", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     // Create order
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
@@ -727,35 +832,6 @@ describe("POST /api/v1/ecolocker/orders/:id/cancel", () => {
       lockerId: 1,
     });
     const order = createRes.data as { id: number };
-
-    // Add cancel route
-    router.post("/api/v1/ecolocker/orders/:id/cancel", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const body = await req.json() as { reason: string };
-
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: and(
-          eq(schema.lockerOrders.id, orderId),
-          eq(schema.lockerOrders.buyerId, mockUser.id)
-        ),
-      });
-
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-
-      if (!["pending_payment", "paid", "pickup_scheduled"].includes(orderData.status)) {
-        return error("Order cannot be cancelled in current status", 400);
-      }
-
-      const [updated] = await testDb
-        .update(schema.lockerOrders)
-        .set({ status: "cancelled", cancelReason: body.reason })
-        .where(eq(schema.lockerOrders.id, orderId))
-        .returning();
-
-      return json(updated);
-    });
 
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/cancel`, {
       reason: "Changed my mind",
@@ -768,23 +844,13 @@ describe("POST /api/v1/ecolocker/orders/:id/cancel", () => {
   });
 
   test("returns 400 for empty cancellation reason", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
     });
     const order = createRes.data as { id: number };
-
-    router.post("/api/v1/ecolocker/orders/:id/cancel", async (req, params) => {
-      const body = await req.json() as { reason: string };
-
-      if (!body.reason || body.reason.trim().length === 0) {
-        return error("Cancellation reason is required", 400);
-      }
-
-      return json({ success: true });
-    });
 
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/cancel`, {
       reason: "",
@@ -794,7 +860,7 @@ describe("POST /api/v1/ecolocker/orders/:id/cancel", () => {
   });
 
   test("cannot cancel already cancelled order", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
@@ -808,30 +874,17 @@ describe("POST /api/v1/ecolocker/orders/:id/cancel", () => {
       .set({ status: "cancelled" })
       .where(eq(schema.lockerOrders.id, order.id));
 
-    router.post("/api/v1/ecolocker/orders/:id/cancel", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: eq(schema.lockerOrders.id, orderId),
-      });
-
-      if (orderData?.status === "cancelled") {
-        return error("Order is already cancelled", 400);
-      }
-
-      return json({ success: true });
-    });
-
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/cancel`, {
       reason: "Test",
     });
 
     expect(res.status).toBe(400);
     const data = res.data as { error: string };
-    expect(data.error).toBe("Order is already cancelled");
+    expect(data.error).toContain("Cannot cancel order");
   });
 
   test("cannot cancel collected order", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
@@ -845,26 +898,13 @@ describe("POST /api/v1/ecolocker/orders/:id/cancel", () => {
       .set({ status: "collected" })
       .where(eq(schema.lockerOrders.id, order.id));
 
-    router.post("/api/v1/ecolocker/orders/:id/cancel", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: eq(schema.lockerOrders.id, orderId),
-      });
-
-      if (orderData?.status === "collected") {
-        return error("Cannot cancel a completed order", 400);
-      }
-
-      return json({ success: true });
-    });
-
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/cancel`, {
       reason: "Test",
     });
 
     expect(res.status).toBe(400);
     const data = res.data as { error: string };
-    expect(data.error).toBe("Cannot cancel a completed order");
+    expect(data.error).toContain("Cannot cancel order");
   });
 });
 
@@ -882,7 +922,7 @@ describe("POST /api/v1/ecolocker/orders/:id/pay", () => {
   });
 
   test("processes payment successfully", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     // Create order
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
@@ -890,34 +930,6 @@ describe("POST /api/v1/ecolocker/orders/:id/pay", () => {
       lockerId: 1,
     });
     const order = createRes.data as { id: number };
-
-    // Add pay route
-    router.post("/api/v1/ecolocker/orders/:id/pay", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: and(
-          eq(schema.lockerOrders.id, orderId),
-          eq(schema.lockerOrders.buyerId, mockUser.id)
-        ),
-      });
-
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-
-      if (orderData.status !== "pending_payment") {
-        return error("Order is not pending payment", 400);
-      }
-
-      const [updated] = await testDb
-        .update(schema.lockerOrders)
-        .set({ status: "paid", paidAt: new Date() })
-        .where(eq(schema.lockerOrders.id, orderId))
-        .returning();
-
-      return json(updated);
-    });
 
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/pay`);
 
@@ -928,7 +940,7 @@ describe("POST /api/v1/ecolocker/orders/:id/pay", () => {
   });
 
   test("returns 400 for already paid order", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
@@ -942,45 +954,18 @@ describe("POST /api/v1/ecolocker/orders/:id/pay", () => {
       .set({ status: "paid" })
       .where(eq(schema.lockerOrders.id, order.id));
 
-    router.post("/api/v1/ecolocker/orders/:id/pay", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: eq(schema.lockerOrders.id, orderId),
-      });
-
-      if (orderData?.status !== "pending_payment") {
-        return error("Order is not pending payment", 400);
-      }
-
-      return json({ success: true });
-    });
-
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/pay`);
 
     expect(res.status).toBe(400);
     const data = res.data as { error: string };
-    expect(data.error).toBe("Order is not pending payment");
+    expect(data.error).toContain("Cannot pay for order");
   });
 
-  test("returns 404 for non-existent order", async () => {
-    const router = createRouter(() => mockUser);
-
-    router.post("/api/v1/ecolocker/orders/:id/pay", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: eq(schema.lockerOrders.id, orderId),
-      });
-
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-
-      return json({ success: true });
-    });
-
+  test("returns 400 for non-existent order", async () => {
+    const router = createRouter(mockBuyer);
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders/999/pay");
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -998,10 +983,9 @@ describe("POST /api/v1/ecolocker/orders/:id/schedule", () => {
   });
 
   test("seller can schedule pickup for paid order", async () => {
-    const router = createRouter(() => mockUser);
-
-    // Create and pay for order
-    const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
+    // Create and pay for order as buyer
+    const buyerRouter = createRouter(mockBuyer);
+    const createRes = await makeRequest(buyerRouter, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
     });
@@ -1012,39 +996,8 @@ describe("POST /api/v1/ecolocker/orders/:id/schedule", () => {
       .set({ status: "paid" })
       .where(eq(schema.lockerOrders.id, order.id));
 
-    // Create seller router
-    const sellerRouter = createRouter(() => mockSeller);
-    sellerRouter.post("/api/v1/ecolocker/orders/:id/schedule", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const body = await req.json() as { pickupTime: string };
-
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: and(
-          eq(schema.lockerOrders.id, orderId),
-          eq(schema.lockerOrders.sellerId, mockSeller.id)
-        ),
-      });
-
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-
-      if (orderData.status !== "paid") {
-        return error("Order must be paid before scheduling", 400);
-      }
-
-      const [updated] = await testDb
-        .update(schema.lockerOrders)
-        .set({
-          status: "pickup_scheduled",
-          pickupScheduledAt: new Date(body.pickupTime)
-        })
-        .where(eq(schema.lockerOrders.id, orderId))
-        .returning();
-
-      return json(updated);
-    });
-
+    // Schedule as seller
+    const sellerRouter = createRouter(mockSeller);
     const pickupTime = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour from now
     const res = await makeRequest(sellerRouter, "POST", `/api/v1/ecolocker/orders/${order.id}/schedule`, {
       pickupTime,
@@ -1056,28 +1009,14 @@ describe("POST /api/v1/ecolocker/orders/:id/schedule", () => {
   });
 
   test("returns 400 for unpaid order", async () => {
-    const router = createRouter(() => mockUser);
-
-    const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
+    const buyerRouter = createRouter(mockBuyer);
+    const createRes = await makeRequest(buyerRouter, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
     });
     const order = createRes.data as { id: number };
 
-    const sellerRouter = createRouter(() => mockSeller);
-    sellerRouter.post("/api/v1/ecolocker/orders/:id/schedule", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: eq(schema.lockerOrders.id, orderId),
-      });
-
-      if (orderData?.status !== "paid") {
-        return error("Order must be paid before scheduling", 400);
-      }
-
-      return json({ success: true });
-    });
-
+    const sellerRouter = createRouter(mockSeller);
     const pickupTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const res = await makeRequest(sellerRouter, "POST", `/api/v1/ecolocker/orders/${order.id}/schedule`, {
       pickupTime,
@@ -1101,7 +1040,7 @@ describe("POST /api/v1/ecolocker/orders/:id/verify-pin", () => {
   });
 
   test("verifies correct PIN and completes order", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     // Create order
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
@@ -1120,41 +1059,6 @@ describe("POST /api/v1/ecolocker/orders/:id/verify-pin", () => {
       })
       .where(eq(schema.lockerOrders.id, order.id));
 
-    router.post("/api/v1/ecolocker/orders/:id/verify-pin", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const body = await req.json() as { pin: string };
-
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: and(
-          eq(schema.lockerOrders.id, orderId),
-          eq(schema.lockerOrders.buyerId, mockUser.id)
-        ),
-      });
-
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-
-      if (orderData.status !== "ready_for_pickup") {
-        return error("Order is not ready for pickup", 400);
-      }
-
-      if (orderData.pickupPin !== body.pin) {
-        return error("Invalid PIN", 400);
-      }
-
-      const [updated] = await testDb
-        .update(schema.lockerOrders)
-        .set({
-          status: "collected",
-          pickedUpAt: new Date()
-        })
-        .where(eq(schema.lockerOrders.id, orderId))
-        .returning();
-
-      return json({ order: updated });
-    });
-
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/verify-pin`, {
       pin: "123456",
     });
@@ -1165,7 +1069,7 @@ describe("POST /api/v1/ecolocker/orders/:id/verify-pin", () => {
   });
 
   test("returns 400 for incorrect PIN", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
@@ -1178,21 +1082,6 @@ describe("POST /api/v1/ecolocker/orders/:id/verify-pin", () => {
       .set({ status: "ready_for_pickup", pickupPin: "123456" })
       .where(eq(schema.lockerOrders.id, order.id));
 
-    router.post("/api/v1/ecolocker/orders/:id/verify-pin", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-      const body = await req.json() as { pin: string };
-
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: eq(schema.lockerOrders.id, orderId),
-      });
-
-      if (orderData?.pickupPin !== body.pin) {
-        return error("Invalid PIN", 400);
-      }
-
-      return json({ success: true });
-    });
-
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/verify-pin`, {
       pin: "000000",
     });
@@ -1203,7 +1092,7 @@ describe("POST /api/v1/ecolocker/orders/:id/verify-pin", () => {
   });
 
   test("returns 400 for order not ready for pickup", async () => {
-    const router = createRouter(() => mockUser);
+    const router = createRouter(mockBuyer);
 
     const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
@@ -1211,41 +1100,17 @@ describe("POST /api/v1/ecolocker/orders/:id/verify-pin", () => {
     });
     const order = createRes.data as { id: number };
 
-    router.post("/api/v1/ecolocker/orders/:id/verify-pin", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: eq(schema.lockerOrders.id, orderId),
-      });
-
-      if (orderData?.status !== "ready_for_pickup") {
-        return error("Order is not ready for pickup", 400);
-      }
-
-      return json({ success: true });
-    });
-
     const res = await makeRequest(router, "POST", `/api/v1/ecolocker/orders/${order.id}/verify-pin`, {
       pin: "123456",
     });
 
     expect(res.status).toBe(400);
     const data = res.data as { error: string };
-    expect(data.error).toBe("Order is not ready for pickup");
+    expect(data.error).toContain("Cannot verify PIN");
   });
 
   test("returns 400 for invalid PIN format", async () => {
-    const router = createRouter(() => mockUser);
-
-    router.post("/api/v1/ecolocker/orders/:id/verify-pin", async (req, params) => {
-      const body = await req.json() as { pin: string };
-
-      if (!body.pin || body.pin.length !== 6) {
-        return error("PIN must be 6 digits", 400);
-      }
-
-      return json({ success: true });
-    });
+    const router = createRouter(mockBuyer);
 
     const res = await makeRequest(router, "POST", "/api/v1/ecolocker/orders/1/verify-pin", {
       pin: "123", // Too short
@@ -1269,9 +1134,9 @@ describe("POST /api/v1/ecolocker/orders/:id/confirm-pickup", () => {
   });
 
   test("seller confirms rider has picked up item", async () => {
-    const router = createRouter(() => mockUser);
+    const buyerRouter = createRouter(mockBuyer);
 
-    const createRes = await makeRequest(router, "POST", "/api/v1/ecolocker/orders", {
+    const createRes = await makeRequest(buyerRouter, "POST", "/api/v1/ecolocker/orders", {
       listingId: 1,
       lockerId: 1,
     });
@@ -1282,37 +1147,7 @@ describe("POST /api/v1/ecolocker/orders/:id/confirm-pickup", () => {
       .set({ status: "pickup_scheduled" })
       .where(eq(schema.lockerOrders.id, order.id));
 
-    const sellerRouter = createRouter(() => mockSeller);
-    sellerRouter.post("/api/v1/ecolocker/orders/:id/confirm-pickup", async (req, params) => {
-      const orderId = parseInt(params.id, 10);
-
-      const orderData = await testDb.query.lockerOrders.findFirst({
-        where: and(
-          eq(schema.lockerOrders.id, orderId),
-          eq(schema.lockerOrders.sellerId, mockSeller.id)
-        ),
-      });
-
-      if (!orderData) {
-        return error("Order not found", 404);
-      }
-
-      if (!["paid", "pickup_scheduled"].includes(orderData.status)) {
-        return error("Order is not in valid state for pickup confirmation", 400);
-      }
-
-      const [updated] = await testDb
-        .update(schema.lockerOrders)
-        .set({
-          status: "in_transit",
-          riderPickedUpAt: new Date()
-        })
-        .where(eq(schema.lockerOrders.id, orderId))
-        .returning();
-
-      return json({ order: updated, pointsAwarded: 10 });
-    });
-
+    const sellerRouter = createRouter(mockSeller);
     const res = await makeRequest(sellerRouter, "POST", `/api/v1/ecolocker/orders/${order.id}/confirm-pickup`);
 
     expect(res.status).toBe(200);

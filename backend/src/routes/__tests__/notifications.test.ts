@@ -1,224 +1,52 @@
-import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
+import { describe, expect, test, mock, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
-import { Router, json, error } from "../../utils/router";
+import { Router } from "../../utils/router";
 import * as schema from "../../db/schema";
-import { eq, and, sql } from "drizzle-orm";
-
-// Set up in-memory test database
-let sqlite: Database;
-let testDb: ReturnType<typeof drizzle<typeof schema>>;
-let testUserId: number;
-let secondUserId: number;
+import { eq, and } from "drizzle-orm";
 
 // Types
 type NotificationType = "expiring_soon" | "badge_unlocked" | "streak_milestone" | "product_stale";
 
-// Simplified route registration for testing
-function registerTestNotificationRoutes(
-  router: Router,
-  db: ReturnType<typeof drizzle<typeof schema>>,
-  userId: number
-) {
-  router.use(async (req, next) => {
-    (req as Request & { user: { id: number } }).user = { id: userId };
-    return next();
-  });
+// Mock auth middleware
+// Include all exports from auth.ts to avoid module conflict issues when tests run together
+let testUserId = 1;
+mock.module("../../middleware/auth", () => ({
+  hashPassword: async (password: string): Promise<string> => `hashed_${password}`,
+  verifyPassword: async (password: string, hash: string): Promise<boolean> =>
+    hash === `hashed_${password}`,
+  generateToken: async (payload: { sub: string; email: string; name: string }): Promise<string> =>
+    `token_${payload.sub}_${payload.email}`,
+  verifyToken: async (token: string): Promise<{ sub: string; email: string; name: string } | null> => {
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+  getUser: () => ({
+    id: testUserId,
+    email: "test@example.com",
+    name: "Test User",
+  }),
+  extractBearerToken: (req: Request): string | null => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    return authHeader.slice(7);
+  },
+  authMiddleware: async (_req: Request, next: () => Promise<Response>) => next(),
+  verifyRequestAuth: async (req: Request) => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    const token = authHeader.slice(7);
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+}));
 
-  const getUser = (req: Request) =>
-    (req as Request & { user: { id: number } }).user;
-
-  // Get notifications
-  router.get("/api/v1/notifications", async (req) => {
-    const user = getUser(req);
-    const url = new URL(req.url);
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
-    const unreadOnly = url.searchParams.get("unreadOnly") === "true";
-
-    const conditions = [eq(schema.notifications.userId, user.id)];
-    if (unreadOnly) {
-      conditions.push(eq(schema.notifications.isRead, false));
-    }
-
-    const notifications = await db.query.notifications.findMany({
-      where: and(...conditions),
-      orderBy: (notifications, { desc }) => [desc(notifications.createdAt)],
-      limit,
-    });
-
-    return json({ notifications });
-  });
-
-  // Get unread count
-  router.get("/api/v1/notifications/unread-count", async (req) => {
-    const user = getUser(req);
-
-    const result = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(schema.notifications)
-      .where(
-        and(
-          eq(schema.notifications.userId, user.id),
-          eq(schema.notifications.isRead, false)
-        )
-      );
-
-    return json({ count: result[0]?.count ?? 0 });
-  });
-
-  // Mark as read
-  router.post("/api/v1/notifications/:id/read", async (req) => {
-    const user = getUser(req);
-    const url = new URL(req.url);
-    const pathParts = url.pathname.split("/");
-    const idIndex = pathParts.findIndex((p) => p === "notifications") + 1;
-    const id = parseInt(pathParts[idIndex], 10);
-
-    if (isNaN(id)) {
-      return error("Invalid notification ID", 400);
-    }
-
-    await db
-      .update(schema.notifications)
-      .set({ isRead: true, readAt: new Date() })
-      .where(
-        and(
-          eq(schema.notifications.id, id),
-          eq(schema.notifications.userId, user.id)
-        )
-      );
-
-    return json({ success: true });
-  });
-
-  // Mark all as read
-  router.post("/api/v1/notifications/read-all", async (req) => {
-    const user = getUser(req);
-
-    await db
-      .update(schema.notifications)
-      .set({ isRead: true, readAt: new Date() })
-      .where(
-        and(
-          eq(schema.notifications.userId, user.id),
-          eq(schema.notifications.isRead, false)
-        )
-      );
-
-    return json({ success: true });
-  });
-
-  // Delete notification
-  router.delete("/api/v1/notifications/:id", async (req) => {
-    const user = getUser(req);
-    const url = new URL(req.url);
-    const pathParts = url.pathname.split("/");
-    const idIndex = pathParts.findIndex((p) => p === "notifications") + 1;
-    const id = parseInt(pathParts[idIndex], 10);
-
-    if (isNaN(id)) {
-      return error("Invalid notification ID", 400);
-    }
-
-    await db
-      .delete(schema.notifications)
-      .where(
-        and(
-          eq(schema.notifications.id, id),
-          eq(schema.notifications.userId, user.id)
-        )
-      );
-
-    return json({ success: true });
-  });
-
-  // Get preferences
-  router.get("/api/v1/notifications/preferences", async (req) => {
-    const user = getUser(req);
-
-    let prefs = await db.query.notificationPreferences.findFirst({
-      where: eq(schema.notificationPreferences.userId, user.id),
-    });
-
-    if (!prefs) {
-      const [created] = await db
-        .insert(schema.notificationPreferences)
-        .values({ userId: user.id })
-        .returning();
-      prefs = created;
-    }
-
-    return json({
-      preferences: {
-        expiringProducts: prefs.expiringProducts,
-        badgeUnlocked: prefs.badgeUnlocked,
-        streakMilestone: prefs.streakMilestone,
-        productStale: prefs.productStale,
-        staleDaysThreshold: prefs.staleDaysThreshold,
-        expiryDaysThreshold: prefs.expiryDaysThreshold,
-      },
-    });
-  });
-
-  // Update preferences
-  router.put("/api/v1/notifications/preferences", async (req) => {
-    const user = getUser(req);
-    const body = await req.json();
-
-    // Ensure prefs exist
-    let prefs = await db.query.notificationPreferences.findFirst({
-      where: eq(schema.notificationPreferences.userId, user.id),
-    });
-
-    if (!prefs) {
-      await db.insert(schema.notificationPreferences).values({ userId: user.id });
-    }
-
-    const allowedFields = [
-      "expiringProducts",
-      "badgeUnlocked",
-      "streakMilestone",
-      "productStale",
-      "staleDaysThreshold",
-      "expiryDaysThreshold",
-    ];
-
-    const updates: Record<string, boolean | number> = {};
-    for (const field of allowedFields) {
-      if (field in body) {
-        updates[field] = body[field];
-      }
-    }
-
-    await db
-      .update(schema.notificationPreferences)
-      .set(updates)
-      .where(eq(schema.notificationPreferences.userId, user.id));
-
-    const updated = await db.query.notificationPreferences.findFirst({
-      where: eq(schema.notificationPreferences.userId, user.id),
-    });
-
-    return json({
-      preferences: {
-        expiringProducts: updated!.expiringProducts,
-        badgeUnlocked: updated!.badgeUnlocked,
-        streakMilestone: updated!.streakMilestone,
-        productStale: updated!.productStale,
-        staleDaysThreshold: updated!.staleDaysThreshold,
-        expiryDaysThreshold: updated!.expiryDaysThreshold,
-      },
-    });
-  });
-
-  // Trigger check
-  router.post("/api/v1/notifications/check", async (req) => {
-    return json({
-      message: "Notification check complete",
-      created: { expiringProducts: 0, staleProducts: 0 },
-    });
-  });
-}
+// Set up in-memory test database
+let sqlite: Database;
+let testDb: ReturnType<typeof drizzle<typeof schema>>;
+let secondUserId: number;
 
 beforeAll(async () => {
   sqlite = new Database(":memory:");
@@ -259,9 +87,40 @@ beforeAll(async () => {
       stale_days_threshold INTEGER NOT NULL DEFAULT 7,
       expiry_days_threshold INTEGER NOT NULL DEFAULT 3
     );
+
+    CREATE TABLE products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_name TEXT NOT NULL,
+      category TEXT,
+      quantity REAL NOT NULL DEFAULT 1,
+      unit TEXT,
+      unit_price REAL,
+      purchase_date INTEGER,
+      description TEXT,
+      co2_emission REAL
+    );
+
+    CREATE TABLE marketplace_listings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      seller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      price REAL NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'active',
+      image_url TEXT,
+      expiry_date INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
   `);
 
   testDb = drizzle(sqlite, { schema });
+
+  // Inject test database BEFORE importing routes
+  const { __setTestDb } = await import("../../db/connection");
+  __setTestDb(testDb as any);
 
   // Seed test users
   const [user1] = await testDb
@@ -294,9 +153,18 @@ beforeEach(async () => {
   await testDb.delete(schema.notificationPreferences);
 });
 
+// Import actual route registration function AFTER db is set up
+let registerNotificationRoutes: (router: Router) => void;
+beforeAll(async () => {
+  const notificationsModule = await import("../notifications");
+  registerNotificationRoutes = notificationsModule.registerNotificationRoutes;
+});
+
 function createRouter(userId: number = testUserId) {
+  // Update the mock user id before creating router
+  testUserId = userId;
   const router = new Router();
-  registerTestNotificationRoutes(router, testDb, userId);
+  registerNotificationRoutes(router);
   return router;
 }
 

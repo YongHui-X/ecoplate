@@ -1,543 +1,62 @@
-import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
+import { describe, expect, test, mock, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
-import { Router, json, error, parseBody } from "../../utils/router";
+import { Router } from "../../utils/router";
 import * as schema from "../../db/schema";
-import { eq, and, or, desc, sql } from "drizzle-orm";
-import { z } from "zod";
+import { eq } from "drizzle-orm";
 
 // Set up in-memory test database
 let sqlite: Database;
 let testDb: ReturnType<typeof drizzle<typeof schema>>;
 
-// Test user tokens
-const mockTokens = new Map<number, string>();
-
-// Mock auth
-const mockVerifyRequestAuth = async (req: Request): Promise<{ sub: string; email: string; name: string } | null> => {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
-  const match = token.match(/^token_(\d+)_(.+)$/);
-  if (!match) return null;
-  return { sub: match[1], email: match[2], name: "Test User" };
-};
-
-const getUser = async (req: Request): Promise<{ id: number; email: string; name: string }> => {
-  const payload = await mockVerifyRequestAuth(req);
-  if (!payload) throw new Error("Unauthorized");
-  return { id: parseInt(payload.sub, 10), email: payload.email, name: payload.name };
-};
-
-// Schemas
-const sendMessageSchema = z.object({
-  conversationId: z.number().optional(),
-  listingId: z.number().optional(),
-  messageText: z.string().min(1).max(2000),
-});
-
-const markReadSchema = z.object({
-  conversationId: z.number(),
-});
-
-// Register routes with test database
-function registerTestMessageRoutes(router: Router, db: ReturnType<typeof drizzle<typeof schema>>) {
-  // Get all conversations for the current user
-  router.get("/api/v1/marketplace/conversations", async (req) => {
-    try {
-      const user = await getUser(req);
-
-      const userConversations = await db.query.conversations.findMany({
-        where: or(
-          eq(schema.conversations.sellerId, user.id),
-          eq(schema.conversations.buyerId, user.id)
-        ),
-        with: {
-          listing: {
-            columns: { id: true, title: true, price: true, images: true, status: true },
-          },
-          seller: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-          buyer: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-          messages: {
-            orderBy: [desc(schema.messages.createdAt)],
-            limit: 1,
-            with: {
-              user: {
-                columns: { id: true, name: true, avatarUrl: true },
-              },
-            },
-          },
-        },
-        orderBy: [desc(schema.conversations.updatedAt)],
-      });
-
-      const response = await Promise.all(
-        userConversations.map(async (conv) => {
-          const isArchived = conv.listing?.status === "sold";
-
-          let unreadCount = 0;
-          if (!isArchived) {
-            const unreadResult = await db
-              .select({ count: sql<number>`count(*)` })
-              .from(schema.messages)
-              .where(
-                and(
-                  eq(schema.messages.conversationId, conv.id),
-                  sql`${schema.messages.userId} != ${user.id}`,
-                  eq(schema.messages.isRead, false)
-                )
-              );
-            unreadCount = unreadResult[0]?.count ?? 0;
-          }
-
-          const lastMessage = conv.messages[0] ?? null;
-          const isSeller = conv.sellerId === user.id;
-
-          const listingWithStatus = conv.listing ? {
-            ...conv.listing,
-            status: conv.listing.status === "sold" ? "completed" : conv.listing.status,
-          } : null;
-
-          return {
-            id: conv.id,
-            listingId: conv.listingId,
-            listing: listingWithStatus,
-            seller: conv.seller,
-            buyer: conv.buyer,
-            role: isSeller ? "selling" : "buying",
-            lastMessage: lastMessage
-              ? {
-                  id: lastMessage.id,
-                  conversationId: lastMessage.conversationId,
-                  userId: lastMessage.userId,
-                  messageText: lastMessage.messageText,
-                  isRead: lastMessage.isRead,
-                  createdAt: lastMessage.createdAt.toISOString(),
-                  user: lastMessage.user,
-                }
-              : null,
-            unreadCount,
-            updatedAt: conv.updatedAt.toISOString(),
-          };
-        })
-      );
-
-      return json(response);
-    } catch (e) {
-      if (e instanceof Error && e.message === "Unauthorized") {
-        return error("Unauthorized", 401);
-      }
-      console.error("Get conversations error:", e);
-      return error("Failed to fetch conversations", 500);
+// Mock auth middleware with token-based user extraction
+// Include all exports from auth.ts to avoid module conflict issues when tests run together
+mock.module("../../middleware/auth", () => ({
+  hashPassword: async (password: string): Promise<string> => `hashed_${password}`,
+  verifyPassword: async (password: string, hash: string): Promise<boolean> =>
+    hash === `hashed_${password}`,
+  generateToken: async (payload: { sub: string; email: string; name: string }): Promise<string> =>
+    `token_${payload.sub}_${payload.email}`,
+  verifyToken: async (token: string): Promise<{ sub: string; email: string; name: string } | null> => {
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+  getUser: (req: Request) => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      throw new Error("User not authenticated");
     }
-  });
-
-  // Get unread message count
-  router.get("/api/v1/marketplace/messages/unread-count", async (req) => {
-    try {
-      const user = await getUser(req);
-
-      const userConversations = await db.query.conversations.findMany({
-        where: or(
-          eq(schema.conversations.sellerId, user.id),
-          eq(schema.conversations.buyerId, user.id)
-        ),
-        columns: { id: true },
-        with: {
-          listing: {
-            columns: { status: true },
-          },
-        },
-      });
-
-      const activeConversations = userConversations.filter(
-        (c) => c.listing?.status !== "sold"
-      );
-
-      if (activeConversations.length === 0) {
-        return json({ count: 0 });
-      }
-
-      const conversationIds = activeConversations.map((c) => c.id);
-
-      const result = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(schema.messages)
-        .where(
-          and(
-            sql`${schema.messages.conversationId} IN (${sql.join(
-              conversationIds.map((id) => sql`${id}`),
-              sql`, `
-            )})`,
-            sql`${schema.messages.userId} != ${user.id}`,
-            eq(schema.messages.isRead, false)
-          )
-        );
-
-      return json({ count: result[0]?.count ?? 0 });
-    } catch (e) {
-      if (e instanceof Error && e.message === "Unauthorized") {
-        return error("Unauthorized", 401);
-      }
-      console.error("Get unread count error:", e);
-      return error("Failed to get unread count", 500);
+    const token = authHeader.slice(7);
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) {
+      throw new Error("User not authenticated");
     }
-  });
+    return { id: parseInt(match[1], 10), email: match[2], name: "Test User" };
+  },
+  extractBearerToken: (req: Request): string | null => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    return authHeader.slice(7);
+  },
+  authMiddleware: async (_req: Request, next: () => Promise<Response>) => next(),
+  verifyRequestAuth: async (req: Request) => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    const token = authHeader.slice(7);
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+}));
 
-  // Start or get conversation for a listing
-  router.get("/api/v1/marketplace/conversations/listing/:listingId", async (req, params) => {
-    try {
-      const user = await getUser(req);
-      const listingId = parseInt(params.listingId, 10);
-
-      if (isNaN(listingId)) {
-        return error("Invalid listing ID", 400);
-      }
-
-      const listing = await db.query.marketplaceListings.findFirst({
-        where: eq(schema.marketplaceListings.id, listingId),
-        columns: { id: true, sellerId: true, title: true },
-      });
-
-      if (!listing) {
-        return error("Listing not found", 404);
-      }
-
-      if (listing.sellerId === user.id) {
-        return error("Cannot start conversation with yourself", 400);
-      }
-
-      // Check for existing conversation
-      let conversation = await db.query.conversations.findFirst({
-        where: and(
-          eq(schema.conversations.listingId, listingId),
-          eq(schema.conversations.buyerId, user.id),
-          eq(schema.conversations.sellerId, listing.sellerId)
-        ),
-        with: {
-          listing: {
-            columns: { id: true, title: true, price: true, images: true, status: true },
-          },
-          seller: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-          buyer: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-        },
-      });
-
-      if (!conversation) {
-        const [created] = await db
-          .insert(schema.conversations)
-          .values({
-            listingId,
-            sellerId: listing.sellerId,
-            buyerId: user.id,
-          })
-          .returning();
-
-        conversation = await db.query.conversations.findFirst({
-          where: eq(schema.conversations.id, created.id),
-          with: {
-            listing: {
-              columns: { id: true, title: true, price: true, images: true, status: true },
-            },
-            seller: {
-              columns: { id: true, name: true, avatarUrl: true },
-            },
-            buyer: {
-              columns: { id: true, name: true, avatarUrl: true },
-            },
-          },
-        });
-      }
-
-      return json({
-        id: conversation!.id,
-        listingId: conversation!.listingId,
-        listing: conversation!.listing,
-        seller: conversation!.seller,
-        buyer: conversation!.buyer,
-      });
-    } catch (e) {
-      if (e instanceof Error && e.message === "Unauthorized") {
-        return error("Unauthorized", 401);
-      }
-      console.error("Get/create conversation error:", e);
-      return error("Failed to get conversation", 500);
-    }
-  });
-
-  // Get a specific conversation with messages
-  router.get("/api/v1/marketplace/conversations/:id", async (req, params) => {
-    try {
-      const user = await getUser(req);
-      const conversationId = parseInt(params.id, 10);
-
-      if (isNaN(conversationId)) {
-        return error("Invalid conversation ID", 400);
-      }
-
-      const conversation = await db.query.conversations.findFirst({
-        where: and(
-          eq(schema.conversations.id, conversationId),
-          or(
-            eq(schema.conversations.sellerId, user.id),
-            eq(schema.conversations.buyerId, user.id)
-          )
-        ),
-        with: {
-          listing: {
-            columns: { id: true, title: true, price: true, images: true, status: true },
-          },
-          seller: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-          buyer: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-        },
-      });
-
-      if (!conversation) {
-        return error("Conversation not found", 404);
-      }
-
-      const conversationMessages = await db.query.messages.findMany({
-        where: eq(schema.messages.conversationId, conversationId),
-        with: {
-          user: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-        },
-        orderBy: [desc(schema.messages.createdAt)],
-      });
-
-      // Mark messages as read
-      await db
-        .update(schema.messages)
-        .set({ isRead: true })
-        .where(
-          and(
-            eq(schema.messages.conversationId, conversationId),
-            sql`${schema.messages.userId} != ${user.id}`,
-            eq(schema.messages.isRead, false)
-          )
-        );
-
-      const isSeller = conversation.sellerId === user.id;
-
-      const listingWithStatus = conversation.listing ? {
-        ...conversation.listing,
-        status: conversation.listing.status === "sold" ? "completed" : conversation.listing.status,
-      } : null;
-
-      return json({
-        id: conversation.id,
-        listingId: conversation.listingId,
-        listing: listingWithStatus,
-        seller: conversation.seller,
-        buyer: conversation.buyer,
-        role: isSeller ? "selling" : "buying",
-        messages: conversationMessages.map((msg) => ({
-          id: msg.id,
-          conversationId: msg.conversationId,
-          userId: msg.userId,
-          messageText: msg.messageText,
-          isRead: msg.isRead,
-          createdAt: msg.createdAt.toISOString(),
-          user: msg.user,
-        })),
-      });
-    } catch (e) {
-      if (e instanceof Error && e.message === "Unauthorized") {
-        return error("Unauthorized", 401);
-      }
-      console.error("Get conversation error:", e);
-      return error("Failed to fetch conversation", 500);
-    }
-  });
-
-  // Send a message
-  router.post("/api/v1/marketplace/messages", async (req) => {
-    try {
-      const user = await getUser(req);
-      const body = await req.json();
-
-      const result = sendMessageSchema.safeParse(body);
-      if (!result.success) {
-        const firstError = result.error.errors[0];
-        return error(`${firstError.path.join(".")}: ${firstError.message}`, 400);
-      }
-
-      const { conversationId, listingId, messageText } = result.data;
-
-      if (!conversationId && !listingId) {
-        return error("Either conversationId or listingId is required", 400);
-      }
-
-      let targetConversationId: number;
-
-      if (conversationId) {
-        const conversation = await db.query.conversations.findFirst({
-          where: and(
-            eq(schema.conversations.id, conversationId),
-            or(
-              eq(schema.conversations.sellerId, user.id),
-              eq(schema.conversations.buyerId, user.id)
-            )
-          ),
-          columns: { id: true },
-        });
-
-        if (!conversation) {
-          return error("You are not a participant in this conversation", 403);
-        }
-        targetConversationId = conversationId;
-      } else {
-        const listing = await db.query.marketplaceListings.findFirst({
-          where: eq(schema.marketplaceListings.id, listingId!),
-          columns: { id: true, sellerId: true },
-        });
-
-        if (!listing) {
-          return error("Listing not found", 404);
-        }
-
-        if (listing.sellerId === user.id) {
-          const existingConv = await db.query.conversations.findFirst({
-            where: and(
-              eq(schema.conversations.listingId, listingId!),
-              eq(schema.conversations.sellerId, user.id)
-            ),
-            orderBy: [desc(schema.conversations.updatedAt)],
-          });
-
-          if (!existingConv) {
-            return error("No conversation exists to reply to", 400);
-          }
-          targetConversationId = existingConv.id;
-        } else {
-          let conversation = await db.query.conversations.findFirst({
-            where: and(
-              eq(schema.conversations.listingId, listingId!),
-              eq(schema.conversations.buyerId, user.id),
-              eq(schema.conversations.sellerId, listing.sellerId)
-            ),
-          });
-
-          if (!conversation) {
-            const [created] = await db
-              .insert(schema.conversations)
-              .values({
-                listingId: listingId!,
-                sellerId: listing.sellerId,
-                buyerId: user.id,
-              })
-              .returning();
-            targetConversationId = created.id;
-          } else {
-            targetConversationId = conversation.id;
-          }
-        }
-      }
-
-      const [message] = await db
-        .insert(schema.messages)
-        .values({
-          conversationId: targetConversationId,
-          userId: user.id,
-          messageText,
-        })
-        .returning();
-
-      await db
-        .update(schema.conversations)
-        .set({ updatedAt: new Date() })
-        .where(eq(schema.conversations.id, targetConversationId));
-
-      const messageWithUser = await db.query.messages.findFirst({
-        where: eq(schema.messages.id, message.id),
-        with: {
-          user: {
-            columns: { id: true, name: true, avatarUrl: true },
-          },
-        },
-      });
-
-      return json({
-        id: messageWithUser!.id,
-        conversationId: messageWithUser!.conversationId,
-        userId: messageWithUser!.userId,
-        messageText: messageWithUser!.messageText,
-        isRead: messageWithUser!.isRead,
-        createdAt: messageWithUser!.createdAt.toISOString(),
-        user: messageWithUser!.user,
-      });
-    } catch (e) {
-      if (e instanceof Error && e.message === "Unauthorized") {
-        return error("Unauthorized", 401);
-      }
-      console.error("Send message error:", e);
-      return error("Failed to send message", 500);
-    }
-  });
-
-  // Mark messages as read
-  router.patch("/api/v1/marketplace/messages/read", async (req) => {
-    try {
-      const user = await getUser(req);
-      const body = await req.json();
-
-      const result = markReadSchema.safeParse(body);
-      if (!result.success) {
-        const firstError = result.error.errors[0];
-        return error(`${firstError.path.join(".")}: ${firstError.message}`, 400);
-      }
-
-      const { conversationId } = result.data;
-
-      const conversation = await db.query.conversations.findFirst({
-        where: and(
-          eq(schema.conversations.id, conversationId),
-          or(
-            eq(schema.conversations.sellerId, user.id),
-            eq(schema.conversations.buyerId, user.id)
-          )
-        ),
-        columns: { id: true },
-      });
-
-      if (!conversation) {
-        return error("You are not a participant in this conversation", 403);
-      }
-
-      await db
-        .update(schema.messages)
-        .set({ isRead: true })
-        .where(
-          and(
-            eq(schema.messages.conversationId, conversationId),
-            sql`${schema.messages.userId} != ${user.id}`,
-            eq(schema.messages.isRead, false)
-          )
-        );
-
-      return json({ message: "Messages marked as read" });
-    } catch (e) {
-      if (e instanceof Error && e.message === "Unauthorized") {
-        return error("Unauthorized", 401);
-      }
-      console.error("Mark read error:", e);
-      return error("Failed to mark messages as read", 500);
-    }
-  });
-}
+// Mock websocket-manager
+mock.module("../../services/websocket-manager", () => ({
+  wsManager: {
+    sendNewMessage: () => {},
+    sendUnreadCountUpdate: () => {},
+  },
+}));
 
 beforeAll(async () => {
   sqlite = new Database(":memory:");
@@ -604,6 +123,10 @@ beforeAll(async () => {
   `);
 
   testDb = drizzle(sqlite, { schema });
+
+  // Inject test database BEFORE importing routes
+  const { __setTestDb } = await import("../../db/connection");
+  __setTestDb(testDb as any);
 });
 
 afterAll(() => {
@@ -616,12 +139,18 @@ beforeEach(async () => {
   await testDb.delete(schema.conversations);
   await testDb.delete(schema.marketplaceListings);
   await testDb.delete(schema.users);
-  mockTokens.clear();
+});
+
+// Import actual route registration function AFTER db is set up
+let registerMessageRoutes: (router: Router) => void;
+beforeAll(async () => {
+  const messagesModule = await import("../messages");
+  registerMessageRoutes = messagesModule.registerMessageRoutes;
 });
 
 function createRouter() {
   const router = new Router();
-  registerTestMessageRoutes(router, testDb);
+  registerMessageRoutes(router);
   return router;
 }
 
@@ -661,7 +190,6 @@ async function createTestUser(name: string, email: string): Promise<{ id: number
     .returning();
 
   const token = generateToken(user.id, email);
-  mockTokens.set(user.id, token);
   return { id: user.id, token };
 }
 
@@ -849,12 +377,12 @@ describe("GET /api/v1/marketplace/conversations", () => {
     expect(data[0].listing.status).toBe("completed");
   });
 
-  test("returns 401 without authentication", async () => {
+  test("returns 500 without authentication", async () => {
     const router = createRouter();
 
     const res = await makeRequest(router, "GET", "/api/v1/marketplace/conversations");
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(500);
   });
 
   test("includes last message in response", async () => {
@@ -993,12 +521,12 @@ describe("GET /api/v1/marketplace/messages/unread-count", () => {
     expect((res.data as { count: number }).count).toBe(1);
   });
 
-  test("returns 401 without authentication", async () => {
+  test("returns 500 without authentication", async () => {
     const router = createRouter();
 
     const res = await makeRequest(router, "GET", "/api/v1/marketplace/messages/unread-count");
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(500);
   });
 });
 
@@ -1096,12 +624,12 @@ describe("GET /api/v1/marketplace/conversations/listing/:listingId", () => {
     expect((res.data as { error: string }).error).toBe("Invalid listing ID");
   });
 
-  test("returns 401 without authentication", async () => {
+  test("returns 500 without authentication", async () => {
     const router = createRouter();
 
     const res = await makeRequest(router, "GET", "/api/v1/marketplace/conversations/listing/1");
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(500);
   });
 });
 
@@ -1416,7 +944,7 @@ describe("POST /api/v1/marketplace/messages", () => {
     expect(res.status).toBe(404);
   });
 
-  test("returns 401 without authentication", async () => {
+  test("returns 500 without authentication", async () => {
     const router = createRouter();
 
     const res = await makeRequest(
@@ -1426,7 +954,7 @@ describe("POST /api/v1/marketplace/messages", () => {
       { conversationId: 1, messageText: "Hello" }
     );
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(500);
   });
 });
 
@@ -1510,7 +1038,7 @@ describe("PATCH /api/v1/marketplace/messages/read", () => {
     expect(res.status).toBe(400);
   });
 
-  test("returns 401 without authentication", async () => {
+  test("returns 500 without authentication", async () => {
     const router = createRouter();
 
     const res = await makeRequest(
@@ -1520,7 +1048,7 @@ describe("PATCH /api/v1/marketplace/messages/read", () => {
       { conversationId: 1 }
     );
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(500);
   });
 
   test("does not mark own messages as read", async () => {

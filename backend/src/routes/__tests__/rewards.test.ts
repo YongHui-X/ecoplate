@@ -1,86 +1,96 @@
-import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
+import { describe, expect, test, mock, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
-import { Router, json, error, parseBody } from "../../utils/router";
+import { Router } from "../../utils/router";
 import * as schema from "../../db/schema";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 
 // Set up in-memory test database
 let sqlite: Database;
 let testDb: ReturnType<typeof drizzle<typeof schema>>;
-let testUserId: number;
-let secondUserId: number;
 
-const redeemSchema = z.object({
-  rewardId: z.number().int().positive(),
-});
+// Track current user for mocking - use object to ensure reference is shared
+const mockState = {
+  userId: 1,
+};
 
-// Simplified route registration for testing
-function registerTestRewardsRoutes(
-  router: Router,
-  db: ReturnType<typeof drizzle<typeof schema>>,
-  userId: number
-) {
-  router.use(async (req, next) => {
-    (req as Request & { user: { id: number } }).user = { id: userId };
-    return next();
-  });
+// Mock auth middleware
+// Include all exports from auth.ts to avoid module conflict issues when tests run together
+mock.module("../../middleware/auth", () => ({
+  hashPassword: async (password: string): Promise<string> => `hashed_${password}`,
+  verifyPassword: async (password: string, hash: string): Promise<boolean> =>
+    hash === `hashed_${password}`,
+  generateToken: async (payload: { sub: string; email: string; name: string }): Promise<string> =>
+    `token_${payload.sub}_${payload.email}`,
+  verifyToken: async (token: string): Promise<{ sub: string; email: string; name: string } | null> => {
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+  getUser: () => ({
+    id: mockState.userId,
+    email: "test@example.com",
+    name: "Test User",
+  }),
+  extractBearerToken: (req: Request): string | null => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    return authHeader.slice(7);
+  },
+  authMiddleware: async (_req: Request, next: () => Promise<Response>) => next(),
+  verifyRequestAuth: async (req: Request) => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    const token = authHeader.slice(7);
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+}));
 
-  const getUser = (req: Request) =>
-    (req as Request & { user: { id: number } }).user;
-
-  // Get all available rewards
-  router.get("/api/v1/rewards", async () => {
-    const rewards = await db
+// Mock reward-service with implementations using testDb
+mock.module("../../services/reward-service", () => ({
+  getAvailableRewards: async () => {
+    return testDb
       .select()
       .from(schema.rewards)
       .where(eq(schema.rewards.isActive, true))
       .orderBy(schema.rewards.pointsCost);
-    return json(rewards);
-  });
-
-  // Get user's points balance
-  router.get("/api/v1/rewards/balance", async (req) => {
-    const user = getUser(req);
-    const result = await db.query.userPoints.findFirst({
-      where: eq(schema.userPoints.userId, user.id),
+  },
+  getUserPointsBalance: async (userId: number) => {
+    const result = await testDb.query.userPoints.findFirst({
+      where: eq(schema.userPoints.userId, userId),
     });
-    return json({ balance: result?.totalPoints ?? 0 });
-  });
-
-  // Redeem a reward
-  router.post("/api/v1/rewards/redeem", async (req) => {
-    const user = getUser(req);
-    const body = await parseBody(req);
-    const data = redeemSchema.parse(body);
-
+    return result?.totalPoints ?? 0;
+  },
+  redeemReward: async (userId: number, rewardId: number, quantity: number = 1) => {
     // Get the reward
-    const reward = await db.query.rewards.findFirst({
-      where: eq(schema.rewards.id, data.rewardId),
+    const reward = await testDb.query.rewards.findFirst({
+      where: eq(schema.rewards.id, rewardId),
     });
 
     if (!reward) {
-      return error("Reward not found", 404);
+      throw new Error("Reward not found");
     }
 
     if (!reward.isActive) {
-      return error("Reward is not available", 400);
+      throw new Error("Reward is not available");
     }
 
-    if (reward.stock <= 0) {
-      return error("Reward is out of stock", 400);
+    if (reward.stock < quantity) {
+      throw new Error("Reward is out of stock");
     }
 
     // Get user's points
-    const userPointsRecord = await db.query.userPoints.findFirst({
-      where: eq(schema.userPoints.userId, user.id),
+    const userPointsRecord = await testDb.query.userPoints.findFirst({
+      where: eq(schema.userPoints.userId, userId),
     });
 
     const currentPoints = userPointsRecord?.totalPoints ?? 0;
+    const totalCost = reward.pointsCost * quantity;
 
-    if (currentPoints < reward.pointsCost) {
-      return error("Insufficient points", 400);
+    if (currentPoints < totalCost) {
+      throw new Error("Insufficient points");
     }
 
     // Generate unique redemption code
@@ -91,11 +101,11 @@ function registerTestRewardsRoutes(
     expiresAt.setDate(expiresAt.getDate() + 30);
 
     // Create redemption record
-    const [redemption] = await db
+    const [redemption] = await testDb
       .insert(schema.userRedemptions)
       .values({
-        userId: user.id,
-        rewardId: data.rewardId,
+        userId,
+        rewardId,
         pointsSpent: reward.pointsCost,
         redemptionCode,
         status: "pending",
@@ -104,28 +114,24 @@ function registerTestRewardsRoutes(
       .returning();
 
     // Deduct points from user
-    await db
+    await testDb
       .update(schema.userPoints)
       .set({ totalPoints: currentPoints - reward.pointsCost })
-      .where(eq(schema.userPoints.userId, user.id));
+      .where(eq(schema.userPoints.userId, userId));
 
     // Decrease stock
-    await db
+    await testDb
       .update(schema.rewards)
       .set({ stock: reward.stock - 1 })
-      .where(eq(schema.rewards.id, data.rewardId));
+      .where(eq(schema.rewards.id, rewardId));
 
-    return json({
+    return {
       ...redemption,
       reward,
-    });
-  });
-
-  // Get user's redemption history
-  router.get("/api/v1/rewards/my-redemptions", async (req) => {
-    const user = getUser(req);
-
-    const redemptions = await db
+    };
+  },
+  getUserRedemptions: async (userId: number) => {
+    const redemptions = await testDb
       .select({
         id: schema.userRedemptions.id,
         pointsSpent: schema.userRedemptions.pointsSpent,
@@ -143,11 +149,14 @@ function registerTestRewardsRoutes(
       })
       .from(schema.userRedemptions)
       .innerJoin(schema.rewards, eq(schema.userRedemptions.rewardId, schema.rewards.id))
-      .where(eq(schema.userRedemptions.userId, user.id));
+      .where(eq(schema.userRedemptions.userId, userId));
 
-    return json(redemptions);
-  });
-}
+    return redemptions;
+  },
+}));
+
+let testUserId: number;
+let secondUserId: number;
 
 beforeAll(async () => {
   sqlite = new Database(":memory:");
@@ -235,9 +244,17 @@ beforeEach(async () => {
   await testDb.delete(schema.rewards);
 });
 
+// Import actual route registration function AFTER mocks are set up
+let registerRewardsRoutes: (router: Router) => void;
+beforeAll(async () => {
+  const rewardsModule = await import("../rewards");
+  registerRewardsRoutes = rewardsModule.registerRewardsRoutes;
+});
+
 function createRouter(userId: number = testUserId) {
+  mockState.userId = userId;
   const router = new Router();
-  registerTestRewardsRoutes(router, testDb, userId);
+  registerRewardsRoutes(router);
   return router;
 }
 

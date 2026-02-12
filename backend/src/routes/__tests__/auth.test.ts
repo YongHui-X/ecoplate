@@ -1,217 +1,46 @@
-import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
+import { describe, expect, test, mock, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
-import { Router, json, error } from "../../utils/router";
 import * as schema from "../../db/schema";
-import { eq } from "drizzle-orm";
-import { z } from "zod";
+import { Router } from "../../utils/router";
+
+// Mock auth functions BEFORE importing routes
+// Include all exports from auth.ts to avoid module conflict issues when tests run together
+mock.module("../../middleware/auth", () => ({
+  hashPassword: async (password: string): Promise<string> => `hashed_${password}`,
+  verifyPassword: async (password: string, hash: string): Promise<boolean> =>
+    hash === `hashed_${password}`,
+  generateToken: async (payload: { sub: string; email: string; name: string }): Promise<string> =>
+    `token_${payload.sub}_${payload.email}`,
+  verifyToken: async (token: string): Promise<{ sub: string; email: string; name: string } | null> => {
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+  verifyRequestAuth: async (req: Request): Promise<{ sub: string; email: string; name: string } | null> => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    const token = authHeader.slice(7);
+    const match = token.match(/^token_(\d+)_(.+)$/);
+    if (!match) return null;
+    return { sub: match[1], email: match[2], name: "Test User" };
+  },
+  getUser: (req: Request) => {
+    const user = (req as Request & { user?: { id: number; email: string; name: string } }).user;
+    if (!user) throw new Error("User not authenticated");
+    return user;
+  },
+  extractBearerToken: (req: Request): string | null => {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+    return authHeader.slice(7);
+  },
+  authMiddleware: async (req: Request, next: () => Promise<Response>) => next(),
+}));
 
 // Set up in-memory test database
 let sqlite: Database;
 let testDb: ReturnType<typeof drizzle<typeof schema>>;
-
-// Mock auth functions
-const mockHashPassword = async (password: string): Promise<string> => {
-  return `hashed_${password}`;
-};
-
-const mockVerifyPassword = async (password: string, hash: string): Promise<boolean> => {
-  return hash === `hashed_${password}`;
-};
-
-const mockGenerateToken = async (payload: { sub: string; email: string; name: string }): Promise<string> => {
-  return `token_${payload.sub}_${payload.email}`;
-};
-
-const mockVerifyRequestAuth = async (req: Request): Promise<{ sub: string; email: string; name: string } | null> => {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
-  // Parse mock token format: token_userId_email
-  const match = token.match(/^token_(\d+)_(.+)$/);
-  if (!match) return null;
-  return { sub: match[1], email: match[2], name: "Test User" };
-};
-
-// Register schema
-const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  name: z.string().min(1).max(100),
-  userLocation: z.string().optional(),
-  avatarUrl: z.string().optional(),
-});
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
-});
-
-// Register routes with mocked auth functions
-function registerTestAuthRoutes(router: Router, db: ReturnType<typeof drizzle<typeof schema>>) {
-  router.post("/api/v1/auth/register", async (req) => {
-    try {
-      const body = await req.json();
-      const data = registerSchema.parse(body);
-
-      const existing = await db.query.users.findFirst({
-        where: eq(schema.users.email, data.email),
-      });
-
-      if (existing) {
-        return error("Email already registered", 400);
-      }
-
-      const passwordHash = await mockHashPassword(data.password);
-
-      const [user] = await db
-        .insert(schema.users)
-        .values({
-          email: data.email,
-          passwordHash,
-          name: data.name,
-          userLocation: data.userLocation,
-          avatarUrl: data.avatarUrl,
-        })
-        .returning();
-
-      const token = await mockGenerateToken({
-        sub: user.id.toString(),
-        email: user.email,
-        name: user.name,
-      });
-
-      return json({
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          avatarUrl: user.avatarUrl,
-          userLocation: user.userLocation,
-        },
-        token,
-      });
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return error(e.errors[0].message, 400);
-      }
-      console.error("Register error:", e);
-      return error("Registration failed", 500);
-    }
-  });
-
-  router.post("/api/v1/auth/login", async (req) => {
-    try {
-      const body = await req.json();
-      const data = loginSchema.parse(body);
-
-      const user = await db.query.users.findFirst({
-        where: eq(schema.users.email, data.email),
-      });
-
-      if (!user) {
-        return error("Invalid email or password", 401);
-      }
-
-      const valid = await mockVerifyPassword(data.password, user.passwordHash);
-      if (!valid) {
-        return error("Invalid email or password", 401);
-      }
-
-      const token = await mockGenerateToken({
-        sub: user.id.toString(),
-        email: user.email,
-        name: user.name,
-      });
-
-      return json({
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          avatarUrl: user.avatarUrl,
-          userLocation: user.userLocation,
-        },
-        token,
-      });
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return error(e.errors[0].message, 400);
-      }
-      console.error("Login error:", e);
-      return error("Login failed", 500);
-    }
-  });
-
-  router.get("/api/v1/auth/me", async (req) => {
-    try {
-      const payload = await mockVerifyRequestAuth(req);
-      if (!payload) {
-        return error("Unauthorized", 401);
-      }
-
-      const user = await db.query.users.findFirst({
-        where: eq(schema.users.id, parseInt(payload.sub, 10)),
-      });
-
-      if (!user) {
-        return error("User not found", 404);
-      }
-
-      return json({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatarUrl: user.avatarUrl,
-        userLocation: user.userLocation,
-      });
-    } catch (e) {
-      console.error("Get user error:", e);
-      return error("Failed to get user", 500);
-    }
-  });
-
-  router.patch("/api/v1/auth/profile", async (req) => {
-    try {
-      const payload = await mockVerifyRequestAuth(req);
-      if (!payload) {
-        return error("Unauthorized", 401);
-      }
-
-      const updateSchema = z.object({
-        name: z.string().min(1).max(100).optional(),
-        avatarUrl: z.string().optional().nullable(),
-        userLocation: z.string().optional().nullable(),
-      });
-
-      const body = await req.json();
-      const data = updateSchema.parse(body);
-
-      const [updatedUser] = await db
-        .update(schema.users)
-        .set({
-          ...data,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.users.id, parseInt(payload.sub, 10)))
-        .returning();
-
-      return json({
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        avatarUrl: updatedUser.avatarUrl,
-        userLocation: updatedUser.userLocation,
-      });
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return error(e.errors[0].message, 400);
-      }
-      console.error("Update profile error:", e);
-      return error("Failed to update profile", 500);
-    }
-  });
-}
 
 beforeAll(async () => {
   sqlite = new Database(":memory:");
@@ -232,6 +61,10 @@ beforeAll(async () => {
   `);
 
   testDb = drizzle(sqlite, { schema });
+
+  // Inject test database BEFORE importing routes
+  const { __setTestDb } = await import("../../db/connection");
+  __setTestDb(testDb as any);
 });
 
 afterAll(() => {
@@ -243,9 +76,16 @@ beforeEach(async () => {
   await testDb.delete(schema.users);
 });
 
+// Import the actual route registration function AFTER db is set up
+let registerAuthRoutes: (router: Router) => void;
+beforeAll(async () => {
+  const authModule = await import("../auth");
+  registerAuthRoutes = authModule.registerAuthRoutes;
+});
+
 function createRouter() {
   const router = new Router();
-  registerTestAuthRoutes(router, testDb);
+  registerAuthRoutes(router);
   return router;
 }
 
