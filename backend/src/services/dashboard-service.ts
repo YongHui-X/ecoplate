@@ -58,10 +58,15 @@ function resolveMetricCo2(
   metric: { productId?: number | null; quantity?: number | null },
   productMap: Map<number, ProductRow>
 ): number {
-  if (metric.productId == null) return 0;
+  const qty = metric.quantity ?? 1;
+  if (metric.productId == null) {
+    // Marketplace sold items have null productId — use category fallback
+    return CATEGORY_FALLBACKS["other"] * qty;
+  }
   const product = productMap.get(metric.productId);
-  if (!product) return 0;
-  const qty = metric.quantity ?? 0;
+  if (!product) {
+    return CATEGORY_FALLBACKS["other"] * qty;
+  }
   if (product.co2Emission) {
     return product.co2Emission * qty;
   }
@@ -590,7 +595,7 @@ export async function getFoodStats(userId: number, period: Period = "month") {
     const dateKey = formatDate(dateObj, period);
     const qty = m.quantity ?? 0;
 
-    if (m.type && ["consumed", "sold", "shared"].includes(m.type)) {
+    if (m.type && ["consumed", "sold"].includes(m.type)) {
       savedTrendMap.set(dateKey, (savedTrendMap.get(dateKey) || 0) + qty);
     } else if (m.type === "wasted") {
       wastedTrendMap.set(dateKey, (wastedTrendMap.get(dateKey) || 0) + qty);
