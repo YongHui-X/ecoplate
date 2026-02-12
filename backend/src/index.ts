@@ -143,28 +143,6 @@ async function serveStatic(path: string): Promise<Response | null> {
     });
   }
 
-  // Handle EcoLocker SPA under /ecolocker/
-  if (path.startsWith("/ecolocker")) {
-    const ecolockerDir = resolve(join(publicDir, "ecolocker"));
-    // Strip the /ecolocker prefix to get the relative path
-    const relativePath = path.replace(/^\/ecolocker\/?/, "/") || "/";
-    let filePath = safePath(ecolockerDir, relativePath);
-
-    // SPA fallback: serve index.html for non-file paths or directories
-    if (!filePath || relativePath === "/" || !existsSync(filePath) || statSync(filePath).isDirectory()) {
-      filePath = join(ecolockerDir, "index.html");
-    }
-
-    if (!existsSync(filePath)) {
-      return null;
-    }
-
-    const file = Bun.file(filePath);
-    return new Response(file, {
-      headers: { "Content-Type": getMimeType(filePath) },
-    });
-  }
-
   let filePath = safePath(publicDir, path);
 
   // Default to index.html for root, non-existent files, or directories (SPA routing)
