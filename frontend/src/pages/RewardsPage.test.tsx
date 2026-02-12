@@ -71,10 +71,15 @@ vi.mock("../services/api", () => ({
     post: vi.fn((url: string) => {
       if (url.includes("/rewards/redeem")) {
         return Promise.resolve({
-          redemptions: [{ id: 1, redemptionCode: "EP-ABC12345", pointsSpent: 500 }],
-          totalPointsSpent: 500,
           quantity: 1,
+          pointsSpent: 500,
           reward: mockRewards[0],
+          redemptions: [
+            {
+              id: 1,
+              redemptionCode: "EP-ABC12345",
+            },
+          ],
         });
       }
       return Promise.resolve({});
