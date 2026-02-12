@@ -194,7 +194,7 @@ export default function BadgesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Badges</h1>
+        <h1 className="hidden lg:block text-2xl font-bold">Badges</h1>
         <p className="text-muted-foreground">
           Collect badges by completing sustainability challenges
         </p>
