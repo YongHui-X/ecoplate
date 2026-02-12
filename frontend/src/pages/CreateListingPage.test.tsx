@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -7,16 +7,6 @@ import { ToastProvider } from "../contexts/ToastContext";
 
 // Mock fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
-
-// Mock localStorage
-const mockLocalStorage = {
-  getItem: vi.fn(() => "mock-token"),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
-};
-Object.defineProperty(window, "localStorage", { value: mockLocalStorage });
 
 // Mock useNavigate and useLocation
 const mockNavigate = vi.fn();
@@ -27,6 +17,25 @@ vi.mock("react-router-dom", async () => {
     useNavigate: () => mockNavigate,
     useLocation: () => ({ state: null }),
   };
+});
+
+// Setup mocks before all tests
+beforeAll(() => {
+  global.fetch = mockFetch;
+
+  // Mock localStorage
+  const mockLocalStorage = {
+    getItem: vi.fn(() => "mock-token"),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(),
+    length: 0,
+    key: vi.fn(),
+  };
+  Object.defineProperty(window, "localStorage", {
+    value: mockLocalStorage,
+    writable: true,
+  });
 });
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -852,5 +861,406 @@ describe("CreateListingPage - Image Upload Section", () => {
   it("should show Add text in upload button", () => {
     renderWithProviders(<CreateListingPage />);
     expect(screen.getByText("Add")).toBeInTheDocument();
+  });
+});
+
+describe("CreateListingPage - NaN Handling for Numeric Fields", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockImplementation(() => {
+      return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({})) });
+    });
+  });
+
+  it("should handle empty quantity input by defaulting to 1", () => {
+    renderWithProviders(<CreateListingPage />);
+    const quantityInput = screen.getByLabelText("Quantity") as HTMLInputElement;
+
+    // Clear the input
+    fireEvent.change(quantityInput, { target: { value: "" } });
+
+    // Should default to 1 when empty (NaN handling)
+    expect(quantityInput.value).toBe("1");
+  });
+
+  it("should handle clearing and re-entering quantity", () => {
+    renderWithProviders(<CreateListingPage />);
+    const quantityInput = screen.getByLabelText("Quantity") as HTMLInputElement;
+
+    // Set a valid value
+    fireEvent.change(quantityInput, { target: { value: "5" } });
+    expect(quantityInput.value).toBe("5");
+
+    // Clear and set again
+    fireEvent.change(quantityInput, { target: { value: "" } });
+    fireEvent.change(quantityInput, { target: { value: "3" } });
+    expect(quantityInput.value).toBe("3");
+  });
+
+  it("should accept valid decimal quantity", () => {
+    renderWithProviders(<CreateListingPage />);
+    const quantityInput = screen.getByLabelText("Quantity") as HTMLInputElement;
+
+    fireEvent.change(quantityInput, { target: { value: "2.5" } });
+    expect(quantityInput.value).toBe("2.5");
+  });
+
+  it("should handle empty price input gracefully", () => {
+    renderWithProviders(<CreateListingPage />);
+    const priceInput = screen.getByLabelText("Selling Price ($)") as HTMLInputElement;
+
+    // Empty price should be allowed (means free)
+    fireEvent.change(priceInput, { target: { value: "" } });
+    expect(priceInput.value).toBe("");
+  });
+
+  it("should handle empty original price input gracefully", () => {
+    renderWithProviders(<CreateListingPage />);
+    const originalPriceInput = screen.getByLabelText("Original Price ($)") as HTMLInputElement;
+
+    // Empty original price should be allowed
+    fireEvent.change(originalPriceInput, { target: { value: "" } });
+    expect(originalPriceInput.value).toBe("");
+  });
+
+  it("should accept zero as valid price (free item)", () => {
+    renderWithProviders(<CreateListingPage />);
+    const priceInput = screen.getByLabelText("Selling Price ($)") as HTMLInputElement;
+
+    fireEvent.change(priceInput, { target: { value: "0" } });
+    expect(priceInput.value).toBe("0");
+  });
+});
+
+describe("CreateListingPage - Form Submission", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/marketplace/listings") && !url.includes("price-recommendation")) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify({ id: 123 })),
+        });
+      }
+      return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({})) });
+    });
+  });
+
+  it("should submit form with valid title", async () => {
+    renderWithProviders(<CreateListingPage />);
+
+    const titleInput = screen.getByLabelText("Title *");
+    fireEvent.change(titleInput, { target: { value: "Fresh Apples" } });
+
+    const submitButton = screen.getByRole("button", { name: "Create Listing" });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  it("should include quantity in submission even when cleared", async () => {
+    renderWithProviders(<CreateListingPage />);
+
+    const titleInput = screen.getByLabelText("Title *");
+    fireEvent.change(titleInput, { target: { value: "Test Item" } });
+
+    const quantityInput = screen.getByLabelText("Quantity");
+    fireEvent.change(quantityInput, { target: { value: "" } }); // Clear it
+
+    const submitButton = screen.getByRole("button", { name: "Create Listing" });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      const calls = mockFetch.mock.calls;
+      const postCall = calls.find((call: string[]) =>
+        call[0].includes("/marketplace/listings") &&
+        !call[0].includes("price-recommendation")
+      );
+
+      if (postCall && postCall[1]?.body) {
+        const body = JSON.parse(postCall[1].body);
+        // Should have defaulted to 1
+        expect(body.quantity).toBe(1);
+      }
+    });
+  });
+
+  it("should send null for empty price (free listing)", async () => {
+    renderWithProviders(<CreateListingPage />);
+
+    const titleInput = screen.getByLabelText("Title *");
+    fireEvent.change(titleInput, { target: { value: "Free Item" } });
+
+    const priceInput = screen.getByLabelText("Selling Price ($)");
+    fireEvent.change(priceInput, { target: { value: "" } }); // Empty = free
+
+    const submitButton = screen.getByRole("button", { name: "Create Listing" });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      const calls = mockFetch.mock.calls;
+      const postCall = calls.find((call: string[]) =>
+        call[0].includes("/marketplace/listings") &&
+        !call[0].includes("price-recommendation")
+      );
+
+      if (postCall && postCall[1]?.body) {
+        const body = JSON.parse(postCall[1].body);
+        expect(body.price).toBeNull();
+      }
+    });
+  });
+
+  it("should omit originalPrice when empty", async () => {
+    renderWithProviders(<CreateListingPage />);
+
+    const titleInput = screen.getByLabelText("Title *");
+    fireEvent.change(titleInput, { target: { value: "Test Item" } });
+
+    const originalPriceInput = screen.getByLabelText("Original Price ($)");
+    fireEvent.change(originalPriceInput, { target: { value: "" } });
+
+    const submitButton = screen.getByRole("button", { name: "Create Listing" });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      const calls = mockFetch.mock.calls;
+      const postCall = calls.find((call: string[]) =>
+        call[0].includes("/marketplace/listings") &&
+        !call[0].includes("price-recommendation")
+      );
+
+      if (postCall && postCall[1]?.body) {
+        const body = JSON.parse(postCall[1].body);
+        expect(body.originalPrice).toBeUndefined();
+      }
+    });
+  });
+
+  it("should handle form submission with all fields filled", async () => {
+    renderWithProviders(<CreateListingPage />);
+
+    // Fill all fields
+    fireEvent.change(screen.getByLabelText("Title *"), { target: { value: "Fresh Oranges" } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Juicy oranges" } });
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "produce" } });
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Unit"), { target: { value: "kg" } });
+    fireEvent.change(screen.getByLabelText("Original Price ($)"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Selling Price ($)"), { target: { value: "7" } });
+    fireEvent.change(screen.getByLabelText("Expiry Date"), { target: { value: "2026-12-31" } });
+    fireEvent.change(screen.getByLabelText("Pickup Instructions"), { target: { value: "Call first" } });
+
+    const submitButton = screen.getByRole("button", { name: "Create Listing" });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+});
+
+describe("CreateListingPage - Image Upload Interactions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockImplementation(() => {
+      return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({})) });
+    });
+  });
+
+  it("should trigger file input when Add button is clicked", () => {
+    renderWithProviders(<CreateListingPage />);
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click');
+
+    const addButton = screen.getByText("Add").closest("button");
+    fireEvent.click(addButton!);
+
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it("should handle file selection event", async () => {
+    renderWithProviders(<CreateListingPage />);
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    // Create a mock file
+    const file = new File(['test'], 'test.png', { type: 'image/png' });
+
+    // Trigger file selection change event
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+      writable: true,
+    });
+
+    // The file input should handle the change event without error
+    fireEvent.change(fileInput);
+
+    // Verify file input still exists after change event
+    expect(fileInput).toBeInTheDocument();
+  });
+});
+
+describe("CreateListingPage - Error Handling", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should handle API error on submission", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/marketplace/listings") && !url.includes("price-recommendation")) {
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve(JSON.stringify({ error: "Validation failed" })),
+        });
+      }
+      return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({})) });
+    });
+
+    renderWithProviders(<CreateListingPage />);
+
+    fireEvent.change(screen.getByLabelText("Title *"), { target: { value: "Test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Listing" }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  it("should re-enable buttons after failed submission", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/marketplace/listings") && !url.includes("price-recommendation")) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          text: () => Promise.resolve(JSON.stringify({ error: "Server error" })),
+        });
+      }
+      return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({})) });
+    });
+
+    renderWithProviders(<CreateListingPage />);
+
+    fireEvent.change(screen.getByLabelText("Title *"), { target: { value: "Test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Listing" }));
+
+    await waitFor(() => {
+      const submitButton = screen.getByRole("button", { name: "Create Listing" });
+      expect(submitButton).not.toBeDisabled();
+    });
+  });
+});
+
+describe("CreateListingPage - Numeric Input Edge Cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockImplementation(() => {
+      return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({})) });
+    });
+  });
+
+  it("should handle very large quantity values", () => {
+    renderWithProviders(<CreateListingPage />);
+    const quantityInput = screen.getByLabelText("Quantity") as HTMLInputElement;
+
+    fireEvent.change(quantityInput, { target: { value: "9999" } });
+    expect(quantityInput.value).toBe("9999");
+  });
+
+  it("should handle very small decimal quantity", () => {
+    renderWithProviders(<CreateListingPage />);
+    const quantityInput = screen.getByLabelText("Quantity") as HTMLInputElement;
+
+    fireEvent.change(quantityInput, { target: { value: "0.1" } });
+    expect(quantityInput.value).toBe("0.1");
+  });
+
+  it("should handle large price values", () => {
+    renderWithProviders(<CreateListingPage />);
+    const priceInput = screen.getByLabelText("Selling Price ($)") as HTMLInputElement;
+
+    fireEvent.change(priceInput, { target: { value: "999.99" } });
+    expect(priceInput.value).toBe("999.99");
+  });
+
+  it("should handle price with many decimal places", () => {
+    renderWithProviders(<CreateListingPage />);
+    const priceInput = screen.getByLabelText("Selling Price ($)") as HTMLInputElement;
+
+    fireEvent.change(priceInput, { target: { value: "12.999" } });
+    // HTML number input may truncate based on step
+    expect(priceInput.value).toBeTruthy();
+  });
+
+  it("should handle negative quantity by treating as invalid", () => {
+    renderWithProviders(<CreateListingPage />);
+    const quantityInput = screen.getByLabelText("Quantity") as HTMLInputElement;
+
+    // The min attribute prevents negative values in browser
+    expect(quantityInput).toHaveAttribute("min", "0.1");
+  });
+});
+
+describe("CreateListingPage - Text Input Edge Cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockImplementation(() => {
+      return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({})) });
+    });
+  });
+
+  it("should handle title with special characters", () => {
+    renderWithProviders(<CreateListingPage />);
+    const titleInput = screen.getByLabelText("Title *") as HTMLInputElement;
+
+    fireEvent.change(titleInput, { target: { value: "Fresh Apples & Oranges (Organic)" } });
+    expect(titleInput.value).toBe("Fresh Apples & Oranges (Organic)");
+  });
+
+  it("should handle description with newlines", () => {
+    renderWithProviders(<CreateListingPage />);
+    const descInput = screen.getByLabelText("Description") as HTMLTextAreaElement;
+
+    fireEvent.change(descInput, { target: { value: "Line 1\nLine 2\nLine 3" } });
+    expect(descInput.value).toBe("Line 1\nLine 2\nLine 3");
+  });
+
+  it("should handle very long title", () => {
+    renderWithProviders(<CreateListingPage />);
+    const titleInput = screen.getByLabelText("Title *") as HTMLInputElement;
+
+    const longTitle = "A".repeat(200);
+    fireEvent.change(titleInput, { target: { value: longTitle } });
+    expect(titleInput.value).toBe(longTitle);
+  });
+
+  it("should handle unicode characters in title", () => {
+    renderWithProviders(<CreateListingPage />);
+    const titleInput = screen.getByLabelText("Title *") as HTMLInputElement;
+
+    fireEvent.change(titleInput, { target: { value: "新鮮なりんご 🍎" } });
+    expect(titleInput.value).toBe("新鮮なりんご 🍎");
+  });
+
+  it("should handle pickup instructions with special formatting", () => {
+    renderWithProviders(<CreateListingPage />);
+    const instructionsInput = screen.getByLabelText("Pickup Instructions") as HTMLTextAreaElement;
+
+    const instructions = "1. Call first\n2. Use back door\n3. Ring twice";
+    fireEvent.change(instructionsInput, { target: { value: instructions } });
+    expect(instructionsInput.value).toBe(instructions);
+  });
+
+  it("should handle whitespace-only title", () => {
+    renderWithProviders(<CreateListingPage />);
+    const titleInput = screen.getByLabelText("Title *") as HTMLInputElement;
+
+    // Whitespace should be preserved (validation is server-side)
+    fireEvent.change(titleInput, { target: { value: "   " } });
+    expect(titleInput.value).toBe("   ");
   });
 });

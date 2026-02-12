@@ -168,14 +168,26 @@ export default function CreateListingPage() {
       // Upload images first
       const imageUrls = await uploadImages();
 
+      // Validate quantity - must be positive
+      const validQuantity = isNaN(quantity) || quantity <= 0 ? 1 : quantity;
+
+      // Validate price - must be null or a valid non-negative number
+      const parsedPrice = price === "" ? null : parseFloat(price);
+      const validPrice = parsedPrice === null ? null : (isNaN(parsedPrice) ? null : parsedPrice);
+
+      // Validate originalPrice - must be undefined or a valid positive number
+      const parsedOriginalPrice = originalPrice ? parseFloat(originalPrice) : undefined;
+      const validOriginalPrice = parsedOriginalPrice === undefined ? undefined :
+        (isNaN(parsedOriginalPrice) || parsedOriginalPrice <= 0 ? undefined : parsedOriginalPrice);
+
       const listing = await api.post<{ id: number }>("/marketplace/listings", {
         title,
         description: description || undefined,
         category: category || undefined,
-        quantity,
+        quantity: validQuantity,
         unit,
-        price: price === "" ? null : parseFloat(price),
-        originalPrice: originalPrice ? parseFloat(originalPrice) : undefined,
+        price: validPrice,
+        originalPrice: validOriginalPrice,
         expiryDate: expiryDate || undefined,
         pickupLocation: pickupLocation || undefined,
         coordinates: coordinates,
@@ -328,7 +340,10 @@ export default function CreateListingPage() {
                   min="0.1"
                   step="0.1"
                   value={quantity}
-                  onChange={(e) => setQuantity(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setQuantity(isNaN(val) ? 1 : val);
+                  }}
                 />
               </div>
 
