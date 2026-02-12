@@ -76,6 +76,11 @@ export default function LockerOrdersPage() {
       <LockerTabs />
 
       <div className="p-4">
+      {/* Page Header */}
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold">My Orders</h1>
+        <p className="text-sm text-muted-foreground">Track your EcoLocker orders</p>
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">

@@ -95,7 +95,7 @@ describe("MyListingsPage", () => {
   it("should render page title", async () => {
     renderWithProviders(<MyListingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("My Listings")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "My Listings" })).toBeInTheDocument();
     });
   });
 
@@ -106,10 +106,11 @@ describe("MyListingsPage", () => {
     });
   });
 
-  it("should display Create Listing button", async () => {
+  it("should display Create button", async () => {
     renderWithProviders(<MyListingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Create Listing")).toBeInTheDocument();
+      // The Create button shows "Create" on larger screens, "New" on mobile
+      expect(screen.getByRole("link", { name: /Create|New/i })).toBeInTheDocument();
     });
   });
 

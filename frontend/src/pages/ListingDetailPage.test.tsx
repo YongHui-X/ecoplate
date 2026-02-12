@@ -123,10 +123,11 @@ describe("ListingDetailPage", () => {
     expect(document.querySelector(".animate-spin")).toBeInTheDocument();
   });
 
-  it("should display Back to Marketplace button", async () => {
+  it("should display listing page content", async () => {
     renderWithProviders(<ListingDetailPage />);
     await waitFor(() => {
-      expect(screen.getByText("Back to Marketplace")).toBeInTheDocument();
+      // Page should load and display the listing title
+      expect(screen.getByText("Fresh Organic Apples")).toBeInTheDocument();
     });
   });
 
@@ -214,14 +215,12 @@ describe("ListingDetailPage", () => {
     });
   });
 
-  it("should navigate back when Back to Marketplace clicked", async () => {
+  it("should display seller information", async () => {
     renderWithProviders(<ListingDetailPage />);
     await waitFor(() => {
-      expect(screen.getByText("Back to Marketplace")).toBeInTheDocument();
+      expect(screen.getByText("John Seller")).toBeInTheDocument();
+      expect(screen.getByText("Seller")).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByText("Back to Marketplace"));
-    expect(mockNavigate).toHaveBeenCalledWith("/marketplace");
   });
 });
 

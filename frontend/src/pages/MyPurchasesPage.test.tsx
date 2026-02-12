@@ -91,7 +91,7 @@ describe("MyPurchasesPage", () => {
   it("should render page title", async () => {
     renderWithProviders(<MyPurchasesPage />);
     await waitFor(() => {
-      expect(screen.getByText("My Purchases")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "My Purchases" })).toBeInTheDocument();
     });
   });
 

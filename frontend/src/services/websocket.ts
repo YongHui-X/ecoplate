@@ -112,11 +112,11 @@ class WebSocketService {
     let wsUrl: string;
     if (isNative) {
       // For Capacitor apps, use the deployment server
-      // Use ws:// (not wss://) to avoid self-signed certificate issues
-      const serverHost = import.meta.env.VITE_WS_URL || "ws://18.143.173.20";
+      // VITE_WS_URL should be set to wss:// in production, ws:// only for local dev
+      const serverHost = import.meta.env.VITE_WS_URL || "wss://18.143.173.20";
       wsUrl = `${serverHost}/ws?token=${encodeURIComponent(token)}`;
     } else {
-      // For web, use the same host as the page
+      // For web, use the same host as the page with secure protocol matching
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = window.location.host;
       wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
