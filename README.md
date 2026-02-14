@@ -4,9 +4,10 @@
 
 EcoPlate transforms how households manage food consumption by combining **OpenAI Vision receipt scanning**, **ML-driven price recommendations**, **real-time WebSocket messaging**, and a **CO2-based gamification engine** — turning sustainable actions into points, badges, and leaderboard achievements.
 
-Built with **React 19**, **TypeScript**, **Bun**, **SQLite (Drizzle ORM)**, **Capacitor (Android/iOS)**, and **Tailwind CSS + shadcn/ui**.
+Built with **React 19**, **TypeScript**, **Bun**, **SQLite (Drizzle ORM)**, **Capacitor (Android/iOS)**, and **Tailwind CSS + shadcn/ui**. 
 
-production web (only for the month of Feb) : 18.143.173.20
+production web (only for the month of Feb): 18.143.173.20
+
 ---
 
 ## System Architecture
