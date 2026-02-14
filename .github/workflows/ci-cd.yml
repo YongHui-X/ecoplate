@@ -1084,7 +1084,7 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     needs: [build-and-push, set-env, scan-app-image, scan-rec-image]
-    if: needs.set-env.outputs.deploy_env == 'staging'
+    if: needs.set-env.outputs.deploy_env == 'staging' && secrets.EC2_DEV_SSH_KEY != ''
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -1119,7 +1119,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     needs: [build-and-push, set-env, scan-app-image, scan-rec-image]
-    if: needs.set-env.outputs.deploy_env == 'production'
+    if: needs.set-env.outputs.deploy_env == 'production' && secrets.EC2_SSH_KEY != ''
     runs-on: ubuntu-latest
     environment: production
     steps:
