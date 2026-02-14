@@ -844,6 +844,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deploy_env: ${{ steps.env.outputs.deploy_env }}
+      has_staging_key: ${{ steps.secrets.outputs.has_staging_key }}
+      has_production_key: ${{ steps.secrets.outputs.has_production_key }}
     steps:
       - name: Determine deployment environment
         id: env
@@ -855,6 +857,16 @@ jobs:
             echo "deploy_env=staging" >> $GITHUB_OUTPUT
           fi
           echo "Ref: $REF"
+
+      - name: Check deploy secrets
+        id: secrets
+        run: |
+          if [ -n "${{ secrets.EC2_DEV_SSH_KEY }}" ]; then
+            echo "has_staging_key=true" >> $GITHUB_OUTPUT
+          fi
+          if [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "has_production_key=true" >> $GITHUB_OUTPUT
+          fi
 
   # ===========================================================================
   # LAYER 3 — Build & Push Container Images (push only)
@@ -1084,7 +1096,7 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     needs: [build-and-push, set-env, scan-app-image, scan-rec-image]
-    if: needs.set-env.outputs.deploy_env == 'staging' && secrets.EC2_DEV_SSH_KEY != ''
+    if: needs.set-env.outputs.deploy_env == 'staging' && needs.set-env.outputs.has_staging_key == 'true'
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -1119,7 +1131,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     needs: [build-and-push, set-env, scan-app-image, scan-rec-image]
-    if: needs.set-env.outputs.deploy_env == 'production' && secrets.EC2_SSH_KEY != ''
+    if: needs.set-env.outputs.deploy_env == 'production' && needs.set-env.outputs.has_production_key == 'true'
     runs-on: ubuntu-latest
     environment: production
     steps:
