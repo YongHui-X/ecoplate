@@ -2,19 +2,15 @@
 
 > A full-stack sustainability platform that reduces household food waste through AI-powered inventory tracking, a peer-to-peer marketplace, and a gamified reward system.
 
-EcoPlate transforms how households manage food consumption by combining **OpenAI Vision receipt scanning**, **ML-driven price recommendations**, **real-time WebSocket messaging**, and a **CO2-based gamification engine** — turning sustainable actions into points, badges, and leaderboard achievements.
+EcoPlate transforms how households manage food consumption by combining **OpenAI Vision receipt scanning**, **ML price recommendations**, **real-time WebSocket messaging**, and a **CO2 gamification engine**, turning sustainable actions into points, badges, and leaderboard achievements.
 
 Built with **React 19**, **TypeScript**, **Bun**, **SQLite (Drizzle ORM)**, **Capacitor (Android/iOS)**, and **Tailwind CSS + shadcn/ui**. 
 
 Production web (only for the month of Feb): 18.143.173.20
 
----
-
 ## System Architecture
 
 <img width="2071" height="1246" alt="Software Architecture" src="https://github.com/user-attachments/assets/e0d499c6-43bd-4a5b-8474-b5c163b69a4e" />
-
----
 
 ## Screenshots
 
@@ -30,30 +26,26 @@ Production web (only for the month of Feb): 18.143.173.20
 |:-:|
 | <img width="720" alt="EcoPoints" src="https://github.com/user-attachments/assets/668048fe-849b-465b-8dc3-c52d372fa5a4" /> |
 
----
-
 ## Key Features
 
-### MyFridge — AI-Powered Inventory Management
+### MyFridge: AI Powered Inventory Management
 - Track food items with expiration dates and CO2 emission data
-- **Receipt scanning** via OpenAI Vision — snap a photo, items are parsed and added automatically
-- Log consumption, waste, sharing, and sales with per-action sustainability metrics
+- **Receipt scanning** via OpenAI Vision: snap a photo, items are parsed and added automatically
+- Log consumption, waste, sharing, and sales with sustainability metrics per action
 
-### Marketplace — Peer-to-Peer Food Redistribution
-- List near-expiry food items for sale or free pickup
-- Browse listings with geolocation-based map view
-- **ML-powered price recommendations** for optimal listing pricing
-- **Real-time in-app messaging** between buyers and sellers via WebSockets
+### Marketplace: Peer to Peer Food Redistribution
+- List near expiry food items for sale or free pickup
+- Browse listings with geolocation based map view
+- **ML powered price recommendations** for optimal listing pricing
+- **Real time in app messaging** between buyers and sellers via WebSockets
 - Complete transactions to earn EcoPoints tied to CO2 savings
 
-### EcoPoints & Badges — Gamification Engine
+### EcoPoints & Badges: Gamification Engine
 - Earn points calculated from **CO2 savings** (CO2 value x 1.5, minimum 3 points per action)
 - **16 unlockable badges** across 4 categories: Milestones, Waste Reduction, Sharing, and Streaks
-- Daily streak tracking with milestone notifications (3, 7, 14, 30+ days)
+- Daily streak tracking with milestone notifications (3, 7, 14, 30 days and beyond)
 - Community leaderboard ranked by lifetime points
 - Redeem points for rewards
-
----
 
 ## Tech Stack
 
@@ -70,8 +62,6 @@ Production web (only for the month of Feb): 18.143.173.20
 | **AI/ML** | OpenAI Vision API, Python recommendation engine |
 | **Auth** | JWT (jose library) |
 | **Validation** | [Zod](https://zod.dev) |
-
----
 
 ## User Flow
 
@@ -124,13 +114,9 @@ flowchart TD
     end
 ```
 
----
-
 ## Database Schema
 
 <img width="4947" height="2689" alt="ERD Diagram" src="https://github.com/user-attachments/assets/f04b8b4c-e6cf-40bb-9810-cf306cacaea0" />
-
----
 
 ## API Endpoints
 
@@ -173,8 +159,6 @@ flowchart TD
 | GET | `/api/v1/gamification/badges` | All badges with progress |
 | GET | `/api/v1/gamification/metrics` | Sustainability metrics |
 | GET | `/api/v1/gamification/leaderboard` | Community leaderboard |
-
----
 
 ## Authentication Flow
 
@@ -234,8 +218,6 @@ sequenceDiagram
     F->>U: Success + points awarded
 ```
 
----
-
 ## Project Structure
 
 ```
@@ -274,8 +256,6 @@ ecoplate/
 │   └── requirements.txt         # Python dependencies
 └── scripts/                     # Build & deployment scripts
 ```
-
----
 
 ## Getting Started
 
@@ -334,8 +314,6 @@ APK output: `frontend/android/app/build/outputs/apk/debug/app-debug.apk`
 
 > **Note:** Capacitor 6.x + Android Gradle Plugin 9.0+ compatibility patches are applied automatically via `bun install`. See `docs/android-build-patching.md` for details.
 
----
-
 ## Environment Variables
 
 | Variable | Description | Required |
@@ -343,8 +321,6 @@ APK output: `frontend/android/app/build/outputs/apk/debug/app-debug.apk`
 | `PORT` | Server port (default: 3000) | No |
 | `JWT_SECRET` | Secret key for JWT signing | Yes (production) |
 | `OPENAI_API_KEY` | OpenAI API key for receipt scanning | No |
-
----
 
 ## Database
 
@@ -356,8 +332,6 @@ SQLite database stored at `backend/ecoplate.db`:
 | **MyFridge** | `products`, `product_interaction` |
 | **Marketplace** | `marketplace_listings`, `image_listing`, `conversation`, `message` |
 | **Gamification** | `user_points`, `badges`, `user_badges`, `product_sustainability_metrics` |
-
----
 
 ## License
 
