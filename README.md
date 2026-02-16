@@ -11,6 +11,8 @@ Production web (only for the month of Feb): 18.143.173.20
 ## System Architecture
 
 <img width="2071" height="1246" alt="Software Architecture" src="https://github.com/user-attachments/assets/e0d499c6-43bd-4a5b-8474-b5c163b69a4e" />
+DevSecOps Diagram
+<img width="9192" height="5217" alt="DevSecOps_Diagram" src="https://github.com/user-attachments/assets/effa5cb8-1315-4143-a1f6-c4864c90f31d" />
 
 ## Screenshots
 
