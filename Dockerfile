@@ -99,4 +99,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=5 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/v1/health || exit 1
 
 # Start with entrypoint (runs migration + seed, then starts server)
-ENTRYPOINT ["sh", "/app/entrypoint.sh"]
+#ENTRYPOINT ["sh", "/app/entrypoint.sh"]
+CMD ["sh", "-c", "mkdir -p /app/data && rm -f ${DATABASE_PATH:-/app/data/ecoplate.db} && echo '[startup] Running migrations...' && bun run src/db/migrate.ts && echo '[startup] Running seed...' && bun run src/db/seed.ts && echo '[startup] Starting server...' && exec bun run src/index.ts"]
