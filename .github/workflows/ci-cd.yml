@@ -919,6 +919,7 @@ jobs:
           tags: ${{ steps.tags.outputs.app_tags }}
           build-args: |
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          no-cache: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
